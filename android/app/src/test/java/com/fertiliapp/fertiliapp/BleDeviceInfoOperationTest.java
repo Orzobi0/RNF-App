@@ -148,4 +148,24 @@ public class BleDeviceInfoOperationTest {
         for (int i = 0; i < 5; i++) complete.respond(i, new byte[] {66});
         assertEquals(1, next.calls); assertNull(next.error);
     }
+    @Test public void candidateInspectionReadsOnlyIdentityWithShortBudgetAndIgnoresLateCallbacks() {
+        Fixture f = new Fixture();
+        f.available[0] = false; f.available[3] = false; f.available[4] = false;
+        Reply reply = new Reply();
+        f.operation.start(f.connection, f, reply::accept, 4500L);
+        assertEquals(4500L, f.budget);
+        assertEquals(Arrays.asList(1), f.requests);
+        f.text(1, "Other model");
+        assertEquals(Arrays.asList(1, 2), f.requests);
+        f.text(2, "Other brand");
+        assertEquals(1, reply.calls); assertNull(reply.error);
+        assertEquals("Other model", reply.result.get("model"));
+        assertNull(reply.result.get("firmware")); assertNull(reply.result.get("battery"));
+        Reply timeout = new Reply();
+        f.operation.start(f.connection, f, timeout::accept, 4500L);
+        f.deadline.run();
+        f.text(1, "late");
+        assertEquals(1, timeout.calls); assertEquals("DEVICE_INFO_TIMEOUT", timeout.error);
+    }
+
 }

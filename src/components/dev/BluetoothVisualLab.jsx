@@ -301,11 +301,11 @@ export default function BluetoothVisualLab({ Provider, children }) {
         }, 700);
       });
     },
-    scan: () => {
+    scan: (expanded = false) => {
       if (operationBlocked()) return;
       setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null, devices: [], selectedDeviceId: '', inspectionResult: null }));
       timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'idle', busy: false,
-        devices: [{ id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'BM-Vinca2 (incompatible simulado)', rssi: -72 }, { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
+        devices: [{ id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'Otra marca (simulado)', compatibility: 'unknown', rssi: -72 }, { id: 'lab-standard', name: null, compatibility: 'possible_standard', rssi: -68 }, ...(expanded ? [{ id: 'lab-unknown', name: 'BLE sin identificar (simulado)', compatibility: 'unknown', rssi: -80 }] : []), { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
     },
     selectAndRemember: deviceId => {
       if (operationBlocked()) return Promise.resolve(false);
@@ -318,11 +318,11 @@ export default function BluetoothVisualLab({ Provider, children }) {
         bindingJob.current = resolve;
         timer.current = setTimeout(() => {
           const inspectionFailed = deviceId === 'lab-inspection-error';
-          const compatible = !inspectionFailed && deviceId !== 'lab-other';
+          const compatible = !inspectionFailed && !['lab-other', 'lab-standard', 'lab-unknown'].includes(deviceId);
           const saveFailed = deviceId === 'lab-save-error';
           const confirmed = compatible && !saveFailed;
           setSessionState(previous => ({ ...previous, status: inspectionFailed || saveFailed ? 'error' : 'idle', busy: false,
-            inspectionResult: inspectionFailed ? null : { compatible, healthThermometerFound: compatible, temperatureMeasurementFound: compatible,
+            inspectionResult: inspectionFailed ? null : { compatible, model: compatible ? 'BM-Vinca2' : deviceId === 'lab-other' ? 'Modelo de demostración' : null, protocol: compatible ? 'vinca2' : null, compatibility: compatible ? 'compatible' : deviceId === 'lab-other' ? 'recognized_unsupported' : deviceId === 'lab-standard' ? 'possible_standard' : 'unknown', healthThermometerFound: compatible, temperatureMeasurementFound: compatible,
               services: [{ uuid: '00001809-0000-1000-8000-00805f9b34fb', characteristics: [{ uuid: '00002a1c-0000-1000-8000-00805f9b34fb', properties: ['indicate'] }] }] },
             error: inspectionFailed ? { code: 'CONNECTION_TIMEOUT', message: 'Simulación: no se pudo completar la comprobación.' }
               : saveFailed ? { code: 'PERSISTENCE_FAILED', message: 'Simulación: no se pudo confirmar la vinculación.' } : null,

@@ -14,7 +14,7 @@ test('panel automatic session uses the real bridge wrappers without requesting p
         calls.push({ plugin, method, options });
         if (method === 'getRememberedDevice') return { remembered: true };
         if (method === 'scan') return { devices: [{ id: 'wrong' }, { id: 'right', isRemembered: true }] };
-        if (method === 'startTemperatureListener') return { connectionReady: true, indicationsActive: true };
+        if (method === 'startTemperatureListener') return { connectionReady: true, indicationsActive: true, capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' } };
         if (method === 'disconnect') return {};
         throw new Error(`Unexpected method: ${method}`);
       },
@@ -29,10 +29,12 @@ test('panel automatic session uses the real bridge wrappers without requesting p
     await session.start();
     assert.deepEqual(calls.map(call => call.method), ['getRememberedDevice', 'scan', 'addListener', 'startTemperatureListener']);
     assert.deepEqual(calls[1].options, { userId: 'account' });
-    assert.deepEqual(calls[3].options, { deviceId: 'right' });
+    assert.deepEqual(calls[3].options, { deviceId: 'right', userId: 'account' });
     assert.equal(states.at(-1).status, 'listening');
     await session.dispose();
     assert.deepEqual(calls.slice(-2).map(call => call.method), ['disconnect', 'removeListener']);
+    await ble.scanForFemometer('account', true);
+    assert.deepEqual(calls.at(-1).options, { userId: 'account', expanded: true });
   } finally {
     await session?.dispose();
     globalThis.window = oldWindow;

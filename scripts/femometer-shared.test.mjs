@@ -29,7 +29,7 @@ const bridge = () => {
       calls.connections++;
       if (flags.listenerWait) await flags.listenerWait.promise;
       return { deviceKey, connectionReady: flags.listenerReady !== false, indicationsActive: flags.indicationsActive !== false, timeoutSeconds: 360,
-        capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true, volumeWrite: flags.volumeSupported !== false, modeConfiguration: flags.measurementModeSupported !== false } };
+        capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible', clockRead: true, clockSync: true, volumeWrite: flags.volumeSupported !== false, modeConfiguration: flags.measurementModeSupported !== false } };
     },
     disconnectFemometer: async () => { calls.disconnects++; if (flags.disconnectWait) await flags.disconnectWait.promise; },
     readFemometerClock: async () => {
@@ -58,7 +58,7 @@ const bridge = () => {
       return flags.infoResult ?? { battery: 85, model: 'BM-Vinca2', manufacturer: 'Femometer', firmware: 'FW-1', software: 'SW-2' };
     },
   };
-  return { factory: createFemometerSessionManager(api), api, calls, flags, storage, emit: event => emit?.({ deviceKey, ...event }) };
+  return { factory: createFemometerSessionManager(api), api, calls, flags, storage, emit: event => emit?.({ deviceKey, deviceModel: 'BM-Vinca2', ...event }) };
 };
 
 async function mountedOwner(native, initialUser = 'a') {
@@ -421,7 +421,7 @@ test('device routes use the shared state and are unavailable outside the enabled
   deviceState = { remembered: true, status: 'stopped' };
   assert.match(JSON.stringify(render()), /Desconectado/);
   deviceState = { remembered: false, status: 'idle' };
-  assert.match(JSON.stringify(render()), /Vincula tu Femometer Vinca 2/);
+  assert.match(JSON.stringify(render()), /Busca tu termómetro/);
   assert.equal(treeNodes(render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'), false);
   assert.equal(Vinca2DevicePage().props.to, '/settings/devices');
   deviceState = { remembered: null, status: 'checking' };
@@ -468,19 +468,25 @@ test('quick review preserves the original date, cancels without saving and requi
   const render = () => harness.render(() => ({ props: { value: BleReadingReview({ userId: 'a', reading, onClose: () => closed++ }) } }));
   let nodes = treeNodes(render());
   assert.equal(nodes.find(node => node.type === 'input' && node.props.type === 'date').props.value, '2020-01-02');
-  nodes.find(node => node.type === 'button' && node.props.children.includes('Cancelar')).props.onClick();
+  const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
+    ...harness.bindings, Button: 'button', PlusCircle: 'plus', Copy: 'copy', AlertTriangle: 'alert', ChevronDown: 'down', X: 'close',
+    window: { clearTimeout() {} },
+  }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
+  const card = FemometerReviewCard({ readings: [reading], selected: reading, expanded: true, onDismiss: () => closed++ });
+  treeNodes(card).find(node => node.props['aria-label'] === 'Cerrar aviso').props.onClick();
+  assert.equal(reading.importStatus, 'pending');
   assert.equal(saves.length, 0); assert.equal(closed, 1);
   nodes = treeNodes(render());
-  await nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar')).props.onClick();
+  await nodes.find(node => node.type === 'button' && JSON.stringify(node.props.children).includes('Confirmar e incorporar')).props.onClick();
   assert.equal(saves[0].options.allowPossibleDuplicate, false);
   assert.equal(saves[0].draft.measurements[0].device_date_reliability, 'unverified');
   nodes = treeNodes(render());
   assert.ok(nodes.some(node => node.props['aria-label'] === 'Posible duplicado'));
-  const guarded = nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar'));
+  const guarded = nodes.find(node => node.type === 'button' && JSON.stringify(node.props.children).includes('Confirmar e incorporar'));
   assert.equal(guarded.props.disabled, true); await guarded.props.onClick(); assert.equal(saves.length, 1);
   nodes.find(node => node.type === 'button' && JSON.stringify(node.props.children).includes('Sí, es otra medición')).props.onClick();
   nodes = treeNodes(render());
-  await nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar')).props.onClick();
+  await nodes.find(node => node.type === 'button' && JSON.stringify(node.props.children).includes('Confirmar e incorporar')).props.onClick();
   assert.equal(saves[1].options.allowPossibleDuplicate, true);
   assert.equal(closed, 2);
   harness.cleanup();
@@ -791,7 +797,7 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(lab().sessionState.remembered, false);
   lab().sessionRef.current.scan();
   assert.equal(lab().sessionState.status, 'searching'); finish();
-  assert.equal(lab().sessionState.devices.length, 4);
+  assert.equal(lab().sessionState.devices.length, 5);
   let binding = lab().sessionRef.current.selectAndRemember('lab-other'); finish();
   assert.equal(await binding, false); assert.equal(lab().sessionState.remembered, false);
   binding = lab().sessionRef.current.selectAndRemember('lab-inspection-error'); finish();
@@ -1182,21 +1188,21 @@ test('Devices searches with one permission request and links with one result tap
     getRememberedFemometer: async () => ({ remembered: false }),
     requestBluetoothPermissions: async () => { permissions++; },
     scanForFemometer: async () => [{ id: 'other', name: 'Otro' }, { id: 'vinca', name: 'BM-Vinca2' }],
-    connectAndInspectFemometer: async id => { calls.push('inspect:' + id); return { compatible: id === 'vinca' }; },
+    connectAndInspectFemometer: async id => { calls.push('inspect:' + id); return { compatible: id === 'vinca', model: id === 'vinca' ? 'BM-Vinca2' : null, protocol: id === 'vinca' ? 'vinca2' : null }; },
     disconnectFemometer: async () => { calls.push('disconnect'); },
     rememberFemometer: async (_, id) => { calls.push('remember:' + id); return { remembered: true, deviceKey: 'new' }; },
     addFemometerTemperatureListener: async () => ({ remove: async () => {} }),
-    startFemometerTemperatureListener: async () => { calls.push('listen'); return { deviceKey: 'new', connectionReady: true, indicationsActive: true }; },
+    startFemometerTemperatureListener: async () => { calls.push('listen'); return { deviceKey: 'new', connectionReady: true, indicationsActive: true, capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' } }; },
   })('a', state => { h.ble.sessionState = state; }, () => {}, createFemometerLocalState(memoryStorage(), 'a'));
   h.ble.sessionRef.current = session;
   try {
-    assert.match(JSON.stringify(h.render()), /Femometer Connect esté completamente cerrada/);
+    assert.match(JSON.stringify(h.render()), /cierra otras aplicaciones conectadas al termómetro/);
     const search = h.button('Buscar termómetros');
     assert.match(search.props.className, /w-fit/); assert.doesNotMatch(search.props.className, /(^|\s)w-full(\s|$)/);
     await search.props.onClick(); assert.equal(permissions, 1);
-    assert.equal(h.button('Comprobar compatibilidad'), undefined);
+    assert.ok(h.button('Comprobar compatibilidad'));
     await h.button('Otro').props.onClick();
-    assert.match(JSON.stringify(h.render()), /Este termómetro no es compatible actualmente/);
+    assert.match(JSON.stringify(h.render()), /No se puede vincular actualmente/);
     const click = h.button('BM-Vinca2').props.onClick;
     const first = click(); await click(); await first;
     assert.deepEqual(calls, ['inspect:other', 'disconnect', 'inspect:vinca', 'disconnect', 'remember:vinca', 'listen']);
@@ -1233,7 +1239,7 @@ test('replacement requires confirmation, can be abandoned and retains the linked
   h.button('Cambiar termómetro').props.onClick(); await h.button('Continuar').props.onClick();
   await h.button('Buscar termómetros').props.onClick();
   await h.button('BM-Vinca2 nuevo').props.onClick();
-  assert.doesNotMatch(JSON.stringify(h.render()), /Este termómetro no es compatible actualmente/);
+  assert.doesNotMatch(JSON.stringify(h.render()), /No se puede vincular actualmente/);
   assert.equal(h.ble.sessionState.deviceKey, 'old'); assert.equal(h.ble.pendingCount, 2);
   await h.button('Cancelar cambio').props.onClick();
   assert.equal(h.button('Buscar termómetros'), undefined);
@@ -1310,12 +1316,12 @@ const coordinatedBindingFixture = async (overrides = {}) => {
     getRememberedFemometer: async () => ({ remembered: true, deviceKey: storedKey }),
     requestBluetoothPermissions: async () => {},
     scanForFemometer: async () => [{ id: 'old', isRemembered: true }, { id: 'new' }, { id: 'other' }],
-    connectAndInspectFemometer: async id => { calls.push(['inspect', id]); return { compatible: true }; },
+    connectAndInspectFemometer: async id => { calls.push(['inspect', id]); return { compatible: true, model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' }; },
     disconnectFemometer: async () => { calls.push(['disconnect']); },
     rememberFemometer: async (user, id) => { calls.push(['remember', user, id]); storedKey = id; return { remembered: true, deviceKey: id }; },
     forgetFemometer: () => { throw Error('Never forget before replacing'); },
     addFemometerTemperatureListener: async () => ({ remove: async () => {} }),
-    startFemometerTemperatureListener: async id => { calls.push(['listen', id]); return { deviceKey: id, connectionReady: true, indicationsActive: true }; },
+    startFemometerTemperatureListener: async id => { calls.push(['listen', id]); return { deviceKey: id, connectionReady: true, indicationsActive: true, capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' } }; },
     ...overrides,
   };
   const factory = createFemometerSessionManager(api);
@@ -1337,7 +1343,7 @@ test('coordinated binding waits for disconnect, freezes selection and keeps prev
   assert.equal(h.state().selectedDeviceId, 'new');
   assert.equal(await h.session.selectAndRemember('other'), false);
   await h.session.scan(); // Another operation cannot replace the scan during the job.
-  inspection.resolve({ compatible: true }); await flush();
+  inspection.resolve({ compatible: true, model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' }); await flush();
   assert.deepEqual(h.calls, [['inspect', 'new'], ['disconnect']]);
   assert.equal(h.state().deviceKey, 'old');
   cleanup.resolve(); await flush();
@@ -1356,7 +1362,7 @@ test('incompatible, failed inspection/cleanup and unconfirmed persistence never 
     let remembers = 0;
     h.api.connectAndInspectFemometer = async () => {
       if (failure === 'inspection') throw { code: 'CONNECTION_TIMEOUT', message: 'Timeout' };
-      return failure === 'malformed' ? null : { compatible: failure !== 'incompatible' };
+      return failure === 'malformed' ? null : { compatible: failure !== 'incompatible', model: 'BM-Vinca2', protocol: 'vinca2' };
     };
     h.api.disconnectFemometer = async () => { if (failure === 'cleanup') throw Error('disconnect failed'); };
     h.api.rememberFemometer = async () => {
@@ -1394,7 +1400,7 @@ test('stop, suspend and account replacement invalidate late inspections before p
       successor = h.factory('b', () => {}, () => {});
       cleanup = h.session.dispose();
     } else cleanup = h.session[cancellation]();
-    wait.resolve({ compatible: true });
+    wait.resolve({ compatible: true, model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' });
     assert.equal(await binding, false); await cleanup;
     assert.equal(h.calls.some(call => call[0] === 'remember'), false);
     assert.equal(h.storedKey(), 'old');
@@ -2142,7 +2148,7 @@ test('binding: confirmed link survives a subsequent listener failure and retry d
   assert.equal(h.state().remembered, true); assert.equal(h.state().deviceKey, 'new'); assert.equal(h.state().status, 'error');
   assert.deepEqual(h.local.preferences('new'), { volume: 'medium', measurementMode: 'normal' });
   h.api.scanForFemometer = async () => [{ id: 'new', isRemembered: true }];
-  h.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'new', connectionReady: true, indicationsActive: true });
+  h.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'new', connectionReady: true, indicationsActive: true, capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' } });
   await h.session.start(); assert.equal(h.state().status, 'listening');
   assert.equal(h.calls.filter(row => row[0] === 'remember').length, 1);
   await h.session.dispose();
@@ -2291,7 +2297,7 @@ test('UI: stored preferences remain selected when disconnected, and normal revie
   const incorporate = nodes.findIndex(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Confirmar e incorporar'));
   assert.ok(discard >= 0 && incorporate > discard);
   assert.equal(nodes[discard].props.variant, 'ghost'); assert.match(nodes[discard].props.className, /min-h-11/);
-  assert.match(nodes[incorporate].props.className, /ml-auto.*min-h-11.*bg-fertiliapp-fuerte/);
+  assert.match(nodes[incorporate].props.className, /min-h-11.*w-full.*bg-fertiliapp-fuerte/);
   assert.ok(nodes.some(n => n.type === 'footer' && n.props.className.includes('safe-area-inset-bottom')));
   harness.cleanup();
 });
@@ -2421,7 +2427,7 @@ test('presentation: binding notice only follows confirmation, closes and expires
   h.cleanup(); assert.equal(h.timers.size, 0);
 });
 
-test('presentation: review footer has exactly one cancel, discard and primary action in two rows', async () => {
+test('presentation: review footer has discard on the left and incorporation on the right; closing belongs to the container', async () => {
   const harness = hooks(); const calls = [];
   const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', {
     ...harness.bindings, Button: 'button', Input: 'input', CheckCircle2: 'check', Trash2: 'trash', PlusCircle: 'plus', measurementDisplay, measurementSourceLabel,
@@ -2433,14 +2439,16 @@ test('presentation: review footer has exactly one cancel, discard and primary ac
   const rows = footer.props.children;
   assert.equal(rows.length, 2);
   const labels = row => treeNodes(row).filter(n => n.type === 'button').map(n => JSON.stringify(n.props.children));
-  assert.equal(labels(rows[0]).length, 2); assert.match(labels(rows[0])[0], /Descartar temperatura/); assert.match(labels(rows[0])[1], /Cancelar/);
+  assert.match(footer.props.className, /grid grid-cols-2/);
+  assert.equal(labels(rows[0]).length, 1); assert.match(labels(rows[0])[0], /Descartar temperatura/);
   assert.equal(labels(rows[1]).length, 1); assert.match(labels(rows[1])[0], /Confirmar e incorporar/);
   const buttons = treeNodes(footer).filter(n => n.type === 'button');
-  buttons[1].props.onClick(); assert.deepEqual(calls, ['close']);
-  buttons[0].props.onClick(); buttons[2].props.onClick(); assert.deepEqual(calls, ['close', 'requestDiscard', 'incorporate']);
+  assert.equal(buttons.length, 2);
+  buttons[0].props.onClick(); buttons[1].props.onClick(); assert.deepEqual(calls, ['requestDiscard', 'incorporate']);
   for (const button of treeNodes(BleReadingReviewView({ ...props, busy: true })).filter(n => n.type === 'button')) assert.equal(button.props.disabled, true);
   const duplicate = treeNodes(BleReadingReviewView({ ...props, error: { code: 'ble-possible-duplicate' } }));
-  assert.equal(duplicate.filter(n => n.type === 'button' && n.props.children.includes('Cancelar')).length, 1);
+  assert.equal(duplicate.filter(n => n.type === 'button' && n.props.children.includes('Cancelar')).length, 0);
+  assert.equal(duplicate.find(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Confirmar e incorporar')).props.disabled, true);
   harness.cleanup();
 });
 
@@ -2455,10 +2463,127 @@ test('presentation: readiness requires active indications and connection, and pr
   for (const remembered of [false, true]) {
     h.ble.sessionState.remembered = remembered;
     const photos = treeNodes(h.render()).filter(n => n.type === 'img');
-    assert.equal(photos.length, 1);
+    assert.equal(photos.length, remembered ? 1 : 0);
+    if (!remembered) continue;
     assert.equal(photos[0].props.src, '/images/vinca2.jpg');
     assert.match(photos[0].props.className, /object-contain/);
     assert.ok(photos[0].props.alt && photos[0].props.width && photos[0].props.height);
   }
   h.cleanup();
+});
+
+
+test('multibrand: expanded search is explicit and never changes an existing binding', async () => {
+  const h = await coordinatedBindingFixture();
+  const scans = [];
+  h.api.scanForFemometer = async (user, expanded) => { scans.push({ user, expanded }); return [{ id: 'unknown' }]; };
+  await h.session.scan(); await h.session.scan(true);
+  assert.deepEqual(scans, [{ user: 'a', expanded: false }, { user: 'a', expanded: true }]);
+  assert.equal(h.storedKey(), 'old'); assert.equal(h.state().deviceKey, 'old');
+  assert.equal(h.calls.some(([name]) => name === 'remember'), false);
+  await h.session.dispose();
+});
+
+test('multibrand: only the implemented and inspected profile can replace a binding', async () => {
+  for (const inspection of [
+    { compatible: false, compatibility: 'unknown' },
+    { compatible: false, compatibility: 'possible_standard', healthThermometerFound: true, temperatureMeasurementFound: true },
+    { compatible: false, compatibility: 'recognized_unsupported', model: 'Other model', manufacturer: 'Other brand' },
+    { compatible: true, model: 'Other model', protocol: 'vinca2' },
+    { compatible: true, model: 'BM-Vinca2', protocol: 'standard' },
+    { compatible: true },
+  ]) {
+    const h = await coordinatedBindingFixture({ connectAndInspectFemometer: async () => inspection });
+    assert.equal(await h.session.selectAndRemember('new'), false);
+    assert.equal(h.storedKey(), 'old'); assert.equal(h.state().deviceKey, 'old');
+    assert.deepEqual(h.local.preferences('new'), {});
+    assert.equal(h.calls.some(([name]) => ['remember', 'listen'].includes(name)), false);
+    await h.session.dispose();
+  }
+});
+
+test('multibrand: a reconnected unknown profile cannot configure clock, volume or mode', async () => {
+  const native = bridge();
+  native.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'bound-a', connectionReady: true, indicationsActive: true,
+    capabilities: { model: 'Other model', protocol: 'standard', compatibility: 'compatible', clockRead: true, clockSync: true, volumeWrite: true, modeConfiguration: true } });
+  let state;
+  const session = native.factory('a', next => { state = next; }, () => {});
+  await session.start(); await session.readClock(); await session.syncClock(); await session.setVolume('medium'); await session.setMeasurementMode('normal');
+  assert.equal(state.status, 'error'); assert.equal(state.error.code, 'DEVICE_NOT_VERIFIED');
+  assert.equal(native.calls.clock, 0); assert.equal(native.calls.sync, 0);
+  assert.deepEqual(native.calls.volume, []); assert.deepEqual(native.calls.measurementMode, []);
+  assert.equal(native.calls.listeners, 0);
+  await session.dispose();
+});
+
+test('multibrand: origin stays with each pending reading across device changes and recovery', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.42, deviceTimestamp: '2026-11-18T08:00:00', receivedAt: '2026-11-18T08:01:00' });
+    const first = owner.render().readings[0];
+    assert.equal(first.normalized.device_model, 'BM-Vinca2');
+    assert.equal(first.normalized.device_key, 'bound-a');
+    // Normalization preserves an explicitly reported different origin, without granting import support.
+    const other = normalizeBleMeasurement({ deviceModel: 'Other model', deviceKey: 'other', temperatureC: 36.8, deviceTimestamp: '2026-11-18T09:00:00' }, 'BM-Vinca2');
+    assert.equal(other.device_model, 'Other model');
+    assert.throws(() => prepareManualBleDraft(other, { confirmed: true, isoDate: '2026-11-18', time: '09:00', userId: 'a', cycleId: 'cycle' }));
+    const local = createFemometerLocalState(native.storage, 'a');
+    local.activate('another-binding');
+    const recovered = createFemometerLocalState(native.storage, 'a').recover()[0];
+    assert.deepEqual(recovered.normalized, first.normalized);
+    assert.equal(recovered.normalized.received_at, '2026-11-18T08:01:00');
+    assert.equal(recovered.normalized.device_date_reliability, 'unverified');
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('multibrand: UI distinguishes discovery states and expanded search; unknown models have no Vinca image or settings', async () => {
+  const h = await devicesFixture({ devices: [
+    { id: 'standard', compatibility: 'possible_standard' },
+    { id: 'other', model: 'Other model', compatibility: 'recognized_unsupported' },
+    { id: 'unknown', name: 'BLE device', compatibility: 'unknown' },
+  ] });
+  const scans = []; h.ble.sessionRef.current.scan = async value => scans.push(value);
+  assert.match(JSON.stringify(h.render()), /Posible termómetro estándar/);
+  assert.match(JSON.stringify(h.render()), /Modelo reconocido/);
+  assert.match(JSON.stringify(h.render()), /Dispositivo BLE sin identificar/);
+  assert.match(JSON.stringify(h.render()), /no garantiza.*termómetro basal/);
+  assert.equal(treeNodes(h.render()).filter(n => n.type === 'img').length, 0);
+  await h.button('¿No encuentras tu termómetro?').props.onClick();
+  assert.deepEqual(scans, [true]); h.cleanup();
+  const panel = await vincaPanelFixture({ remembered: true, boundModel: 'Other model', status: 'listening', capabilities: {} });
+  assert.equal(treeNodes(panel.render()).filter(n => n.type === 'img').length, 0);
+  assert.equal(panel.button('Medio'), undefined); assert.equal(panel.button('Normal'), undefined);
+  assert.equal(panel.button('Leer reloj'), undefined);
+  assert.doesNotMatch(JSON.stringify(panel.render()), /Femometer Vinca 2/);
+  panel.cleanup();
+});
+
+test('multibrand: capability flags require both the implemented model and validated protocol', async () => {
+  const { thermometerCapabilities } = await import('../src/lib/thermometerCapabilities.js');
+  const flags = { clockRead: true, clockSync: true, volumeWrite: true, modeConfiguration: true, historyReceive: true };
+  for (const identity of [{ model: 'Other model', protocol: 'vinca2', compatibility: 'compatible' },
+    { model: 'BM-Vinca2', protocol: 'standard', compatibility: 'compatible' }, { model: 'BM-Vinca2' }]) {
+    const result = thermometerCapabilities({ ...flags, ...identity });
+    for (const flag of Object.keys(flags)) assert.equal(result[flag], false);
+  }
+  const result = thermometerCapabilities({ ...flags, model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' });
+  for (const flag of Object.keys(flags)) assert.equal(result[flag], true);
+});
+
+
+test('review container dismissal retains the pending reading and draft in durable storage', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.42 });
+    const before = owner.render().readings[0];
+    owner.render().updateReadingDraft(before.uiId, { isoDate: '2026-11-18', time: '08:30' });
+    owner.card().onDismiss();
+    assert.equal(owner.card().visible, false);
+    assert.equal(owner.render().pendingCount, 1);
+    const recovered = createFemometerLocalState(native.storage, 'a').recover()[0];
+    assert.equal(recovered.importStatus, 'pending');
+    assert.equal(recovered.draft.time, '08:30');
+    owner.render().openReadingReview();
+    assert.equal(owner.card().visible, true);
+  } finally { owner.cleanup(); await flush(); }
 });

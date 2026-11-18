@@ -61,7 +61,6 @@ public class FemometerBle extends Plugin {
     private static final long DISCOVER_TIMEOUT_MS = 10000L;
     // Allow a 3–5 minute measurement plus time to position the thermometer.
     private static final long TEMPERATURE_LISTENER_TIMEOUT_MS = 6 * 60 * 1000L;
-    private static final String DEVICE_NAME_FRAGMENT = "bm-vinca2";
     private static final UUID HEALTH_THERMOMETER_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb");
     private static final UUID TEMPERATURE_MEASUREMENT_UUID = UUID.fromString("00002a1c-0000-1000-8000-00805f9b34fb");
     private static final UUID MEASUREMENT_INTERVAL_UUID = UUID.fromString("00002a21-0000-1000-8000-00805f9b34fb");
@@ -72,6 +71,7 @@ public class FemometerBle extends Plugin {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final BleClockOperation clockOperation = new BleClockOperation(mainHandler);
+    private final BleDeviceInfoOperation identityOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleVolumeOperation volumeOperation = new BleVolumeOperation(mainHandler);
     private final BleMeasurementModeOperation measurementModeOperation = new BleMeasurementModeOperation(mainHandler);
@@ -86,6 +86,8 @@ public class FemometerBle extends Plugin {
     private PluginCall connectCall;
     private Runnable connectTimeoutRunnable;
     private BluetoothGatt temperatureGatt;
+    private boolean temperatureProfileValidated;
+    private String temperatureDeviceModel;
     private BluetoothGattCharacteristic temperatureCharacteristic;
     private BluetoothGattCharacteristic vincaIndicationCharacteristic;
     private PluginCall temperatureListenerCall;
@@ -248,6 +250,7 @@ public class FemometerBle extends Plugin {
             rejectWithCode(call, blockedCode);
             return;
         }
+        if (temperatureGatt != null || connectCall != null) { call.reject("Deten la conexion antes de buscar.", "CONNECTION_IN_PROGRESS"); return; }
         if (scanCall != null) {
             Log.d(TAG, "Scan blocked: SCAN_IN_PROGRESS");
             call.reject("Ya hay una busqueda BLE en curso.", "SCAN_IN_PROGRESS");
@@ -347,7 +350,7 @@ public class FemometerBle extends Plugin {
             return;
         }
 
-        if (connectCall != null || scanCall != null) {
+        if (connectCall != null || scanCall != null || temperatureGatt != null || !gattCleanup.complete()) {
             call.reject("Ya hay una conexion BLE en curso.", "CONNECTION_IN_PROGRESS");
             return;
         }
@@ -394,21 +397,25 @@ public class FemometerBle extends Plugin {
                     return;
                 }
 
-                PluginCall pending = connectCall;
-                JSObject result = buildInspectionResult(gatt);
-                BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
-                BluetoothGattCharacteristic measurement = service == null ? null
-                    : service.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID);
-                scannedDevice.compatible = measurement != null
-                    && (measurement.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
-                    && measurement.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID) != null;
-                result.put("compatible", scannedDevice.compatible);
-                clearConnectState();
-                activeGatt = null;
-                closeGatt(gatt);
-                if (pending != null) {
+                inspectProfile(gatt, scannedDevice.name, result -> {
+                    if (gatt != activeGatt || connectCall != call) return;
+                    scannedDevice.compatible = result.optBoolean("compatible", false);
+                    PluginCall pending = connectCall;
+                    clearConnectState();
+                    activeGatt = null;
+                    closeGatt(gatt);
                     pending.resolve(result);
-                }
+                }, code -> { if (gatt == activeGatt && connectCall == call) rejectConnectCall("No se pudo identificar el dispositivo.", code); });
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (Build.VERSION.SDK_INT < 33 && gatt == activeGatt) identityOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+                if (gatt == activeGatt) identityOperation.onRead(gatt, characteristic, value, status);
             }
         };
 
@@ -455,7 +462,7 @@ public class FemometerBle extends Plugin {
             return;
         }
 
-        if (temperatureListenerCall != null || temperatureGatt != null) {
+        if (temperatureListenerCall != null || temperatureGatt != null || connectCall != null || scanCall != null) {
             call.reject("Ya hay una escucha de temperatura en curso.", "TEMPERATURE_LISTENER_IN_PROGRESS");
             return;
         }
@@ -513,6 +520,19 @@ public class FemometerBle extends Plugin {
                     return;
                 }
 
+                inspectProfile(gatt, scannedDevice.name, result -> {
+                    if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                    temperatureProfileValidated = result.optBoolean("compatible", false);
+                    if (!temperatureProfileValidated) {
+                        rejectTemperatureStart("Este dispositivo no tiene un protocolo compatible validado.", "DEVICE_NOT_VERIFIED");
+                        return;
+                    }
+                    temperatureDeviceModel = result.optString("model", null);
+                    subscribeTemperature(gatt);
+                }, code -> { if (gatt == temperatureGatt && temperatureListenerCall != null) rejectTemperatureStart("No se pudo identificar el dispositivo.", code); });
+            }
+
+            private void subscribeTemperature(BluetoothGatt gatt) {
                 BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
                 if (service == null) {
                     rejectTemperatureStart("No se encontro el servicio Health Thermometer.", "HEALTH_THERMOMETER_NOT_FOUND");
@@ -607,14 +627,20 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-                if (Build.VERSION.SDK_INT < 33 && gatt == temperatureGatt) deviceInfoOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+                if (Build.VERSION.SDK_INT < 33 && gatt == temperatureGatt) {
+                    identityOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+                    deviceInfoOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+                }
                 if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
                     clockOperation.onRead(gatt, characteristic.getValue(), status);
             }
 
             @Override
             public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
-                if (gatt == temperatureGatt) deviceInfoOperation.onRead(gatt, characteristic, value, status);
+                if (gatt == temperatureGatt) {
+                    identityOperation.onRead(gatt, characteristic, value, status);
+                    deviceInfoOperation.onRead(gatt, characteristic, value, status);
+                }
                 if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
                     clockOperation.onRead(gatt, value, status);
             }
@@ -659,7 +685,7 @@ public class FemometerBle extends Plugin {
     private synchronized void operateClock(PluginCall call, boolean write) {
         String blocked = getBlockedOperationCode();
         if (blocked != null) { rejectWithCode(call, blocked); return; }
-        if (temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+        if (!temperatureProfileValidated || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "CLOCK_NOT_CONNECTED"); return;
         }
         if (deviceInfoOperation.busy()) { call.reject("Hay una consulta de datos en curso.", "DEVICE_INFO_BUSY"); return; }
@@ -675,7 +701,7 @@ public class FemometerBle extends Plugin {
     public synchronized void readDeviceInfo(PluginCall call) {
         String blocked = getBlockedOperationCode();
         if (blocked != null) { rejectWithCode(call, blocked); return; }
-        if (!temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+        if (!temperatureProfileValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "DEVICE_INFO_NOT_CONNECTED"); return;
         }
         if (clockOperation.busy()) { call.reject("Hay una operacion de reloj en curso.", "CLOCK_BUSY"); return; }
@@ -693,7 +719,7 @@ public class FemometerBle extends Plugin {
         if (blocked != null) { rejectWithCode(call, blocked); return; }
         String level = call.getString("level");
         if (BleVolumeOperation.command(level) < 0) { call.reject("Nivel de volumen desconocido.", "VOLUME_INVALID_LEVEL"); return; }
-        if (!temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+        if (!temperatureProfileValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "VOLUME_NOT_CONNECTED"); return;
         }
         if (vincaIndicationCharacteristic == null || temperatureCharacteristic == null) {
@@ -714,7 +740,7 @@ public class FemometerBle extends Plugin {
         if (blocked != null) { rejectWithCode(call, blocked); return; }
         String level = call.getString("level");
         if (BleMeasurementModeOperation.command(level) < 0) { call.reject("Modo de medicion desconocido.", "MEASUREMENT_MODE_INVALID_LEVEL"); return; }
-        if (!temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+        if (!temperatureProfileValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "MEASUREMENT_MODE_NOT_CONNECTED"); return;
         }
         if (vincaIndicationCharacteristic == null || temperatureCharacteristic == null) {
@@ -782,9 +808,11 @@ public class FemometerBle extends Plugin {
                 return;
             }
         }
-        if (advertisedName == null || !advertisedName.toLowerCase(Locale.ROOT).contains(DEVICE_NAME_FRAGMENT)) {
-            return;
-        }
+        advertisedName = publicDeviceText(advertisedName);
+        List<android.os.ParcelUuid> services = result.getScanRecord() == null ? null : result.getScanRecord().getServiceUuids();
+        boolean standard = services != null && services.contains(new android.os.ParcelUuid(HEALTH_THERMOMETER_UUID));
+        boolean signature = services != null && services.contains(new android.os.ParcelUuid(VINCA_SERVICE_UUID));
+        if (!ThermometerDiscovery.candidate(advertisedName, standard, signature, Boolean.TRUE.equals(scanCall.getBoolean("expanded", false)))) return;
 
         String address;
         try {
@@ -802,7 +830,7 @@ public class FemometerBle extends Plugin {
             id = UUID.randomUUID().toString();
             idsByAddress.put(address, id);
         }
-        devicesById.put(id, new ScannedDevice(result.getDevice(), address, advertisedName, result.getRssi()));
+        devicesById.put(id, new ScannedDevice(result.getDevice(), address, advertisedName, result.getRssi(), standard));
     }
 
     private JSArray buildScannedDevicesArray(String userId) {
@@ -813,10 +841,42 @@ public class FemometerBle extends Plugin {
             device.put("id", entry.getKey());
             device.put("name", entry.getValue().name);
             device.put("rssi", entry.getValue().rssi);
+            device.put("compatibility", entry.getValue().standard ? "possible_standard" : "unknown");
             device.put("isRemembered", entry.getValue().address.equals(rememberedAddress));
             devices.put(device);
         }
         return devices;
+    }
+
+    private void inspectProfile(BluetoothGatt gatt, String advertisedName,
+            java.util.function.Consumer<JSObject> completed, java.util.function.Consumer<String> failed) {
+        // Shared read queue, same connection owner. Only model/manufacturer, no serial,
+        // subscription, configuration or proprietary command during identification.
+        identityOperation.start(gatt, new BleDeviceInfoOperation.Reads() {
+            public Object readableTarget(int field) {
+                if (field != 1 && field != 2) return null;
+                BluetoothGattCharacteristic target = BleDeviceInfoOperation.deviceInfo(gatt, field);
+                return target != null && (target.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) != 0 ? target : null;
+            }
+            public boolean read(Object target) { return gatt.readCharacteristic((BluetoothGattCharacteristic) target); }
+        }, (values, code) -> {
+            if (code != null) { failed.accept(code); return; }
+            String model = publicDeviceText((String) values.get("model"));
+            String manufacturer = publicDeviceText((String) values.get("manufacturer"));
+            boolean identified = Vinca2Profile.identifies(advertisedName, model);
+            boolean compatible = identified && Vinca2Profile.supports(gatt);
+            if (identified) { model = Vinca2Profile.MODEL; if (manufacturer == null) manufacturer = "Femometer"; }
+            BluetoothGattService health = gatt.getService(HEALTH_THERMOMETER_UUID);
+            boolean standard = health != null && health.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID) != null;
+            JSObject result = buildInspectionResult(gatt);
+            result.put("compatible", compatible);
+            result.put("model", model);
+            result.put("manufacturer", manufacturer);
+            result.put("protocol", compatible ? Vinca2Profile.PROTOCOL : null);
+            result.put("compatibility", ThermometerDiscovery.classification(compatible, model, manufacturer, standard));
+            result.put("capabilities", compatible ? Vinca2Profile.capabilities(gatt) : new JSObject());
+            completed.accept(result);
+        }, 4500L);
     }
 
     private JSObject buildInspectionResult(BluetoothGatt gatt) {
@@ -854,7 +914,6 @@ public class FemometerBle extends Plugin {
         result.put("healthThermometerFound", healthThermometerFound);
         result.put("temperatureMeasurementFound", temperatureMeasurementFound);
         result.put("services", services);
-        result.put("capabilities", Vinca2Profile.capabilities(gatt));
         return result;
     }
 
@@ -958,6 +1017,9 @@ public class FemometerBle extends Plugin {
         try {
             JSObject decoded = decodeTemperatureMeasurement(value);
             decoded.put("deviceKey", connectedDeviceKey);
+            if (!temperatureProfileValidated) return;
+            decoded.put("deviceModel", temperatureDeviceModel);
+            decoded.put("deviceProtocol", Vinca2Profile.PROTOCOL);
             Log.d(TAG, "Temperature indication received");
             notifyListeners(TEMPERATURE_EVENT, decoded);
         } catch (Exception error) {
@@ -1230,6 +1292,8 @@ public class FemometerBle extends Plugin {
         BluetoothGattCharacteristic characteristic = temperatureCharacteristic;
         BluetoothGattCharacteristic vincaCharacteristic = vincaIndicationCharacteristic;
         temperatureGatt = null;
+        temperatureProfileValidated = false;
+        temperatureDeviceModel = null;
         temperatureDeviceKey = null;
         temperatureCharacteristic = null;
         vincaIndicationCharacteristic = null;
@@ -1316,6 +1380,7 @@ public class FemometerBle extends Plugin {
 
     private void closeGatt(BluetoothGatt gatt) {
         if (gatt == null) return;
+        identityOperation.cancel();
         try {
             gatt.disconnect();
         } catch (SecurityException error) {
@@ -1346,18 +1411,27 @@ public class FemometerBle extends Plugin {
         }
     }
 
+    // Names and DIS strings are untrusted; never relay an embedded MAC address.
+    private static String publicDeviceText(String value) {
+        if (value == null) return null;
+        String clean = value.replaceAll("(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}", "").trim();
+        return clean.isEmpty() ? null : clean.substring(0, Math.min(clean.length(), 128));
+    }
+
     private static class ScannedDevice {
         final BluetoothDevice device;
         final String address;
         volatile boolean compatible;
         final String name;
         final int rssi;
+        final boolean standard;
 
-        ScannedDevice(BluetoothDevice device, String address, String name, int rssi) {
+        ScannedDevice(BluetoothDevice device, String address, String name, int rssi, boolean standard) {
             this.device = device;
             this.address = address;
             this.name = name;
             this.rssi = rssi;
+            this.standard = standard;
         }
     }
 }

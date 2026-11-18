@@ -17,7 +17,7 @@ export const normalizeBleMeasurement = (event, model = null) => {
   return {
     temperature: event.temperatureC, temperature_original: event.temperatureC, time: valid ? raw.slice(11, 16) : '', selected: false,
     temperature_corrected: '', time_corrected: '', use_corrected: false,
-    source: 'bluetooth', device_model: model, device_key: typeof event.deviceKey === 'string' ? event.deviceKey : null,
+    source: 'bluetooth', device_model: event.deviceModel ?? model, device_key: typeof event.deviceKey === 'string' ? event.deviceKey : null,
     device_timestamp: raw, received_at: event.receivedAt ?? null,
     device_date_reliability: raw === null
       ? (event.deviceTimestampReliability === 'invalid' ? 'invalid' : 'missing')

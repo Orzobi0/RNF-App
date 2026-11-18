@@ -19,6 +19,8 @@ const Vinca2Panel = () => {
   const [working, setWorking] = useState(false);
   const [actionError, setActionError] = useState(null);
   const operationLock = useRef(false);
+  const model = sessionState.boundModel ?? (remembered ? 'BM-Vinca2' : capabilities?.model);
+  const vinca = model === 'BM-Vinca2';
   const listening = status === 'listening';
   const busy = sessionState.configurationBusy || sessionState.bindingBusy || working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.volumeBusy || sessionState.measurementModeBusy || sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'binding', 'stopping'].includes(status);
@@ -55,9 +57,9 @@ const Vinca2Panel = () => {
   const rowClass = 'flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50';
   return <div id="bluetooth-readings" className="min-w-0 bg-white text-slate-700">
     <div className="flex items-center gap-4 pb-5 pt-1">
-      <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-[88px] w-14 shrink-0 object-contain" />
+      <>{vinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-[88px] w-14 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12" aria-hidden="true" />}</>
       <div className="min-w-0">
-        <h2 className="text-xl font-semibold text-titulo">Femometer Vinca 2</h2>
+        <h2 className="text-xl font-semibold text-titulo">{vinca ? 'Femometer Vinca 2' : model || 'Termómetro'}</h2>
         <p className="mt-2 text-sm font-medium">{remembered === null ? 'Consultando vinculación…' : remembered ? 'Vinculado' : 'Sin configurar'}</p>
         <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, sessionState)}</p>
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
@@ -107,7 +109,7 @@ const Vinca2Panel = () => {
     <section aria-labelledby="vinca-configuration" className="pt-6">
       <h3 id="vinca-configuration" className="text-base font-semibold text-titulo">Configuración</h3>
       <div className="divide-y divide-slate-100">
-        <div>
+        {(capabilities?.clockRead || capabilities?.clockSync || (!listening && vinca)) && <div>
           <button type="button" className={rowClass} onClick={openClockDialog}><Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Reloj del termómetro<span className="mt-1 block text-sm text-slate-500">{clockLabel}</span></span><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
           {listening && <div className="space-y-2 pb-4 text-sm">
             <p className="text-xs text-slate-500">El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.</p>
@@ -118,8 +120,8 @@ const Vinca2Panel = () => {
             {sessionState.clockBusy && <p role="status">Consultando/ajustando reloj…</p>}
             {sessionState.clockError && <p role="alert">{sessionState.clockError.message}</p>}
           </div>}
-        </div>
-        <details>
+        </div>}
+        {(capabilities?.volumeWrite || (!listening && vinca)) && <details>
           <summary className={`${rowClass} cursor-pointer`}><span className="flex-1">Volumen</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <div role="group" aria-label="Nivel de volumen" className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-100">
@@ -136,8 +138,8 @@ const Vinca2Panel = () => {
             {volumeReady && !capabilities?.volumeWrite && <p className="text-sm text-amber-800">Este ajuste no está disponible en esta conexión.</p>}
             {sessionState.volumeError && <p role="alert" className="text-sm text-amber-800">{sessionState.volumeError.message}</p>}
           </div>
-        </details>
-        <details>
+        </details>}
+        {(capabilities?.modeConfiguration || (!listening && vinca)) && <details>
           <summary className={`${rowClass} cursor-pointer`}><span className="flex-1">Modo de medición</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <div role="group" aria-label="Modo de medición" className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-100">
@@ -154,11 +156,11 @@ const Vinca2Panel = () => {
             {measurementModeReady && !capabilities?.modeConfiguration && <p className="text-sm text-amber-800">Este ajuste no está disponible en esta conexión.</p>}
             {sessionState.measurementModeError && <p role="alert" className="text-sm text-amber-800">{sessionState.measurementModeError.message}</p>}
           </div>
-        </details>
+        </details>}
         <details>
           <summary className={`${rowClass} cursor-pointer`}><Info className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Modelo y compatibilidad</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
-            <p>Femometer Vinca 2 / BM-Vinca2. Modelo compatible con FertiliApp.</p>
+            <p>{vinca ? 'Femometer Vinca 2 / BM-Vinca2. Perfil implementado en FertiliApp.' : 'Compatibilidad pendiente de validar.'}</p>
             <Button type="button" variant="outline" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-3 py-2 text-sm"
               disabled={busy || recover || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired || !listening || !sessionState.listenerResult?.connectionReady || !sessionState.listenerResult?.indicationsActive}
               onClick={() => run('readDeviceInfo')}>Consultar datos</Button>

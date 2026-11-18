@@ -40,9 +40,9 @@ export const createFemometerLocalState = (storage, userId) => {
         if (!row.deviceKey || row.importStatus === 'incorporated' || row.importStatus === 'discarded') continue;
         devices[row.deviceKey] ??= { clock: null, pending: [] };
         // Do not retain raw packets or transport diagnostics in durable review work.
-        const { uiId, localId, receivedOrder, deviceKey, temperatureC, deviceTimestamp, receivedAt,
+        const { uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC, deviceTimestamp, receivedAt,
           normalized, importStatus, draft, reviewError, dateReview, attempt } = row;
-        devices[row.deviceKey].pending.push({ uiId, localId, receivedOrder, deviceKey, temperatureC,
+        devices[row.deviceKey].pending.push({ uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC,
           deviceTimestamp, receivedAt, normalized, importStatus, draft, reviewError, dateReview, attempt });
       }
       commit({ ...state, devices });

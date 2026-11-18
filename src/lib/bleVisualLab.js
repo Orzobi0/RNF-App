@@ -21,13 +21,13 @@ export function createBleLabScenario(scenario) {
   const statuses = { notReady: 'error', checking: 'checking', inspecting: 'inspecting', stopping: 'stopping', unlinked: 'stopped', disconnected: 'stopped', searching: 'searching', connecting: 'connecting', missing: 'missing', error: 'error', cancelled: 'error', clockDisconnected: 'stopped' };
   const hasReadings = ['one', 'multiple', 'compact', 'expanded', 'old', 'duplicate', 'saving', 'uncertain', 'clockPending'].includes(scenario);
   const readings = hasReadings ? Array.from({ length: ['multiple', 'expanded', 'compact'].includes(scenario) ? 3 : 1 }, (_, i) => ({
-    uiId: i + 1, deviceKey: 'fictional-device', temperatureC: 36.4 + i / 10,
+    uiId: i + 1, deviceModel: 'BM-Vinca2', deviceKey: 'fictional-device', temperatureC: 36.4 + i / 10,
     deviceTimestamp: `${scenario === 'old' ? '2020-01-01' : '2026-11-04'}T08:${10 + i}:00`,
     importStatus: scenario === 'uncertain' ? 'uncertain' : scenario === 'saving' ? 'saving' : 'pending',
     draft: { isoDate: scenario === 'old' ? '2020-01-01' : '2026-11-04', time: `08:${10 + i}`, confirmed: false },
   })) : [];
   return { readings, expanded: hasReadings && !['one', 'compact'].includes(scenario),
-    sessionState: { devices: [], selectedDeviceId: '', capabilities: { clockRead: true, clockSync: scenario !== 'clockUnsupported' }, deviceKey: 'fictional-device', visualScenario: scenario, status: statuses[scenario] ?? 'listening', remembered: scenario === 'checking' ? null : scenario !== 'unlinked',
+    sessionState: { devices: [], selectedDeviceId: '', capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: scenario !== 'clockUnsupported' }, deviceKey: 'fictional-device', visualScenario: scenario, status: statuses[scenario] ?? 'listening', remembered: scenario === 'checking' ? null : scenario !== 'unlinked',
       // Scenario changes replace the whole state; match the real session's empty results.
       volumeResult: null, measurementModeResult: null,
       error: scenario === 'notReady' ? { code: 'LISTENER_NOT_READY', message: 'Simulación: faltan las indicaciones. Reconecta para preparar la escucha.' } : scenario === 'cancelled' ? { code: 'CONNECTION_CANCELLED' } : scenario === 'error' ? { message: 'Error de conexión ficticio.' } : null,

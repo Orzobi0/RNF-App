@@ -1,6 +1,8 @@
 package com.fertiliapp.fertiliapp;
 
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattService;
+import java.util.UUID;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Handler;
 import com.getcapacitor.JSObject;
@@ -17,6 +19,14 @@ import org.json.JSONObject;
 
 /** Five optional standard reads on the listening transport; never writes or closes it. */
 final class BleDeviceInfoOperation {
+    // Whitelist only; deliberately excludes serial number and other identifiers.
+    static BluetoothGattCharacteristic deviceInfo(BluetoothGatt gatt, int index) {
+        String[] ids = { "2a19", "2a24", "2a29", "2a26", "2a28" };
+        UUID serviceId = UUID.fromString("0000" + (index == 0 ? "180f" : "180a") + "-0000-1000-8000-00805f9b34fb");
+        BluetoothGattService service = gatt.getService(serviceId);
+        return service == null ? null : service.getCharacteristic(UUID.fromString("0000" + ids[index] + "-0000-1000-8000-00805f9b34fb"));
+    }
+
     static final String[] FIELDS = { "battery", "model", "manufacturer", "firmware", "software" };
     // Narrow seams let JVM tests drive the real queue and timeout without Android hardware.
     interface Reads {
@@ -47,7 +57,7 @@ final class BleDeviceInfoOperation {
     synchronized void start(BluetoothGatt gatt, PluginCall call) {
         start(gatt, new Reads() {
             public Object readableTarget(int field) {
-                BluetoothGattCharacteristic target = Vinca2Profile.deviceInfo(gatt, field);
+                BluetoothGattCharacteristic target = deviceInfo(gatt, field);
                 return target != null && (target.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) != 0 ? target : null;
             }
             public boolean read(Object target) { return gatt.readCharacteristic((BluetoothGattCharacteristic) target); }
@@ -63,6 +73,10 @@ final class BleDeviceInfoOperation {
     }
 
     synchronized void start(Object connection, Reads access, BiConsumer<Map<String, Object>, String> completion) {
+        start(connection, access, completion, 12000L);
+    }
+
+    synchronized void start(Object connection, Reads access, BiConsumer<Map<String, Object>, String> completion, long budgetMs) {
         if (busy()) { completion.accept(null, "DEVICE_INFO_BUSY"); return; }
         if (uncertain(connection)) { completion.accept(null, "DEVICE_INFO_RECONNECT_REQUIRED"); return; }
         pending = completion;
@@ -77,7 +91,7 @@ final class BleDeviceInfoOperation {
             }
         };
         // Total budget, below the JS bridge's 20 seconds, not five per-field timeouts.
-        schedule.accept(timeout, 12000L);
+        schedule.accept(timeout, budgetMs);
         next();
     }
 

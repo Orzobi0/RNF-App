@@ -48,6 +48,7 @@ const Vinca2Diagnostics = () => {
       {sessionState.volumeResult?.commandsAccepted && <p>Comandos Bluetooth de volumen aceptados; volumen físico no verificado.</p>}
       {sessionState.measurementModeResult?.commandsAccepted && <p>Comandos Bluetooth de modo aceptados; modo real no verificado.</p>}
       <p>Estado de escucha: {sessionState.status}</p>
+      <p>Modelo de la conexión: {sessionState.listenerResult?.capabilities?.model || 'sin validar'} · Protocolo: {sessionState.listenerResult?.capabilities?.protocol || 'no disponible'}</p>
       {clockHistory && <div><p>Historial del reloj: {clockHistory.state}</p>
         {clockHistory.lastVerifiedSync && <p>Última sincronización verificada: {new Date(clockHistory.lastVerifiedSync.checkedAt).toLocaleString()}</p>}
         <p>Este historial no verifica las fechas de las temperaturas.</p></div>}
@@ -120,6 +121,7 @@ const Vinca2Diagnostics = () => {
                     {Number(lastTemperatureReading.temperatureC).toFixed(2)} °C
                   </p>
                   <div className="mt-1 space-y-0.5 text-sm text-slate-600">
+                    <p>Modelo de origen: {lastTemperatureReading.normalized?.device_model || lastTemperatureReading.deviceModel || 'no disponible'}</p>
                     <p>Recibida: {lastTemperatureReading.receivedAt || 'sin hora'}</p>
                     <p>
                       Hora del termómetro:{' '}

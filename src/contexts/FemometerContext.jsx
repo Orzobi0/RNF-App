@@ -107,7 +107,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       previousStatus = next.status;
     }, event => {
       if (!alive) return;
-      const normalized = normalizeBleMeasurement(event, 'BM-Vinca2');
+      const normalized = normalizeBleMeasurement(event);
       if (normalized) {
         // UI-only sequence, never passed as a device identity or measurement key.
         updateReadings([...readingsRef.current, { ...event, normalized, deviceKey: normalized.device_key,

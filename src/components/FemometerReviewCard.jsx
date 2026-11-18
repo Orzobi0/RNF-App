@@ -287,7 +287,7 @@ maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-saf
 </span>
 
         <span className="mt-1 block text-xs text-slate-500">
-          {row.normalized?.device_model || 'BM-Vinca2'}
+          {row.normalized?.device_model || row.deviceModel || 'Termómetro Bluetooth'}
 
           {!row.deviceKey
             ? ' · Origen sin vincular'

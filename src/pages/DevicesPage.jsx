@@ -19,6 +19,13 @@ const DevicePageShell = ({ title, back, children }) => <div className="min-h-ful
 
 const compactButton = 'inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal rounded-xl px-4 py-2';
 
+const compatibilityLabel = status => ({
+  compatible: 'Modelo compatible',
+  recognized_unsupported: 'Modelo reconocido · soporte pendiente',
+  possible_standard: 'Posible termómetro estándar · soporte pendiente',
+  unknown: 'Dispositivo BLE sin identificar · compatibilidad pendiente',
+})[status] || 'Compatibilidad pendiente de comprobar';
+
 export function DevicesPage() {
   const ble = useFemometer();
   const [localChanging, setChanging] = useState(false);
@@ -36,6 +43,8 @@ export function DevicesPage() {
   }, [linkedNotice]);
   if (!ble.enabled) return <Navigate to="/settings" replace />;
   const { remembered: linked, status, devices = [], selectedDeviceId, inspectionResult, error } = ble.sessionState;
+  const linkedModel = ble.sessionState.boundModel ?? (linked ? 'BM-Vinca2' : null);
+  const linkedVinca = linkedModel === 'BM-Vinca2';
   const changing = localChanging || ble.sessionState.changingDevice;
   const listening = status === 'listening';
   const busy = ble.sessionState.configurationBusy || ble.sessionState.bindingBusy || ble.sessionState.deviceInfoBusy || ble.sessionState.volumeBusy || ble.sessionState.measurementModeBusy || working || ble.sessionState.busy || ble.sessionState.clockBusy || ble.sessionState.restarting
@@ -65,7 +74,7 @@ export function DevicesPage() {
           <p className="mt-1 text-sm text-slate-600">{status === 'error' || status === 'missing'
             ? 'La vinculación se ha guardado, pero no se pudo preparar la conexión'
             : listening && !ble.sessionState.configurationBusy && ble.sessionState.listenerResult?.connectionReady && ble.sessionState.listenerResult?.indicationsActive
-              ? 'Femometer Vinca 2 está listo para recibir temperaturas'
+              ? 'El termómetro está listo para recibir temperaturas'
               : 'La vinculación se ha guardado. ' + (ble.sessionState.configurationBusy ? 'Preparando ajustes…' : 'Consulta el estado del termómetro.')}</p>
         </div>
       </div>
@@ -74,8 +83,8 @@ export function DevicesPage() {
     {linked === null && <div role="status" className="text-sm text-slate-500">Consultando vinculación…</div>}
     {linked && <>
       <Link to="/settings/devices/vinca2" className="flex min-h-14 items-center gap-3 rounded-2xl border border-rose-100 bg-white p-4 transition-colors hover:border-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 motion-reduce:transition-none">
-        <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 blanco con funda rosa" width="56" height="88" className="h-[88px] w-14 shrink-0 object-contain" />
-        <span className="min-w-0 flex-1"><span className="block font-semibold text-titulo">Femometer Vinca 2</span>
+        <>{linkedVinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 blanco con funda rosa" width="56" height="88" className="h-[88px] w-14 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12 text-fertiliapp-fuerte" aria-hidden="true" />}</>
+        <span className="min-w-0 flex-1"><span className="block font-semibold text-titulo">{linkedVinca ? 'Femometer Vinca 2' : linkedModel || 'Termómetro vinculado'}</span>
           <span className="block text-sm text-slate-600">Vinculado</span>
           <span className={`mt-1 block text-sm ${status === 'error' || status === 'missing' ? 'text-amber-800' : listening && !ble.sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{ble.sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, ble.sessionState)}</span>
         </span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -84,14 +93,14 @@ export function DevicesPage() {
     </>}
     {(linked === false || changing) && <section aria-label="Vincular termómetro" className="space-y-4">
       <div className="mx-auto max-w-sm text-center">
-        <img src="/images/vinca2.jpg" alt="Termómetro Femometer Vinca 2 con su funda rosa" width="120" height="168" className="mx-auto mb-4 h-[168px] w-[120px] object-contain" />
+        <Thermometer className="mx-auto mb-4 h-24 w-24 text-fertiliapp-fuerte" aria-hidden="true" />
         <h2 className="text-xl font-semibold text-titulo">Conecta tu termómetro</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Vincula tu Femometer Vinca 2 para recibir tus temperaturas en FertiliApp</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Busca tu termómetro para comprobar si es compatible con FertiliApp. Actualmente puedes vincular el Femometer Vinca 2.</p>
       </div>
       <ol className="space-y-4 py-3">
         {[['Prepara el termómetro', 'Enciéndelo y acércalo al móvil.'],
-          ['Activa Bluetooth', 'Comprueba que Bluetooth esté disponible y que Femometer Connect esté completamente cerrada.'],
-          ['Busca y vincula', 'Selecciona el termómetro cuando aparezca.']].map(([title, description], index) => <li key={title} className="flex items-start gap-3">
+          ['Activa Bluetooth', 'Comprueba que Bluetooth esté disponible y cierra otras aplicaciones conectadas al termómetro.'],
+          ['Busca y vincula', 'Selecciona un candidato para consultar su identificación. Solo se vinculará si su compatibilidad está validada.']].map(([title, description], index) => <li key={title} className="flex items-start gap-3">
             <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-sm font-semibold text-fertiliapp-fuerte">{index + 1}</span>
             <div className="min-w-0"><h3 className="text-sm font-semibold text-titulo">{title}</h3><p className="mt-0.5 text-sm leading-relaxed text-slate-600">{description}</p></div>
           </li>)}
@@ -100,22 +109,27 @@ export function DevicesPage() {
         <Button className={`${compactButton} bg-fertiliapp-fuerte text-white hover:brightness-95`} disabled={busy || listening} onClick={() => run('scan')}>
           {status === 'searching' || (busy && !attemptedId) ? 'Buscando…' : 'Buscar termómetros'}
         </Button>
+        <Button variant="ghost" className={compactButton} disabled={busy || listening} onClick={() => run('scan', true)}>¿No encuentras tu termómetro?</Button>
         {changing && <Button variant="ghost" className={compactButton} disabled={busy} onClick={() => run('cancelChange')}>Cancelar cambio</Button>}
       </div>
 
+      <p className="text-xs text-slate-500">La búsqueda ampliada incluye dispositivos BLE sin identificar. La comprobación solo lee información y no cambia sus ajustes. Un servicio de temperatura no garantiza que el dispositivo sea un termómetro basal.</p>
       {searched && !busy && !error && devices.length === 0 && <p role="status" className="text-sm">No se han encontrado termómetros. Acércalo y vuelve a buscar.</p>}
       {(searched || !linked) && devices.length > 0 && <div className="divide-y divide-slate-100">
-        <h3 className="pb-3 text-sm font-semibold text-titulo">Termómetros encontrados</h3>
+        <h3 className="pb-3 text-sm font-semibold text-titulo">Dispositivos encontrados</h3>
         {devices.map(device => {
           const attempted = attemptedId === device.id && selectedDeviceId === device.id;
           return <button key={device.id} type="button" disabled={busy || listening}
             onClick={() => run('selectAndRemember', device.id)}
             className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
-            <Thermometer className="h-4 w-4 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />
-            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{device.name || 'Termómetro detectado'}</span>
+            {device.model === 'BM-Vinca2' ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2" width="32" height="48" className="h-12 w-8 shrink-0 object-contain" /> : <Thermometer className="h-4 w-4 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />}
+            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{device.model || device.name || 'Dispositivo sin nombre'}</span>
+              {device.manufacturer && <span className="block text-xs text-slate-500">{device.manufacturer}</span>}
+              <span className="block text-xs text-slate-600">{compatibilityLabel(device.compatibility)}</span>
+              <span className="block text-xs text-fertiliapp-fuerte">Comprobar compatibilidad</span>
               {attempted && <span role="status" className="mt-1 block text-xs text-slate-600">{busy ? ble.sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, ble.sessionState)
                 : error || actionError ? 'No se pudo completar la comprobación o vinculación. Vuelve a intentarlo.'
-                  : inspectionResult && inspectionResult.compatible !== true ? 'Este termómetro no es compatible actualmente' : ''}</span>}
+                  : inspectionResult && inspectionResult.compatible !== true ? compatibilityLabel(inspectionResult.compatibility) + '. No se puede vincular actualmente. Se conserva la vinculación anterior.' : ''}</span>}
             </span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
           </button>;
         })}

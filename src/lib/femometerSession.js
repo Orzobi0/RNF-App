@@ -142,7 +142,7 @@ export const createFemometerSessionManager = (api) => {
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
         if (!current()) return;
-        onTemperature(event);
+        onTemperature({ ...event, deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
         if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
           void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
             ['timeout', 'stopped'].includes(event.status) ? null : { message: event.message || 'El termómetro se desconectó.' });
@@ -155,14 +155,15 @@ export const createFemometerSessionManager = (api) => {
       if (state.deviceKey && result?.deviceKey !== state.deviceKey) {
         throw { code: 'CONNECTION_IDENTITY_MISMATCH', message: 'La conexión no corresponde a la vinculación activa.' };
       }
+      if (thermometerCapabilities(result?.capabilities).protocol !== 'vinca2') throw { code: 'DEVICE_NOT_VERIFIED', message: 'El perfil de este termómetro no está validado.' };
       listeningExpiresAt = now() + (Number(result?.timeoutSeconds) || 360) * 1000;
       publish({ status: 'listening', configurationBusy: true, listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
       automaticConfigurationPending = true;
     };
-    const search = async (automatic, call, current) => {
+    const search = async (automatic, call, current, expanded = false) => {
       publish({ status: 'checking', devices: [], selectedDeviceId: '', inspectionResult: null });
       const saved = await call(() => api.getRememberedFemometer(userId));
-      publish({ remembered: saved.remembered, deviceKey: saved.deviceKey ?? null });
+      publish({ remembered: saved.remembered, deviceKey: saved.deviceKey ?? null, boundModel: saved.model ?? (saved.remembered ? 'BM-Vinca2' : null) });
       loadPreferences(saved.deviceKey);
       if (automatic && !saved.remembered) {
         publish({ status: 'idle' });
@@ -172,7 +173,7 @@ export const createFemometerSessionManager = (api) => {
       publish({ status: 'searching' });
       // Native scan checks existing permissions and Bluetooth before starting;
       // unlike requestBluetoothPermissions, it never opens a permission dialog.
-      const found = await call(() => api.scanForFemometer(userId));
+      const found = await call(() => api.scanForFemometer(userId, expanded));
       const matches = found.filter(device => device.isRemembered === true);
       const match = matches.length === 1 ? matches[0] : null;
       const devices = automatic ? (match ? [match] : []) : found;
@@ -344,8 +345,8 @@ export const createFemometerSessionManager = (api) => {
             }
           }
         }
-        if (safe() && state.preferences.volume) await setVolume(state.preferences.volume, true);
-        if (safe() && state.preferences.measurementMode) await setMeasurementMode(state.preferences.measurementMode, true);
+        if (safe() && state.capabilities.volumeWrite && state.preferences.volume) await setVolume(state.preferences.volume, true);
+        if (safe() && state.capabilities.modeConfiguration && state.preferences.measurementMode) await setMeasurementMode(state.preferences.measurementMode, true);
       }).finally(() => {
         configurationJob = null;
         if (current()) publish({ configurationBusy: false, configurationIssue: Boolean(state.clockError || state.volumeError || state.measurementModeError || state.preferenceError) });
@@ -366,7 +367,7 @@ export const createFemometerSessionManager = (api) => {
         const result = await api.forgetFemometer(userId);
         if (!current()) return false;
         if (result?.remembered !== false) throw new Error('No se pudo confirmar la desvinculación.');
-        publish({ remembered: false, deviceKey: null, preferences: {}, preferenceError: null, changingDevice: false,
+        publish({ remembered: false, boundModel: null, deviceKey: null, preferences: {}, preferenceError: null, changingDevice: false,
           status: 'idle', devices: [], selectedDeviceId: '', inspectionResult: null, clockResult: null, clockError: null });
         return true;
       }).catch(error => { if (!disposed) publish({ error, status: 'error' }); return false; })
@@ -434,7 +435,7 @@ export const createFemometerSessionManager = (api) => {
         }).finally(() => { resumeJob = null; });
         return resumeJob;
       },
-      scan: () => run((call, current) => search(false, call, current)),
+      scan: (expanded = false) => run((call, current) => search(false, call, current, expanded === true)),
       // One job owns the captured scan result through inspection, cleanup and persistence.
       // Resolves true only after native confirmation; errors/cancellation retain the old binding.
       selectAndRemember: (deviceId) => {
@@ -449,8 +450,9 @@ export const createFemometerSessionManager = (api) => {
           if (typeof inspection?.compatible !== 'boolean') {
             throw { code: 'INSPECTION_FAILED', message: 'No se pudo comprobar la compatibilidad. Vuelve a intentarlo.' };
           }
-          publish({ inspectionResult: inspection });
-          if (inspection?.compatible !== true) {
+          publish({ inspectionResult: inspection, devices: state.devices.map(device => device.id === deviceId
+            ? { ...device, model: inspection.model, manufacturer: inspection.manufacturer, compatibility: inspection.compatibility ?? 'unknown' } : device) });
+          if (inspection?.compatible !== true || inspection.protocol !== 'vinca2' || inspection.model !== 'BM-Vinca2') {
             publish({ status: 'idle' });
             return;
           }
@@ -460,7 +462,7 @@ export const createFemometerSessionManager = (api) => {
           if (saved?.remembered !== true) {
             throw { code: 'PERSISTENCE_FAILED', message: 'No se pudo confirmar la vinculación. Vuelve a intentarlo.' };
           }
-          publish({ remembered: true, deviceKey: saved.deviceKey ?? null, status: 'idle', clockResult: null, clockError: null,
+          publish({ remembered: true, boundModel: inspection.model, deviceKey: saved.deviceKey ?? null, status: 'idle', clockResult: null, clockError: null,
             devices: state.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) });
           confirmed = true;
           publish({ changingDevice: false });
