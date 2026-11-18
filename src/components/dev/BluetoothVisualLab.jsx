@@ -107,8 +107,8 @@ export default function BluetoothVisualLab({ Provider, children }) {
     if (value === 'uncertain') next.readings = next.readings.map(row => ({ ...row,
       attempt: { id: `lab-${row.uiId}`, userId: 'visual-lab', cycleId: 'fictional-cycle', isoDate: row.draft.isoDate, time: row.draft.time } }));
     if (value === 'duplicate') next.readings = next.readings.map(row => ({ ...row, reviewError: { code: 'ble-possible-duplicate', message: 'Coincidencia ficticia.' } }));
-    next.sessionState.capabilities.volumeWrite = true;
-    next.sessionState.capabilities.modeConfiguration = true;
+    next.sessionState.capabilities.volumeWrite = !next.sessionState.boundProtocol || next.sessionState.boundProtocol === 'vinca2';
+    next.sessionState.capabilities.modeConfiguration = next.sessionState.capabilities.volumeWrite;
     next.sessionState.listenerResult = next.sessionState.status === 'listening' ? { connectionReady: true, indicationsActive: true } : null;
     if (value === 'savedPreferences') preferencesByDevice.current['fictional-device'] = { volume: 'low', measurementMode: 'precise' };
     if (value === 'twoDevices') { preferencesByDevice.current['fictional-device'] = { volume: 'low', measurementMode: 'precise' }; preferencesByDevice.current['fictional-second'] = { volume: 'high', measurementMode: 'quick' }; }
@@ -126,12 +126,22 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const error = selected?.reviewError ?? null;
   const restartLock = useRef(false);
   const operationBlocked = () => configurationActive.current || bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening', 'trial'].includes(sessionState.status);
-  const prepareListening = (deviceKey = sessionState.deviceKey, preferences = preferencesByDevice.current[deviceKey] ?? {}) => {
+  const prepareListening = (deviceKey = sessionState.deviceKey, preferences = preferencesByDevice.current[deviceKey] ?? {}, profile = sessionState.bindings?.find(device => device.deviceKey === deviceKey)) => {
+    if (profile?.protocol && profile.protocol !== 'vinca2') {
+      cancelConfiguration();
+      setSessionState(previous => ({ ...previous, deviceKey, boundModel: profile.model, boundName: profile.name,
+        boundProtocol: profile.protocol, boundCompatibility: 'experimental', preferences: {}, status: 'listening',
+        busy: false, configurationBusy: false, configurationIssue: false, clockBusy: false, clockResult: null,
+        capabilities: { model: profile.model, protocol: profile.protocol, compatibility: 'experimental', temperatureReceive: true, deviceInfo: true },
+        listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } }));
+      return;
+    }
     const token = ++configurationToken.current;
     configurationActive.current = true;
     setSessionState(previous => ({ ...previous, deviceKey, preferences, preferencesByDevice: { ...preferencesByDevice.current }, status: 'listening', busy: false, restarting: false,
+      boundModel: 'BM-Vinca2', boundName: 'Femometer Vinca 2', boundProtocol: 'vinca2', boundCompatibility: 'compatible',
       configurationBusy: true, configurationIssue: false, clockBusy: true, clockError: null,
-      capabilities: { ...previous.capabilities, volumeWrite: true, modeConfiguration: true },
+      capabilities: { ...previous.capabilities, model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible', clockRead: true, clockSync: scenario !== 'clockUnsupported', volumeWrite: true, modeConfiguration: true },
       listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } }));
     configurationTimer.current = setTimeout(async () => {
       const current = () => token === configurationToken.current;
@@ -165,8 +175,17 @@ export default function BluetoothVisualLab({ Provider, children }) {
     }, 900);
   };
   const updateDraft = patch => setReadings(rows => rows.map(row => row.uiId === selected.uiId ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...row.draft, ...patch } } : row));
+  const beginStandardTrial = deviceId => {
+    const verificationId = `lab-proof-${Date.now()}`;
+    setSessionState(previous => ({ ...previous, selectedDeviceId: deviceId, inspectionResult: { compatible: false, standardTrialAvailable: true },
+      status: 'trial', busy: false, changingDevice: true, trial: { status: 'listening', verificationId, deviceId, readings: [] } }));
+    timer.current = setTimeout(() => {
+      setSessionState(previous => ({ ...previous, trial: { ...previous.trial, readings: [{ verificationId, readingId: 'lab-reading', temperatureC: 36.65, temperatureOriginal: 36.65, temperatureUnit: 'celsius', deviceTimestamp: '2026-11-18T08:05:00' }] } }));
+      timer.current = setTimeout(() => sessionRef.current.stopTrial(), 300000);
+    }, 1200);
+  };
   const receiveReading = () => {
-    const row = createBleLabScenario('one').readings[0];
+    const row = { ...createBleLabScenario('one').readings[0], deviceKey: sessionState.deviceKey, deviceModel: sessionState.boundModel ?? (sessionState.boundProtocol ? null : 'BM-Vinca2'), deviceProtocol: sessionState.boundProtocol, receptionValidated: true };
     const uiId = Math.max(0, ...readings.map(item => item.uiId)) + 1;
     setReadings(rows => [...rows, { ...row, uiId }]);
     if (reviewVisibleOn !== location.key || !expanded) { setExpanded(false); setSelectedId(uiId); resetReview(); }
@@ -295,7 +314,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
           setSessionState(previous => ({ ...previous, deviceInfoBusy: false, deviceInfoStatus: failed ? 'error' : 'received',
             deviceInfoError: failed ? { message: 'Simulación: no se pudo consultar los datos. Vuelve a intentarlo.' } : null,
             deviceInfoResult: failed ? null : { battery: deviceInfoScenario === 'noBattery' ? null : 85,
-              model: 'BM-Vinca2 (simulado)', manufacturer: 'Femometer (simulado)',
+              model: sessionState.boundModel ?? (sessionState.boundProtocol ? null : 'BM-Vinca2 (simulado)'), manufacturer: sessionState.boundProtocol === 'easyhome-ebt300' ? 'Easy@Home (simulado)' : sessionState.boundProtocol === 'health-thermometer' ? null : 'Femometer (simulado)',
               firmware: deviceInfoScenario === 'noFirmware' ? null : 'FW-demo', software: 'SW-demo' },
           }));
           infoJob.current = null;
@@ -307,7 +326,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       if (operationBlocked()) return;
       setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null, devices: [], selectedDeviceId: '', inspectionResult: null }));
       timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'idle', busy: false,
-        devices: [...(previous.bindings ?? []).map(device => ({ id: `lab-saved-${device.deviceKey}`, deviceKey: device.deviceKey, name: 'BM-Vinca2 (simulado)', rssi: -45 })), { id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'Otra marca (simulado)', compatibility: 'unknown', rssi: -72 }, { id: 'lab-standard', name: null, compatibility: 'possible_standard', rssi: -68 }, ...(expanded ? [{ id: 'lab-unknown', name: 'BLE sin identificar (simulado)', compatibility: 'unknown', rssi: -80 }] : []), { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
+        devices: [...(previous.bindings ?? []).map(device => ({ id: `lab-saved-${device.deviceKey}`, deviceKey: device.deviceKey, model: device.model, name: device.name || device.model || 'Termometro (simulado)', rssi: -45 })), { id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-easy', name: 'EBT-300', model: 'EBT-300', compatibility: 'experimental', rssi: -55 }, { id: 'lab-other', name: 'Otra marca (simulado)', compatibility: 'unknown', rssi: -72 }, { id: 'lab-standard', name: null, compatibility: 'possible_standard', rssi: -68 }, ...(expanded ? [{ id: 'lab-unknown', name: 'BLE sin identificar (simulado)', compatibility: 'unknown', rssi: -80 }] : []), { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
     },
     selectAndRemember: deviceId => {
       if (operationBlocked()) return Promise.resolve(false);
@@ -315,7 +334,13 @@ export default function BluetoothVisualLab({ Provider, children }) {
         setSessionState(previous => ({ ...previous, status: 'error', error: { code: 'DEVICE_NOT_FOUND', message: 'Este resultado ya no está disponible. Vuelve a buscar.' } }));
         return Promise.resolve(false);
       }
-      setSessionState(previous => ({ ...previous, status: 'inspecting', busy: true, selectedDeviceId: deviceId, inspectionResult: null, error: null }));
+      if (deviceId === 'lab-standard') { beginStandardTrial(deviceId); return Promise.resolve(false); }
+      if (deviceId === 'lab-easy') {
+        const profile = { deviceKey: 'fictional-easy', model: 'EBT-300', name: 'Easy@Home EBT-300', protocol: 'easyhome-ebt300', compatibility: 'experimental' };
+        setSessionState(previous => ({ ...previous, bindings: [...(previous.bindings ?? []).filter(item => item.deviceKey !== profile.deviceKey), profile], remembered: true, changingDevice: false }));
+        prepareListening(profile.deviceKey, {}, profile); return Promise.resolve(true);
+      }
+      setSessionState(previous => ({ ...previous, trial: null, status: 'inspecting', busy: true, selectedDeviceId: deviceId, inspectionResult: null, error: null }));
       return new Promise(resolve => {
         bindingJob.current = resolve;
         timer.current = setTimeout(() => {
@@ -371,11 +396,19 @@ export default function BluetoothVisualLab({ Provider, children }) {
     },
     startTrial: deviceId => {
       if (operationBlocked() || deviceId !== sessionState.selectedDeviceId || !sessionState.inspectionResult?.standardTrialAvailable) return;
-      setSessionState(previous => ({ ...previous, status: 'trial', changingDevice: true, trial: { status: 'listening', deviceId, readings: [] } }));
-      timer.current = setTimeout(() => {
-        setSessionState(previous => ({ ...previous, trial: { ...previous.trial, readings: [{ temperatureC: 36.65, deviceTimestamp: '2026-11-18T08:05:00' }] } }));
-        timer.current = setTimeout(() => sessionRef.current.stopTrial(), 2000);
-      }, 1200);
+      beginStandardTrial(deviceId);
+    },
+    confirmTrial: async ({ readingId, basalConfirmed } = {}) => {
+      const trial = sessionState.trial;
+      const reading = trial?.readings.find(item => item.readingId === readingId && item.verificationId === trial.verificationId);
+      if (trial?.status !== 'listening' || !reading || !basalConfirmed) return false;
+      clearTimeout(timer.current);
+      const profile = { deviceKey: 'fictional-standard', model: null, name: 'Termometro estandar (simulado)', protocol: 'health-thermometer', compatibility: 'experimental' };
+      setReadings(rows => [...rows, { ...reading, promotedVerification: true, deviceKey: profile.deviceKey, deviceModel: null, deviceProtocol: profile.protocol, receptionValidated: true,
+        uiId: Math.max(0, ...rows.map(row => row.uiId)) + 1, importStatus: 'pending', draft: { isoDate: '2026-11-18', time: '08:05', confirmed: false } }]);
+      setSessionState(previous => ({ ...previous, trial: null, verificationPromoted: true, remembered: true, changingDevice: false,
+        bindings: [...(previous.bindings ?? []).filter(item => item.deviceKey !== profile.deviceKey), profile] }));
+      prepareListening(profile.deviceKey, {}, profile); return true;
     },
     stopTrial: () => sessionRef.current.stop(),
     beginChange: async () => {
@@ -457,7 +490,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       </div>}
     </aside>
     {enabled && <>
-      <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => { setReviewVisibleOn(null); resetReview(); }} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { if (id !== selected?.uiId) { setSelectedId(id); resetReview(); } }} deviceKey="fictional-device">
+      <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => { setReviewVisibleOn(null); resetReview(); }} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { if (id !== selected?.uiId) { setSelectedId(id); resetReview(); } }} deviceKey={sessionState.deviceKey}>
         {selected && <BleReadingReviewView measurement={{ temperature: selected.temperatureC, device_timestamp: selected.deviceTimestamp }} reading={selected}
           draft={draft} busy={selected.importStatus === 'saving'} error={error} checkedUncertain={checkedUncertain}
           check={check} canCheck={Boolean(selected.attempt)} onCheck={checkDay}

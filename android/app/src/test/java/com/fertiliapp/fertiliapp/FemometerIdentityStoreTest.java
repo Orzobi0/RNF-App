@@ -6,6 +6,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class FemometerIdentityStoreTest {
+    @Test public void standardMetadataDoesNotInventModelAndPreservesLegacyKeys() {
+        Memory memory = new Memory(); memory.records.put("a", new FemometerIdentityStore.Binding("old", "old-key"));
+        FemometerIdentityStore store = new FemometerIdentityStore(memory);
+        FemometerIdentityStore.Binding standard = store.remember("a", "new", null, "My thermometer", "Maker", "health-thermometer", "1", "experimental");
+        assertNull(standard.model); assertEquals("health-thermometer", standard.protocol);
+        assertEquals("old-key", store.forAddress("a", "old").key);
+        assertEquals("vinca2", store.forAddress("a", "old").protocol);
+        assertTrue(standard.matches(null, "Maker", "1", "health-thermometer"));
+        assertFalse(standard.matches(null, "Maker", "2", "health-thermometer"));
+        assertEquals(standard.key, store.remember("a", "new", null, "New label", "Maker", "health-thermometer", "1", "experimental").key);
+        assertEquals(2, store.all("a").devices.size());
+    }
     static class Memory implements FemometerIdentityStore.Storage {
         Map<String, String> legacy = new HashMap<>();
         Map<String, FemometerIdentityStore.Binding> records = new HashMap<>();

@@ -11,7 +11,7 @@ export function BleReadingReview({ userId, reading, onClose, onSaved, active = t
   const { currentCycle, isLoading, incorporateBleMeasurement } = useCycleData();
   const navigate = useNavigate();
   // Only legacy pending rows lack both a normalized origin and a reception model.
-  const measurement = reading.normalized ?? normalizeBleMeasurement(reading, reading.deviceModel ?? 'BM-Vinca2');
+  const measurement = reading.normalized ?? normalizeBleMeasurement(reading, reading.deviceModel ?? (reading.deviceProtocol ? null : 'BM-Vinca2'));
   const [draft, setDraft] = useState(() => ({ isoDate: measurement?.time ? measurement.device_timestamp.slice(0, 10) : '',
     time: measurement?.time || '', ...reading.draft, confirmed: false }));
   const [error, setError] = useState(reading.reviewError ?? null);

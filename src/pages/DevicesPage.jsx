@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { CheckCircle2, X, ChevronLeft, ChevronRight, Thermometer, Link2 } from 'lucide-react';
+import ThermometerVerificationView from '@/components/ThermometerVerificationView';
+import { thermometerName } from '@/lib/thermometerCatalog';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFemometer } from '@/contexts/FemometerContext';
@@ -35,16 +37,18 @@ export function DevicesPage() {
   }, [linkedNotice]);
   if (!ble.enabled) return <Navigate to="/settings" replace />;
   const { remembered: linked, status, devices = [], selectedDeviceId, inspectionResult, error } = ble.sessionState;
-  const linkedModel = ble.sessionState.boundModel ?? (linked ? 'BM-Vinca2' : null);
+  const linkedModel = ble.sessionState.boundModel ?? (linked && !ble.sessionState.boundProtocol ? 'BM-Vinca2' : null);
   const bindings = ble.sessionState.bindings ?? (linked ? [{ deviceKey: ble.sessionState.deviceKey, model: linkedModel }] : []);
   const changing = localChanging || ble.sessionState.changingDevice;
   const trial = ble.sessionState.trial;
+  const promotedReading = ble.readings?.slice().reverse().find(reading => reading.promotedVerification === true
+    && reading.deviceKey === ble.sessionState.deviceKey && reading.importStatus === 'pending');
   const trialActive = ['connecting', 'listening'].includes(trial?.status);
   const listening = status === 'listening';
   const busy = trialActive || ble.sessionState.configurationBusy || ble.sessionState.bindingBusy || ble.sessionState.deviceInfoBusy || ble.sessionState.volumeBusy || ble.sessionState.measurementModeBusy || working || ble.sessionState.busy || ble.sessionState.clockBusy || ble.sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'binding', 'stopping'].includes(status);
   const run = async (operation, id) => {
-    if ((operationLock.current && !['stopTrial', 'cancelChange'].includes(operation)) || (['stopTrial', 'cancelChange'].includes(operation) ? false : operation === 'beginChange' ? ble.sessionState.bindingBusy : busy || listening)) return;
+    if ((operationLock.current && !['stopTrial', 'cancelChange'].includes(operation)) || (['stopTrial', 'cancelChange'].includes(operation) ? false : operation === 'beginChange' ? ble.sessionState.bindingBusy : operation === 'confirmTrial' ? working || ble.sessionState.bindingBusy : busy || listening)) return;
     operationLock.current = true;
     setWorking(true); setActionError(null); setLinkedNotice(false);
     if (operation === 'scan') { setSearched(true); if (id !== true) setNormalSearched(true); setAttemptedId(null); }
@@ -54,7 +58,7 @@ export function DevicesPage() {
       if (operation === 'beginChange' && confirmed === true) { setChanging(true); setSearched(false); setNormalSearched(false); setAttemptedId(null); }
       if (operation === 'cancelChange') { setChanging(false); setSearched(false); }
       if (operation === 'connectSaved' && confirmed === true) { setChanging(false); setSearched(false); setAttemptedId(null); }
-      if (operation === 'selectAndRemember' && confirmed === true) {
+      if (['selectAndRemember', 'confirmTrial'].includes(operation) && confirmed === true) {
         setLinkedNotice(true); setChanging(false); setSearched(false); setAttemptedId(null);
       }
     } catch (failure) {
@@ -74,8 +78,9 @@ export function DevicesPage() {
       <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-titulo">Mis termómetros</h2><Button variant="ghost" className={compactButton} disabled={busy || changing} onClick={() => run('beginChange')}>+ Añadir</Button></div>
       {bindings.map(device => <Link key={device.deviceKey || 'legacy'} to={device.deviceKey ? `/settings/devices/${encodeURIComponent(device.deviceKey)}` : '/settings/devices/vinca2'} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
         {device.model === 'BM-Vinca2' ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 blanco con funda rosa" width="56" height="88" className="h-16 w-12 shrink-0 object-contain" /> : <Thermometer className="h-8 w-8 shrink-0" aria-hidden="true" />}
-        <span className="min-w-0 flex-1"><span className="block font-semibold text-titulo">{device.model === 'BM-Vinca2' ? 'Femometer Vinca 2' : device.model || 'Termómetro'}</span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold text-titulo">{thermometerName(device)}</span>
           <span className="flex items-center gap-1 text-xs text-slate-500"><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</span>
+          <span className="block text-xs text-slate-500">{device.compatibility === 'experimental' ? 'Experimental' : ''}</span>
           <span className="block text-sm text-slate-600">{!changing && device.deviceKey === ble.sessionState.deviceKey ? vinca2StatusText(status, ble.sessionState) : 'Desconectado'}</span>
         </span><ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
       </Link>)}
@@ -107,7 +112,7 @@ export function DevicesPage() {
             onClick={() => run(stored ? 'connectSaved' : 'selectAndRemember', stored ? device.deviceKey : device.id)}
             className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
             {preliminaryVinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2" width="32" height="48" className="h-12 w-8 shrink-0 object-contain" /> : <Thermometer className="h-4 w-4 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />}
-            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{preliminaryVinca ? 'Femometer Vinca 2' : device.model || device.name || 'Dispositivo sin nombre'}</span>
+            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{preliminaryVinca ? 'Femometer Vinca 2' : thermometerName(device)}</span>
               {device.manufacturer && <span className="block text-xs text-slate-500">{device.manufacturer}</span>}
               {!preliminaryVinca && <span className="block text-xs text-slate-600">{device.compatibility === 'possible_standard' ? 'Posible termómetro' : device.compatibility === 'recognized_unsupported' ? 'Soporte pendiente' : 'Dispositivo sin identificar'}</span>}
               <span className="block text-xs text-fertiliapp-fuerte">{stored ? 'Conectar' : preliminaryVinca ? 'Pulsa para vincular' : 'Comprobar compatibilidad'}</span>
@@ -124,14 +129,18 @@ export function DevicesPage() {
       <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-titulo">Temperaturas pendientes <span className="ml-1 text-fertiliapp-fuerte">{ble.pendingCount}</span></span></span>
       <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
     </button>}
-    {inspectionResult?.standardTrialAvailable === true && !trialActive && <Button variant="outline" className={compactButton} disabled={busy || listening} onClick={() => run('startTrial', selectedDeviceId)}>Probar recepción</Button>}
-    {trial && <section aria-label="Recepción de prueba" className="space-y-3 rounded-2xl border border-rose-100 p-4">
-      <p className="font-semibold">{trialActive ? 'Recepción de prueba…' : 'Prueba finalizada'}</p>
-      <p className="text-sm text-slate-500">Estas temperaturas no se guardan en tus registros.</p>
-      {trial.readings.map((reading, index) => <p key={index} className="text-sm">{reading.temperatureC.toFixed(2)} °C · {reading.deviceTimestamp || 'Sin fecha del termómetro'}</p>)}
-      {trial.error && <p role="alert" className="text-sm text-amber-800">{trial.error}</p>}
-      {trialActive && <Button variant="outline" className={compactButton} onClick={() => run('stopTrial')}>Terminar prueba</Button>}
-    </section>}
+    {trial && <ThermometerVerificationView trial={trial} name={thermometerName(devices.find(device => device.id === trial.deviceId))}
+      busy={working || ble.sessionState.bindingBusy} onConfirm={evidence => run('confirmTrial', evidence)}
+      onStop={() => run('stopTrial')} onRetry={() => run('startTrial', trial.deviceId)} />}
+    {ble.sessionState.verificationPromoted && promotedReading && <Button variant="ghost" className={compactButton} onClick={() => ble.openReadingReview(promotedReading.uiId)}>Revisar temperatura de comprobación</Button>}
+    {ble.sessionState.verificationNeedsNewReading && <p className="text-sm text-slate-600">Termómetro vinculado. Realiza una nueva medición para revisarla e incorporarla.</p>}
+    {inspectionResult && !trial && inspectionResult.compatible !== true && <div className="space-y-2 text-sm">
+      <p>Este termómetro todavía no es compatible</p>
+      <details><summary className="min-h-11 cursor-pointer py-3 text-slate-500">Diagnóstico técnico</summary>
+        <p>{inspectionResult.name} {inspectionResult.manufacturer} {inspectionResult.model} {inspectionResult.firmware}</p>
+        {(inspectionResult.services ?? []).map(service => <div key={service.uuid} className="break-all py-2 text-xs"><p>{service.uuid}</p>{(service.characteristics ?? []).map(characteristic => <p key={characteristic.uuid}>{characteristic.uuid}: {(characteristic.properties ?? []).join(', ')}</p>)}</div>)}
+      </details>
+    </div>}
     {(actionError || error) && <div role="alert" className="space-y-1 text-sm text-amber-800">
       <p>{actionError || error?.message || 'No se pudo completar la operación. Vuelve a intentarlo.'}</p>
       {error?.code === 'PERMISSION_NOT_GRANTED' && <p>Permite el acceso a Bluetooth al reintentar. Si el móvil ya no lo solicita, revisa los permisos de FertiliApp en los ajustes del teléfono.</p>}

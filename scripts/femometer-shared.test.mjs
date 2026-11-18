@@ -1,13 +1,129 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
-import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
+import { thermometerName } from '../src/lib/thermometerCatalog.js';
+import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
 import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
+
+const standardVerificationFixture = () => {
+  let state, trialEvent, normalEvent; const received = []; const calls = [];
+  let saved = { remembered: true, deviceKey: 'old', model: 'BM-Vinca2', protocol: 'vinca2', bindings: [{ deviceKey: 'old', model: 'BM-Vinca2' }] };
+  const local = createFemometerLocalState(memoryStorage(), 'a');
+  const sample = { experimental: true, verificationId: 'proof', readingId: 'reading', deviceProtocol: 'health-thermometer',
+    temperatureC: 36.5, temperatureOriginal: 97.7, temperatureUnit: 'fahrenheit', deviceTimestamp: '2026-11-18T08:00:01', receivedAt: '2026-11-18T09:00:00' };
+  const api = {
+    getRememberedFemometer: async () => saved,
+    requestBluetoothPermissions: async () => {},
+    scanForFemometer: async () => [{ id: 'standard', isRemembered: saved.deviceKey === 'standard-key' }],
+    connectAndInspectFemometer: async () => ({ compatible: false, standardTrialAvailable: true, model: null, name: 'Test thermometer' }),
+    disconnectFemometer: async () => calls.push('close'),
+    addStandardThermometerTrialListener: async callback => { trialEvent = callback; return { remove: async () => calls.push('remove-trial') }; },
+    startStandardThermometerTrial: async () => ({ experimental: true, connectionReady: true, indicationsActive: true, verificationId: 'proof' }),
+    confirmStandardThermometerTrial: async (user, evidence) => {
+      assert.deepEqual(evidence, { deviceId: 'standard', verificationId: 'proof', readingId: 'reading', basalConfirmed: true });
+      assert.equal(user, 'a'); calls.push('confirm-and-close');
+      saved = { remembered: true, deviceKey: 'standard-key', model: null, name: 'Test thermometer', protocol: 'health-thermometer', compatibility: 'experimental',
+        bindings: [...saved.bindings, { deviceKey: 'standard-key', model: null, protocol: 'health-thermometer', compatibility: 'experimental' }] };
+      return { ...saved, verifiedReading: { ...sample, experimental: false, deviceKey: saved.deviceKey, receptionValidated: true, promotedVerification: true } };
+    },
+    addFemometerTemperatureListener: async callback => { normalEvent = callback; return { remove: async () => calls.push('remove-normal') }; },
+    startFemometerTemperatureListener: async () => { calls.push('listen-normal'); return { deviceKey: saved.deviceKey, connectionReady: true, indicationsActive: true,
+      capabilities: { model: null, protocol: 'health-thermometer', compatibility: 'experimental' } }; },
+    readFemometerClock: () => assert.fail('standard must not use Vinca clock'),
+    setFemometerVolume: () => assert.fail('standard must not use Vinca volume'),
+  };
+  const session = createFemometerSessionManager(api)('a', value => { state = value; }, event => received.push(event), local);
+  return { session, api, local, sample, received, calls, state: () => state, saved: () => saved,
+    trial: event => trialEvent(event), normal: event => normalEvent(event) };
+};
+
+test('standard selection verifies, binds, promotes only the confirmed reading and reconnects without Vinca commands', async () => {
+  const h = standardVerificationFixture();
+  await h.session.scan(); assert.equal(await h.session.selectAndRemember('standard'), false);
+  assert.equal(h.state().trial.status, 'listening'); assert.equal(h.saved().deviceKey, 'old');
+  assert.equal(await h.session.confirmTrial({ readingId: 'invented', basalConfirmed: true }), false);
+  h.trial(h.sample);
+  h.trial({ ...h.sample, readingId: 'historical', temperatureC: 36.1, deviceTimestamp: '2020-01-01T08:00:00' });
+  assert.equal(await h.session.confirmTrial({ readingId: 'reading', basalConfirmed: false }), false);
+  assert.equal(h.received.length, 0);
+  assert.equal(await h.session.confirmTrial({ readingId: 'reading', basalConfirmed: true }), true);
+  assert.equal(h.state().status, 'listening'); assert.equal(h.saved().bindings.length, 2);
+  assert.equal(h.state().boundModel, null); assert.deepEqual(h.local.preferences('standard-key'), {});
+  assert.equal(h.received.length, 1); assert.equal(h.received[0].deviceTimestamp, h.sample.deviceTimestamp);
+  assert.ok(h.calls.indexOf('confirm-and-close') < h.calls.indexOf('listen-normal'));
+  h.normal({ ...h.received[0] }); h.normal({ ...h.received[0] }); assert.equal(h.received.length, 1);
+  h.normal({ ...h.received[0], deviceTimestamp: '2026-11-18T08:10:01' }); assert.equal(h.received.length, 2);
+  await h.session.stop(); await h.session.resume(); assert.equal(h.state().status, 'listening');
+  assert.equal(h.state().capabilities.clockSync, false); assert.equal(h.state().capabilities.volumeWrite, false);
+  await h.session.dispose();
+});
+
+test('negative, timeout, late and failed standard confirmations preserve old bindings and never promote', async () => {
+  for (const reason of ['negative', 'timeout', 'persistence']) {
+    const h = standardVerificationFixture(); await h.session.scan(); await h.session.selectAndRemember('standard'); h.trial(h.sample);
+    if (reason === 'persistence') {
+      h.api.confirmStandardThermometerTrial = async () => { throw { code: 'PERSISTENCE_FAILED' }; };
+      assert.equal(await h.session.confirmTrial({ readingId: 'reading', basalConfirmed: true }), false);
+    } else if (reason === 'timeout') { h.trial({ status: 'timeout' }); await flush(); }
+    else await h.session.stopTrial();
+    h.trial({ ...h.sample, readingId: 'late' });
+    assert.equal(await h.session.confirmTrial({ readingId: 'reading', basalConfirmed: true }), false);
+    assert.equal(h.received.length, 0); assert.equal(h.saved().deviceKey, 'old'); assert.equal(h.saved().bindings.length, 1);
+    assert.equal(h.state().trial.readings.length, 1);
+    await h.session.dispose();
+  }
+});
+
+test('account disposal invalidates a pending standard confirmation and its late readings', async () => {
+  const h = standardVerificationFixture(); const result = deferred();
+  await h.session.scan(); await h.session.selectAndRemember('standard'); h.trial(h.sample);
+  h.api.confirmStandardThermometerTrial = () => result.promise;
+  const confirmation = h.session.confirmTrial({ readingId: 'reading', basalConfirmed: true }); await flush();
+  const disposal = h.session.dispose(); await flush();
+  h.trial(h.sample);
+  result.resolve({ remembered: true, deviceKey: 'obsolete', protocol: 'health-thermometer', verifiedReading: h.sample });
+  assert.equal(await confirmation, false); await disposal;
+  assert.equal(h.received.length, 0); assert.equal(h.state().deviceKey, 'old');
+});
+
+test('verification confirmation requires explicit basal/current take acknowledgement and selection', async () => {
+  const harness = hooks(); const calls = [];
+  const { ThermometerVerificationView } = await loadFrontend('src/components/ThermometerVerificationView.jsx', {
+    ...harness.bindings, Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description',
+  }, ['ThermometerVerificationView']);
+  const props = { name: 'Unknown thermometer', trial: { status: 'listening', verificationId: 'proof', readings: [
+    { readingId: 'old', temperatureC: 36.1 }, { readingId: 'current', temperatureC: 36.47 }] },
+    onConfirm: value => calls.push(value), onStop: () => calls.push('cancel'), onRetry: () => {} };
+  const nodes = () => treeNodes(harness.render(() => ({ props: { value: ThermometerVerificationView(props) } })));
+  const button = text => nodes().find(node => node.type === 'button' && JSON.stringify(node.props.children).includes(text));
+  assert.equal(button('Sí, coincide').props.disabled, true);
+  nodes().find(node => node.type === 'select').props.onChange({ target: { value: 'current' } }); nodes();
+  nodes().find(node => node.type === 'input').props.onChange({ target: { checked: true } });
+  assert.equal(button('Sí, coincide').props.disabled, false);
+  button('Sí, coincide').props.onClick(); assert.deepEqual(calls[0], { readingId: 'current', basalConfirmed: true });
+  assert.match(JSON.stringify(nodes()), /36,47/);
+  button('No, es diferente').props.onClick(); assert.equal(calls.at(-1), 'cancel');
+  harness.cleanup();
+});
+
+test('manual multibrand incorporation requires validated reception and preserves transmitted units and original date', () => {
+  const incoming = normalizeBleMeasurement({ temperatureC: 36.5, temperatureOriginal: 97.7, temperatureUnit: 'fahrenheit',
+    deviceKey: 'key', deviceModel: null, deviceProtocol: 'health-thermometer', receptionValidated: true,
+    deviceTimestamp: '2026-11-18T08:00:01', receivedAt: '2026-11-18T09:00:00' });
+  const confirmation = { confirmed: true, userId: 'a', cycleId: 'cycle', isoDate: '2026-11-18', time: '08:00', nowMs: new Date(2026, 10, 19).getTime() };
+  const draft = prepareManualBleDraft(incoming, confirmation).measurements[0];
+  assert.equal(draft.device_model, null); assert.equal(draft.transmitted_temperature, 97.7); assert.equal(draft.transmitted_unit, 'fahrenheit');
+  assert.equal(draft.device_timestamp, incoming.device_timestamp); assert.equal(draft.device_date_reliability, 'unverified');
+  for (const patch of [{ reception_validated: false }, { device_key: null }, { device_protocol: 'unknown' }])
+    assert.throws(() => prepareManualBleDraft({ ...incoming, ...patch }, confirmation));
+  assert.equal(authorizedBleMeasurement({ ...incoming, device_model: 'EBT-300', device_protocol: 'easyhome-ebt300' }), true);
+  assert.equal(authorizedBleMeasurement({ ...incoming, device_model: 'EBT-089', device_protocol: 'easyhome-ebt300' }), false);
+});
 
 const localText = millis => { const d = new Date(millis); const pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 
@@ -68,7 +184,7 @@ async function mountedOwner(native, initialUser = 'a') {
   const lifecycle = new Set();
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-    ...harness.bindings, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
+    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
@@ -439,7 +555,7 @@ test('device routes use the shared state and are unavailable outside the enabled
   const { DevicesPage, Vinca2DevicePage } = await loadFrontend('src/pages/DevicesPage.jsx', {
     ...harness.bindings, useParams: () => ({}), useAuth: () => ({ user: { uid: 'a' } }),
     useFemometer: () => enabled ? { enabled, pendingCount: 2, sessionState: deviceState } : { enabled: false },
-    Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado', Button: 'button', CheckCircle2: 'check', X: 'close', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer', Link2: 'icon',
+    Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', thermometerName, ThermometerVerificationView: 'verification', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado', Button: 'button', CheckCircle2: 'check', X: 'close', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer', Link2: 'icon',
   }, ['DevicesPage', 'Vinca2DevicePage']);
   const render = () => harness.render(() => ({ props: { value: DevicesPage() } }));
   assert.ok(treeNodes(render()).some(node => node.type === 'link' && node.props.to === '/settings/devices/vinca2'));
@@ -762,7 +878,7 @@ test('integrated lab keeps the real application children and route state; fake B
   let location = { key: 'dashboard', pathname: '/', search: '', hash: '' };
   const children = { type: 'real-application', props: {} };
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, useLocation: () => location, useNavigate: () => (...args) => routes.push(args),
+    ...harness.bindings, authorizedBleMeasurement, useLocation: () => location, useNavigate: () => (...args) => routes.push(args),
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -824,7 +940,8 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(lab().sessionState.remembered, false);
   lab().sessionRef.current.scan();
   assert.equal(lab().sessionState.status, 'searching'); finish();
-  assert.equal(lab().sessionState.devices.length, 5);
+  assert.equal(lab().sessionState.devices.length, 6);
+  assert.ok(lab().sessionState.devices.some(device => device.id === 'lab-easy' && device.model === 'EBT-300'));
   let binding = lab().sessionRef.current.selectAndRemember('lab-other'); finish();
   assert.equal(await binding, false); assert.equal(lab().sessionState.remembered, false);
   binding = lab().sessionRef.current.selectAndRemember('lab-inspection-error'); finish();
@@ -1180,7 +1297,7 @@ async function vincaPanelFixture(initial = {}, props = {}) {
   let ble = { pendingCount: 2, clockHistory: null, sessionState: { remembered: false, status: 'idle', devices: [], ...initial },
     sessionRef: { current: {} }, openReadingReview: () => calls.push('review'), openClockDialog: () => calls.push('clock') };
   const { Vinca2Panel } = await loadFrontend('src/components/Vinca2Panel.jsx', {
-    ...harness.bindings, useFemometer: () => ble, window: { location: { hash: '' } },
+    ...harness.bindings, thermometerName, useFemometer: () => ble, window: { location: { hash: '' } },
     Button: 'button', Bluetooth: 'icon', ChevronRight: 'icon', Clock3: 'icon', Info: 'icon', Thermometer: 'icon', Link2: 'icon', Unlink: 'icon',
     Dialog: 'dialog', DialogContent: 'dialog-content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Vinca2Diagnostics: 'diagnostics',
   }, ['Vinca2Panel']);
@@ -1197,7 +1314,7 @@ async function devicesFixture(initial = {}) {
   const { DevicesPage } = await loadFrontend('src/pages/DevicesPage.jsx', {
     setTimeout: (fn, ms) => { timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn),
     ...harness.bindings, useFemometer: () => ble, useParams: () => ({}), useAuth: () => ({ user: { uid: 'a' } }),
-    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado',
+    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', thermometerName, ThermometerVerificationView: 'verification', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado',
     Button: 'button', CheckCircle2: 'check', X: 'close', ChevronLeft: 'icon', ChevronRight: 'icon', Thermometer: 'icon', Link2: 'icon',
     Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['DevicesPage']);
@@ -1279,6 +1396,11 @@ test('saved devices stay visible while adding and scan results connect by opaque
   await h.button('Pulsa para vincular').props.onClick();
   assert.deepEqual(calls, [['connect', 'second'], ['inspect', 'new-physical']]);
   assert.equal(h.ble.pendingCount, 2);
+  h.ble.readings = [{ uiId: 1, deviceKey: 'first', importStatus: 'pending' }, { uiId: 2, deviceKey: 'first', promotedVerification: true, importStatus: 'pending' }];
+  h.ble.sessionState.verificationPromoted = true;
+  h.ble.openReadingReview = id => calls.push(['review', id]);
+  h.button('Revisar temperatura de comprobación').props.onClick();
+  assert.deepEqual(calls.at(-1), ['review', 2]);
   assert.doesNotMatch(JSON.stringify(h.render()), /Pendientes de revisar e incorporar/);
   h.cleanup();
 });
@@ -1606,7 +1728,7 @@ test('lab device info simulates all results and cancellation without a native ad
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -1803,7 +1925,7 @@ test('volume lab simulates two stages, errors, timeout and exclusions without na
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -2035,7 +2157,7 @@ test('measurement mode lab simulates two stages, errors, timeout and exclusions 
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -2363,7 +2485,7 @@ test('lab integration: new binding prepares preferences, restoration is serial, 
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -2783,8 +2905,8 @@ test('trial cancellation drains a late start and rejects late trial events witho
   const h = multiDeviceFixture(); const start = deferred(); let event; let removed = 0;
   h.native.api.addStandardThermometerTrialListener = async callback => { event = callback; return { remove: async () => removed++ }; };
   h.native.api.startStandardThermometerTrial = () => start.promise;
-  await h.session.scan(); await h.session.selectAndRemember('candidate');
-  const beginning = h.session.startTrial('candidate'); await flush();
+  await h.session.scan();
+  const beginning = h.session.selectAndRemember('candidate'); await flush();
   const stopped = h.session.stopTrial(); await flush();
   event({ experimental: true, temperatureC: 38 });
   start.resolve({ experimental: true, connectionReady: true, indicationsActive: true });

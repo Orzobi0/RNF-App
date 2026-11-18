@@ -75,6 +75,7 @@ test('Android message bridge receives multiple readings and releases the subscri
       ['selectRememberedDevice', () => ble.selectRememberedFemometer('user-a', 'opaque-key'), { userId: 'user-a', deviceKey: 'opaque-key' }, { remembered: true, deviceKey: 'opaque-key' }],
       ['forgetDevice', () => ble.forgetFemometer('user-a', 'opaque-key'), { userId: 'user-a', deviceKey: 'opaque-key' }, { remembered: false, bindings: [] }],
       ['startStandardTrial', () => ble.startStandardThermometerTrial('candidate', 'user-a'), { deviceId: 'candidate', userId: 'user-a' }, { experimental: true }],
+      ['confirmStandardTrial', () => ble.confirmStandardThermometerTrial('user-a', { deviceId: 'candidate', verificationId: 'session-proof', readingId: 'received-proof', basalConfirmed: true }), { userId: 'user-a', deviceId: 'candidate', verificationId: 'session-proof', readingId: 'received-proof', basalConfirmed: true }, { remembered: true, deviceKey: 'opaque-standard', protocol: 'health-thermometer' }],
       ['forgetDevice', () => ble.forgetFemometer('user-b'), { userId: 'user-b' }, { remembered: false }],
     ]) {
       const pending = invoke();

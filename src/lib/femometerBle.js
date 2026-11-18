@@ -281,6 +281,7 @@ export const startFemometerTemperatureListener = async (deviceId, userId) =>
   callFemometerBle('startTemperatureListener', { deviceId, userId });
 
 export const startStandardThermometerTrial = (deviceId, userId) => callFemometerBle('startStandardTrial', { deviceId, userId });
+export const confirmStandardThermometerTrial = (userId, evidence) => callFemometerBle('confirmStandardTrial', { userId, ...evidence });
 export const addStandardThermometerTrialListener = callback => addFemometerTemperatureListener(callback, 'thermometerTrialReading');
 
 export const stopFemometerTemperatureListener = async () =>
@@ -387,5 +388,5 @@ export const createFemometerPanelSession = createFemometerSessionManager({
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer, selectRememberedFemometer,
   readFemometerClock, syncFemometerClock, readFemometerDeviceInfo, setFemometerVolume, setFemometerMeasurementMode,
-  startStandardThermometerTrial, addStandardThermometerTrialListener,
+  startStandardThermometerTrial, addStandardThermometerTrialListener, confirmStandardThermometerTrial,
 });

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, lazy, Su
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
-import { normalizeBleMeasurement, decideVinca2Reading } from '@/lib/bleMeasurements';
+import { normalizeBleMeasurement, decideVinca2Reading, authorizedBleMeasurement } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
 import BleReadingReview from '@/components/BleReadingReview';
 import { createFemometerLocalState } from '@/lib/femometerLocalState';
@@ -108,6 +108,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     }, event => {
       if (!alive || event?.experimental === true) return;
       const normalized = normalizeBleMeasurement(event);
+      if (normalized?.device_protocol && !authorizedBleMeasurement(normalized)) return;
       if (normalized) {
         // UI-only sequence, never passed as a device identity or measurement key.
         updateReadings([...readingsRef.current, { ...event, normalized, deviceKey: normalized.device_key,

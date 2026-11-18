@@ -90,7 +90,11 @@ public class FemometerBle extends Plugin {
     private String temperatureDeviceModel;
     private boolean experimentalReception;
     private static final String TRIAL_EVENT = "thermometerTrialReading";
-    private static final long TRIAL_TIMEOUT_MS = 60000L;
+    private static final long TRIAL_TIMEOUT_MS = 300000L;
+    private String temperatureProtocol, temperatureDeviceName;
+    private boolean receptionValidated, easyUnitConfigured;
+    private String trialDeviceId;
+    private final ThermometerVerification<JSObject> verification = new ThermometerVerification<>();
     private BluetoothGattCharacteristic temperatureCharacteristic;
     private BluetoothGattCharacteristic vincaIndicationCharacteristic;
     private PluginCall temperatureListenerCall;
@@ -126,7 +130,10 @@ public class FemometerBle extends Plugin {
                             org.json.JSONObject row = rows.getJSONObject(i);
                             String address = row.getString("address"), key = row.getString("key");
                             if (address.isEmpty() || key.isEmpty() || !keys.add(key) || !addresses.add(address)) throw new IllegalStateException();
-                            devices.add(new FemometerIdentityStore.Binding(address, key, row.getString("model")));
+                            String model = row.optString("model", null);
+                            devices.add(new FemometerIdentityStore.Binding(address, key, model, row.optString("name", null),
+                                row.optString("manufacturer", null), row.optString("protocol", "BM-Vinca2".equals(model) ? "vinca2" : null),
+                                row.optString("firmware", null), row.optString("compatibility", "BM-Vinca2".equals(model) ? "compatible" : "pending")));
                         }
                         String selected = json.isNull("selectedKey") ? null : json.getString("selectedKey");
                         if (selected != null && !keys.contains(selected)) throw new IllegalStateException();
@@ -136,7 +143,7 @@ public class FemometerBle extends Plugin {
                 public boolean writeBindings(String user, FemometerIdentityStore.Bindings bindings) {
                     JSObject json = new JSObject(); JSArray devices = new JSArray();
                     for (FemometerIdentityStore.Binding binding : bindings.devices) {
-                        JSObject row = new JSObject(); row.put("address", binding.address); row.put("key", binding.key); row.put("model", binding.model); devices.put(row);
+                        JSObject row = bindingMetadata(binding); row.put("address", binding.address); row.put("key", binding.key); devices.put(row);
                     }
                     json.put("devices", devices);
                     json.put("selectedKey", bindings.selectedKey == null ? org.json.JSONObject.NULL : bindings.selectedKey);
@@ -159,17 +166,32 @@ public class FemometerBle extends Plugin {
 
     private JSObject publicBinding(String user) {
         FemometerIdentityStore.Binding binding = identities().get(user);
-        JSObject result = new JSObject();
+        JSObject result = bindingMetadata(binding);
         result.put("remembered", binding.address != null);
         result.put("deviceKey", binding.key);
         result.put("model", binding.address == null ? null : binding.model);
         JSArray bindings = new JSArray();
         for (FemometerIdentityStore.Binding saved : identities().all(user).devices) {
-            JSObject row = new JSObject(); row.put("deviceKey", saved.key); row.put("model", saved.model);
+            JSObject row = bindingMetadata(saved); row.put("deviceKey", saved.key);
             bindings.put(row);
         }
         result.put("bindings", bindings);
         return result;
+    }
+
+    private JSObject bindingMetadata(FemometerIdentityStore.Binding binding) {
+        JSObject row = new JSObject();
+        row.put("model", binding.model == null ? org.json.JSONObject.NULL : binding.model);
+        row.put("name", binding.name == null ? org.json.JSONObject.NULL : binding.name);
+        row.put("manufacturer", binding.manufacturer == null ? org.json.JSONObject.NULL : binding.manufacturer);
+        row.put("firmware", binding.firmware == null ? org.json.JSONObject.NULL : binding.firmware);
+        row.put("protocol", binding.protocol); row.put("compatibility", binding.compatibility);
+        return row;
+    }
+    private void saveInspected(String user, ScannedDevice device, String protocol, String compatibility) {
+        JSObject info = device.inspection;
+        identities().remember(user, device.address, info.optString("model", null), device.name,
+            info.optString("manufacturer", null), protocol, info.optString("firmware", null), compatibility);
     }
 
     // UID comes from the authenticated web session; no Firebase native dependency.
@@ -213,12 +235,12 @@ public class FemometerBle extends Plugin {
             call.reject("Vuelve a buscar el termometro.", "DEVICE_NOT_FOUND");
             return;
         }
-        if (!device.compatible) {
+        if (!device.compatible || device.inspection == null) {
             call.reject("Comprueba primero la compatibilidad.", "DEVICE_NOT_VERIFIED");
             return;
         }
         try {
-            identities().remember(userId, device.address);
+            saveInspected(userId, device, device.inspection.optString("protocol", null), device.inspection.optString("compatibility", "pending"));
             call.resolve(publicBinding(userId));
         } catch (IllegalStateException error) {
             call.reject("No se pudo guardar el termometro.", "PERSISTENCE_FAILED");
@@ -235,6 +257,38 @@ public class FemometerBle extends Plugin {
             call.resolve(publicBinding(userId));
         } catch (IllegalStateException error) {
             call.reject("No se pudo olvidar el termometro.", "PERSISTENCE_FAILED");
+        }
+    }
+
+    @PluginMethod
+    public synchronized void confirmStandardTrial(PluginCall call) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> confirmStandardTrial(call)); return; }
+        String user = requireUser(call); if (user == null) return;
+        ScannedDevice device = devicesById.get(call.getString("deviceId"));
+        if (!experimentalReception || !temperatureReady || device == null || device.inspection == null
+                || !java.util.Objects.equals(trialDeviceId, call.getString("deviceId"))) {
+            call.reject("Repite la comprobacion del termometro.", "VERIFICATION_INVALID"); return;
+        }
+        try {
+            JSObject reading = verification.confirmed(user, device.address, call.getString("verificationId"),
+                call.getString("readingId"), Boolean.TRUE.equals(call.getBoolean("basalConfirmed", false)));
+            boolean unique = verification.count(item -> java.util.Objects.equals(item.optString("deviceTimestamp", null), reading.optString("deviceTimestamp", null))
+                && item.optDouble("temperatureC") == reading.optDouble("temperatureC")) == 1;
+            stopTemperatureListenerInternal(false, null, null);
+            if (!gattCleanup.complete()) { call.reject("No se pudo cerrar la comprobacion.", "GATT_CLOSE_FAILED"); return; }
+            saveInspected(user, device, "health-thermometer", "experimental");
+            JSObject result = publicBinding(user);
+            // A complete original timestamp permits exact replay comparison on the next connection.
+            // Without it the measurement stays a test and the user must make a new take.
+            if (unique && reading.optString("deviceTimestamp", null) != null) {
+                reading.put("deviceKey", identities().get(user).key); reading.put("experimental", false);
+                reading.put("receptionValidated", true); reading.put("promotedVerification", true);
+                reading.remove("verificationId"); reading.remove("readingId");
+                result.put("verifiedReading", reading);
+            }
+            call.resolve(result);
+        } catch (IllegalStateException error) {
+            call.reject("No se pudo confirmar y guardar la vinculacion.", error.getMessage());
         }
     }
 
@@ -451,6 +505,7 @@ public class FemometerBle extends Plugin {
                 inspectProfile(gatt, scannedDevice.name, result -> {
                     if (gatt != activeGatt || connectCall != call) return;
                     scannedDevice.compatible = result.optBoolean("compatible", false);
+                    scannedDevice.inspection = result;
                     PluginCall pending = connectCall;
                     clearConnectState();
                     activeGatt = null;
@@ -496,7 +551,8 @@ public class FemometerBle extends Plugin {
     @PluginMethod
     public void startStandardTrial(PluginCall call) { startReception(call, true); }
 
-    private void startReception(PluginCall call, boolean trial) {
+    private synchronized void startReception(PluginCall call, boolean trial) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> startReception(call, trial)); return; }
         String userId = requireUser(call);
         if (userId == null) return;
         String deviceId = call.getString("deviceId");
@@ -529,7 +585,10 @@ public class FemometerBle extends Plugin {
         try {
             temperatureDeviceKey = identities().keyForAddress(userId, scannedDevice.address);
         } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
+        final FemometerIdentityStore.Binding bound = identities().forAddress(userId, scannedDevice.address);
+        if (!trial && (bound == null || !bound.key.equals(identities().get(userId).key))) { call.reject("Vincula primero el dispositivo.", "DEVICE_NOT_VERIFIED"); return; }
         experimentalReception = trial;
+        if (trial) { trialDeviceId = deviceId; verification.begin(userId, scannedDevice.address); }
         temperatureListenerCall = call;
         final String connectedDeviceKey = temperatureDeviceKey;
 
@@ -580,34 +639,62 @@ public class FemometerBle extends Plugin {
 
                 inspectProfile(gatt, scannedDevice.name, result -> {
                     if (gatt != temperatureGatt || temperatureListenerCall == null) return;
-                    temperatureProfileValidated = result.optBoolean("compatible", false);
-                    if (trial && (temperatureProfileValidated || !HealthThermometerProfile.supports(gatt))) {
-                        rejectTemperatureStart("La prueba estandar no esta disponible para este dispositivo.", "DEVICE_NOT_VERIFIED"); return;
+                    temperatureProfileValidated = result.optBoolean("compatible", false) && "vinca2".equals(result.optString("protocol"));
+                    String detected = result.optString("protocol", null);
+                    if (trial) {
+                        if (result.optBoolean("compatible", false) || !HealthThermometerProfile.supports(gatt)) {
+                            rejectTemperatureStart("Recepcion estandar no disponible.", "DEVICE_NOT_VERIFIED"); return;
+                        }
+                        detected = "health-thermometer";
+                    } else {
+                        if ("health-thermometer".equals(bound.protocol) && !result.optBoolean("compatible", false)
+                                && HealthThermometerProfile.supports(gatt)) detected = "health-thermometer";
+                        boolean allowed = temperatureProfileValidated
+                            || ("easyhome-ebt300".equals(detected) && result.optBoolean("compatible", false))
+                            || ("health-thermometer".equals(detected) && "experimental".equals(bound.compatibility));
+                        if (!allowed || !bound.matches(result.optString("model", null), result.optString("manufacturer", null),
+                                result.optString("firmware", null), detected)) {
+                            rejectTemperatureStart("La identidad o perfil del dispositivo ha cambiado.", "DEVICE_NOT_VERIFIED"); return;
+                        }
                     }
-                    if (!trial && !temperatureProfileValidated) {
-                        rejectTemperatureStart("Este dispositivo no tiene un protocolo compatible validado.", "DEVICE_NOT_VERIFIED");
-                        return;
-                    }
+                    temperatureProtocol = detected;
+                    receptionValidated = true;
                     temperatureDeviceModel = result.optString("model", null);
-                    subscribeTemperature(gatt);
+                    temperatureDeviceName = scannedDevice.name;
+                    scannedDevice.inspection = result;
+                    if ("easyhome-ebt300".equals(temperatureProtocol)) configureEasyUnit(gatt);
+                    else subscribeTemperature(gatt);
                 }, code -> { if (gatt == temperatureGatt && temperatureListenerCall != null) rejectTemperatureStart("No se pudo identificar el dispositivo.", code); });
             }
 
+            private void configureEasyUnit(BluetoothGatt gatt) {
+                BluetoothGattCharacteristic write = gatt.getService(EasyHomeProfile.SERVICE).getCharacteristic(EasyHomeProfile.WRITE);
+                int mode = (write.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+                    ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT;
+                try {
+                    boolean accepted;
+                    if (Build.VERSION.SDK_INT >= 33) accepted = gatt.writeCharacteristic(write, EasyHomeProfile.celsiusCommand(), mode) == 0;
+                    else { write.setWriteType(mode); write.setValue(EasyHomeProfile.celsiusCommand()); accepted = gatt.writeCharacteristic(write); }
+                    if (!accepted) rejectTemperatureStart("No se pudo configurar Celsius.", "UNIT_WRITE_FAILED");
+                } catch (Exception error) { rejectTemperatureStart("No se pudo configurar Celsius.", "UNIT_WRITE_FAILED"); }
+            }
+
             private void subscribeTemperature(BluetoothGatt gatt) {
-                BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
+                boolean easy = "easyhome-ebt300".equals(temperatureProtocol);
+                BluetoothGattService service = gatt.getService(easy ? EasyHomeProfile.SERVICE : HEALTH_THERMOMETER_UUID);
                 if (service == null) {
                     rejectTemperatureStart("No se encontro el servicio Health Thermometer.", "HEALTH_THERMOMETER_NOT_FOUND");
                     return;
                 }
 
-                BluetoothGattCharacteristic characteristic = service.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID);
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(easy ? EasyHomeProfile.NOTIFY : TEMPERATURE_MEASUREMENT_UUID);
                 if (characteristic == null) {
                     rejectTemperatureStart("No se encontro la caracteristica Temperature Measurement.", "TEMPERATURE_MEASUREMENT_NOT_FOUND");
                     return;
                 }
 
                 int properties = characteristic.getProperties();
-                if ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) == 0) {
+                if ((properties & (easy ? BluetoothGattCharacteristic.PROPERTY_NOTIFY : BluetoothGattCharacteristic.PROPERTY_INDICATE)) == 0) {
                     rejectTemperatureStart("Temperature Measurement no expone indicaciones.", "INDICATE_NOT_SUPPORTED");
                     return;
                 }
@@ -624,7 +711,7 @@ public class FemometerBle extends Plugin {
                         return;
                     }
                     temperatureCharacteristic = characteristic;
-                    if (!writeDescriptorValue(gatt, descriptor, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                    if (!writeDescriptorValue(gatt, descriptor, easy ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
                         rejectTemperatureStart("No se pudo escribir el descriptor CCCD para indicaciones.", "CCCD_WRITE_FAILED");
                     }
                 } catch (SecurityException error) {
@@ -649,8 +736,8 @@ public class FemometerBle extends Plugin {
 
                 UUID subscribedUuid = descriptor.getCharacteristic().getUuid();
                 Log.d(TAG, "Indications enabled: " + subscribedUuid);
-                if (TEMPERATURE_MEASUREMENT_UUID.equals(subscribedUuid)) {
-                    if (trial) finishTemperatureSetup(); else enableVincaIndications(gatt);
+                if (TEMPERATURE_MEASUREMENT_UUID.equals(subscribedUuid) || ("easyhome-ebt300".equals(temperatureProtocol) && EasyHomeProfile.NOTIFY.equals(subscribedUuid))) {
+                    if (!temperatureProfileValidated) finishTemperatureSetup(); else enableVincaIndications(gatt);
                 } else if (!trial && VINCA_INDICATION_UUID.equals(subscribedUuid)) {
                     configureMeasurementInterval(gatt);
                 }
@@ -658,6 +745,10 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt == temperatureGatt && "easyhome-ebt300".equals(temperatureProtocol) && EasyHomeProfile.WRITE.equals(characteristic.getUuid()) && temperatureListenerCall != null) {
+                    if (status != BluetoothGatt.GATT_SUCCESS) { rejectTemperatureStart("No se confirmo Celsius.", "UNIT_WRITE_FAILED"); return; }
+                    easyUnitConfigured = true; subscribeTemperature(gatt); return;
+                }
                 if (gatt == temperatureGatt && Vinca2Profile.CONFIGURATION.equals(characteristic.getUuid())) {
                     synchronized (FemometerBle.this) {
                         // Both settings share one characteristic: deliver each callback to one owner only.
@@ -683,7 +774,7 @@ public class FemometerBle extends Plugin {
             @Override
             public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                 if (gatt != temperatureGatt) return;
-                handleTemperatureCharacteristicChanged(characteristic, characteristic.getValue(), connectedDeviceKey);
+                handleTemperatureCharacteristicChanged(gatt, characteristic, characteristic.getValue(), connectedDeviceKey);
             }
 
             @Override
@@ -713,7 +804,7 @@ public class FemometerBle extends Plugin {
                 byte[] value
             ) {
                 if (gatt != temperatureGatt) return;
-                handleTemperatureCharacteristicChanged(characteristic, value, connectedDeviceKey);
+                handleTemperatureCharacteristicChanged(gatt, characteristic, value, connectedDeviceKey);
             }
         };
 
@@ -762,7 +853,7 @@ public class FemometerBle extends Plugin {
     public synchronized void readDeviceInfo(PluginCall call) {
         String blocked = getBlockedOperationCode();
         if (blocked != null) { rejectWithCode(call, blocked); return; }
-        if (!temperatureProfileValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+        if (!receptionValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "DEVICE_INFO_NOT_CONNECTED"); return;
         }
         if (clockOperation.busy()) { call.reject("Hay una operacion de reloj en curso.", "CLOCK_BUSY"); return; }
@@ -918,7 +1009,7 @@ public class FemometerBle extends Plugin {
         // subscription, configuration or proprietary command during identification.
         identityOperation.start(gatt, new BleDeviceInfoOperation.Reads() {
             public Object readableTarget(int field) {
-                if (field != 1 && field != 2) return null;
+                if (field != 1 && field != 2 && field != 3) return null;
                 BluetoothGattCharacteristic target = BleDeviceInfoOperation.deviceInfo(gatt, field);
                 return target != null && (target.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) != 0 ? target : null;
             }
@@ -929,6 +1020,9 @@ public class FemometerBle extends Plugin {
             String manufacturer = publicDeviceText((String) values.get("manufacturer"));
             boolean identified = Vinca2Profile.identifies(advertisedName, model);
             boolean compatible = identified && Vinca2Profile.supports(gatt);
+            boolean easy = !identified && EasyHomeProfile.identifies(advertisedName, model) && EasyHomeProfile.supports(gatt);
+            String protocol = compatible ? "vinca2" : easy ? "easyhome-ebt300" : null;
+            if (easy) { model = EasyHomeProfile.MODEL; if (manufacturer == null) manufacturer = "Easy@Home"; compatible = true; }
             if (identified) { model = Vinca2Profile.MODEL; if (manufacturer == null) manufacturer = "Femometer"; }
             BluetoothGattService health = gatt.getService(HEALTH_THERMOMETER_UUID);
             boolean standard = health != null && health.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID) != null;
@@ -936,12 +1030,23 @@ public class FemometerBle extends Plugin {
             result.put("compatible", compatible);
             result.put("model", model);
             result.put("manufacturer", manufacturer);
-            result.put("protocol", compatible ? Vinca2Profile.PROTOCOL : null);
+            result.put("protocol", protocol);
+            result.put("name", advertisedName);
+            result.put("firmware", publicDeviceText((String) values.get("firmware")));
             result.put("standardTrialAvailable", !compatible && HealthThermometerProfile.supports(gatt));
-            result.put("compatibility", ThermometerDiscovery.classification(compatible, model, manufacturer, standard));
-            result.put("capabilities", compatible ? Vinca2Profile.capabilities(gatt) : new JSObject());
+            result.put("compatibility", easy ? "experimental" : ThermometerDiscovery.classification(compatible, model, manufacturer, standard));
+            result.put("capabilities", compatible ? profileCapabilities(gatt, protocol, model) : new JSObject());
             completed.accept(result);
         }, 4500L);
+    }
+
+    private JSObject profileCapabilities(BluetoothGatt gatt, String protocol, String model) {
+        if ("vinca2".equals(protocol)) return Vinca2Profile.capabilities(gatt);
+        JSObject result = new JSObject();
+        result.put("model", model); result.put("protocol", protocol); result.put("compatibility", "experimental");
+        result.put("temperatureReceive", true); result.put("deviceInfo", true);
+        result.put("historyReceive", "easyhome-ebt300".equals(protocol));
+        return result;
     }
 
     private JSObject buildInspectionResult(BluetoothGatt gatt) {
@@ -1061,20 +1166,22 @@ public class FemometerBle extends Plugin {
         result.put("indicationsActive", true);
         result.put("timeoutSeconds", (experimentalReception ? TRIAL_TIMEOUT_MS : TEMPERATURE_LISTENER_TIMEOUT_MS) / 1000);
         result.put("experimental", experimentalReception);
-        result.put("measurementIntervalConfigured", !experimentalReception);
-        result.put("capabilities", experimentalReception ? new JSObject() : Vinca2Profile.capabilities(temperatureGatt));
+        result.put("measurementIntervalConfigured", temperatureProfileValidated);
+        result.put("capabilities", experimentalReception ? new JSObject() : profileCapabilities(temperatureGatt, temperatureProtocol, temperatureDeviceModel));
+        result.put("verificationId", verification.session());
         result.put("deviceKey", temperatureDeviceKey);
         temperatureReady = true;
         if (pending != null) pending.resolve(result);
         Log.d(TAG, "Temperature listener ready: Vinca setup v2");
     }
 
-    private void handleTemperatureCharacteristicChanged(BluetoothGattCharacteristic characteristic, byte[] value, String connectedDeviceKey) {
+    private synchronized void handleTemperatureCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, String connectedDeviceKey) {
+        if (gatt != temperatureGatt) return;
         if (characteristic != null) {
             // Log transport metadata only, never temperatures or raw measurement bytes.
             Log.d(TAG, "BLE indication: " + characteristic.getUuid() + ", bytes=" + (value == null ? 0 : value.length));
         }
-        if (characteristic == null || !TEMPERATURE_MEASUREMENT_UUID.equals(characteristic.getUuid())) {
+        if (!receptionValidated || characteristic == null || !("easyhome-ebt300".equals(temperatureProtocol) ? EasyHomeProfile.NOTIFY : TEMPERATURE_MEASUREMENT_UUID).equals(characteristic.getUuid())) {
             return;
         }
         if (value == null || value.length < 5) {
@@ -1083,12 +1190,28 @@ public class FemometerBle extends Plugin {
         }
 
         try {
-            if (experimentalReception) TemperatureMeasurementCodec.validateFinal(value);
-            JSObject decoded = decodeTemperatureMeasurement(value);
+            JSObject decoded;
+            if ("easyhome-ebt300".equals(temperatureProtocol)) {
+                EasyHomeProfile.Reading reading = EasyHomeProfile.decode(value, easyUnitConfigured);
+                decoded = new JSObject(); decoded.put("temperatureC", reading.temperature); decoded.put("temperatureOriginal", reading.temperature);
+                decoded.put("temperatureUnit", "celsius"); decoded.put("deviceTimestamp", reading.timestamp);
+                decoded.put("deviceTimestampReliability", "unverified"); decoded.put("receivedAt", formatIsoLocal(new Date()));
+                decoded.put("measurementKind", reading.live ? "current" : "historical");
+            } else {
+                if (!temperatureProfileValidated) TemperatureMeasurementCodec.validateFinal(value);
+                decoded = decodeTemperatureMeasurement(value);
+            }
             decoded.put("deviceKey", connectedDeviceKey);
-            if (!temperatureProfileValidated && !experimentalReception) return;
             decoded.put("deviceModel", temperatureDeviceModel);
-            decoded.put("deviceProtocol", experimentalReception ? "health-thermometer-trial" : Vinca2Profile.PROTOCOL);
+            decoded.put("deviceName", temperatureDeviceName);
+            if (!temperatureProfileValidated) decoded.remove("rawHex");
+            decoded.put("deviceProtocol", temperatureProtocol);
+            decoded.put("receptionValidated", !experimentalReception);
+            if (experimentalReception) {
+                String readingId = verification.add(decoded);
+                if (readingId == null) return;
+                decoded.put("verificationId", verification.session()); decoded.put("readingId", readingId);
+            }
             decoded.put("experimental", experimentalReception);
             Log.d(TAG, "Temperature indication received");
             notifyListeners(experimentalReception ? TRIAL_EVENT : TEMPERATURE_EVENT, decoded);
@@ -1132,9 +1255,9 @@ public class FemometerBle extends Plugin {
         }
 
         JSObject result = new JSObject();
-        result.put("temperatureC", experimentalReception ? temperatureC : roundTemperature(temperatureC));
+        result.put("temperatureC", !temperatureProfileValidated ? temperatureC : roundTemperature(temperatureC));
         result.put("temperatureUnit", isFahrenheit ? "fahrenheit" : "celsius");
-        result.put("temperatureOriginal", experimentalReception ? temperature : roundTemperature(temperature));
+        result.put("temperatureOriginal", !temperatureProfileValidated ? temperature : roundTemperature(temperature));
         result.put("receivedAt", formatIsoLocal(new Date()));
         result.put("deviceTimestamp", deviceTimestamp);
         result.put("deviceTimestampReliability", deviceTimestamp == null ? (hasTimestamp ? "invalid" : "missing") : "unverified");
@@ -1344,6 +1467,8 @@ public class FemometerBle extends Plugin {
     }
 
     private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+        verification.clear(); trialDeviceId = null;
+        receptionValidated = false; temperatureProtocol = null; temperatureDeviceName = null; easyUnitConfigured = false;
         temperatureReady = false;
         measurementModeOperation.cancel();
         volumeOperation.cancel();
@@ -1488,6 +1613,7 @@ public class FemometerBle extends Plugin {
         final BluetoothDevice device;
         final String address;
         volatile boolean compatible;
+        volatile JSObject inspection;
         final String name;
         final int rssi;
         final boolean standard;

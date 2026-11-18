@@ -8,9 +8,24 @@ import java.util.Collections;
 /** Native-only addresses; public keys survive migration and selection changes. */
 final class FemometerIdentityStore {
     static final class Binding {
-        final String address, key, model;
+        final String address, key, model, name, manufacturer, protocol, firmware, compatibility;
         Binding(String address, String key) { this(address, key, "BM-Vinca2"); }
-        Binding(String address, String key, String model) { this.address = address; this.key = key; this.model = model; }
+        // Only the legacy constructors infer Vinca: all new bindings provide their profile.
+        Binding(String address, String key, String model) {
+            this(address, key, model, null, null, "BM-Vinca2".equals(model) ? "vinca2" : null, null,
+                "BM-Vinca2".equals(model) ? "compatible" : "pending");
+        }
+        Binding(String address, String key, String model, String name, String manufacturer,
+                String protocol, String firmware, String compatibility) {
+            this.address = address; this.key = key; this.model = model; this.name = name;
+            this.manufacturer = manufacturer; this.protocol = protocol; this.firmware = firmware; this.compatibility = compatibility;
+        }
+        boolean matches(String model, String manufacturer, String firmware, String protocol) {
+            return java.util.Objects.equals(this.protocol, protocol)
+                && java.util.Objects.equals(this.model, model)
+                && (this.manufacturer == null || this.manufacturer.equals(manufacturer))
+                && (this.firmware == null || this.firmware.equals(firmware));
+        }
     }
     static final class Bindings {
         final List<Binding> devices;
@@ -48,9 +63,13 @@ final class FemometerIdentityStore {
         return new Binding(null, null);
     }
     synchronized Binding remember(String user, String address) {
+        return remember(user, address, "BM-Vinca2", null, null, "vinca2", null, "compatible");
+    }
+    synchronized Binding remember(String user, String address, String model, String name, String manufacturer,
+            String protocol, String firmware, String compatibility) {
         Bindings old = all(user);
         for (Binding binding : old.devices) if (address.equals(binding.address)) { select(user, binding.key); return binding; }
-        Binding next = new Binding(address, UUID.randomUUID().toString());
+        Binding next = new Binding(address, UUID.randomUUID().toString(), model, name, manufacturer, protocol, firmware, compatibility);
         List<Binding> devices = new ArrayList<>(old.devices); devices.add(next);
         save(user, new Bindings(devices, next.key)); return next;
     }
@@ -70,6 +89,10 @@ final class FemometerIdentityStore {
     synchronized String keyForAddress(String user, String address) {
         if (user == null || address == null) return null;
         for (Binding binding : all(user).devices) if (address.equals(binding.address)) return binding.key;
+        return null;
+    }
+    synchronized Binding forAddress(String user, String address) {
+        for (Binding binding : all(user).devices) if (binding.address.equals(address)) return binding;
         return null;
     }
     private void save(String user, Bindings bindings) {

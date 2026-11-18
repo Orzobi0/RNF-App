@@ -51,6 +51,10 @@ export const createFemometerSessionManager = (api) => {
     let configurationJob;
     let bindingJob;
     let cancelChangeJob;
+    let promotedReplay;
+    const sameReading = (a, b) => a && b && a.deviceKey === b.deviceKey && a.deviceProtocol === b.deviceProtocol
+      && a.deviceTimestamp && a.deviceTimestamp === b.deviceTimestamp && a.temperatureC === b.temperatureC
+      && a.temperatureUnit === b.temperatureUnit;
     let stopping;
     let disposal;
     let subscription;
@@ -90,7 +94,7 @@ export const createFemometerSessionManager = (api) => {
         try { return [device.deviceKey, localState?.preferences(device.deviceKey) ?? {}]; } catch { return [device.deviceKey, {}]; }
       }));
       publish({ bindings, preferencesByDevice, remembered: saved.remembered, deviceKey: saved.deviceKey ?? null,
-        boundModel: saved.model ?? (saved.remembered ? 'BM-Vinca2' : null) });
+        boundModel: saved.model ?? (saved.remembered && !saved.protocol ? 'BM-Vinca2' : null), boundName: saved.name, boundProtocol: saved.protocol, boundCompatibility: saved.compatibility });
     };
     const loadPreferences = deviceKey => {
       try {
@@ -153,6 +157,10 @@ export const createFemometerSessionManager = (api) => {
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
         if (!current() || event?.experimental === true) return;
+        if (event?.deviceProtocol && (event.receptionValidated !== true || event.deviceKey !== state.deviceKey)) return;
+        if (promotedReplay && now() < promotedReplay.until && sameReading(promotedReplay.reading, event)) {
+          return; // Suppress exact replays of the promoted take during the initial five-minute window.
+        }
         onTemperature({ ...event, deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
         if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
           void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
@@ -166,13 +174,14 @@ export const createFemometerSessionManager = (api) => {
       if (state.deviceKey && result?.deviceKey !== state.deviceKey) {
         throw { code: 'CONNECTION_IDENTITY_MISMATCH', message: 'La conexión no corresponde a la vinculación activa.' };
       }
-      if (thermometerCapabilities(result?.capabilities).protocol !== 'vinca2') throw { code: 'DEVICE_NOT_VERIFIED', message: 'El perfil de este termómetro no está validado.' };
+      if (!thermometerCapabilities(result?.capabilities).temperatureReceive) throw { code: 'DEVICE_NOT_VERIFIED', message: 'El perfil de este termómetro no está validado.' };
       listeningExpiresAt = now() + (Number(result?.timeoutSeconds) || 360) * 1000;
-      publish({ status: 'listening', configurationBusy: true, listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
-      automaticConfigurationPending = true;
+      const configure = result.capabilities?.protocol === 'vinca2';
+      publish({ status: 'listening', configurationBusy: configure, listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
+      automaticConfigurationPending = configure;
     };
     const search = async (automatic, call, current, expanded = false) => {
-      publish({ status: 'checking', devices: [], selectedDeviceId: '', inspectionResult: null });
+      publish({ status: 'checking', devices: [], selectedDeviceId: '', inspectionResult: null, trial: null });
       const saved = await call(() => api.getRememberedFemometer(userId));
       applyBindings(saved);
       loadPreferences(saved.deviceKey);
@@ -387,6 +396,26 @@ export const createFemometerSessionManager = (api) => {
         .finally(() => { bindingJob = null; if (!disposed) publish({ bindingBusy: false }); });
       return bindingJob;
     };
+    const trialTask = async (deviceId, call, current) => {
+        if (state.selectedDeviceId !== deviceId || state.inspectionResult?.standardTrialAvailable !== true
+          || state.inspectionResult?.compatible === true) throw { code: 'DEVICE_NOT_VERIFIED', message: 'Comprueba primero la recepción estándar disponible.' };
+        publish({ changingDevice: true, status: 'connecting', trial: { status: 'connecting', deviceId, readings: [] } });
+        subscription = await api.addStandardThermometerTrialListener(event => {
+          if (!current()) return;
+          if (event?.experimental === true && Number.isFinite(event.temperatureC)) {
+            publish({ trial: { ...state.trial, readings: [...state.trial.readings, {
+              ...event, deviceTimestamp: event.deviceTimestamp ?? null,
+            }].slice(-50) } });
+          }
+          if (event?.error) publish({ trial: { ...state.trial, error: 'Medición no válida.' } });
+          if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) void session.stop();
+        });
+        const result = await call(() => api.startStandardThermometerTrial(deviceId, userId));
+        if (result?.experimental !== true || result?.connectionReady !== true || result?.indicationsActive !== true) {
+          throw { code: 'LISTENER_NOT_READY', message: 'No se pudo iniciar la recepción de prueba.' };
+        }
+        publish({ status: 'trial', trial: { ...state.trial, verificationId: result.verificationId, status: 'listening' } });
+    };
     const session = {
       unlink: deviceKey => changeBinding(true, deviceKey),
       connectSaved: deviceKey => {
@@ -488,7 +517,7 @@ export const createFemometerSessionManager = (api) => {
           if (!state.devices.some(device => device.id === deviceId)) {
             throw { code: 'DEVICE_NOT_FOUND', message: 'Este resultado ya no está disponible. Vuelve a buscar.' };
           }
-          publish({ status: 'inspecting', selectedDeviceId: deviceId, inspectionResult: null });
+          publish({ status: 'inspecting', selectedDeviceId: deviceId, inspectionResult: null, trial: null });
           const inspection = await call(() => api.connectAndInspectFemometer(deviceId));
           await call(() => api.disconnectFemometer());
           if (typeof inspection?.compatible !== 'boolean') {
@@ -496,7 +525,10 @@ export const createFemometerSessionManager = (api) => {
           }
           publish({ inspectionResult: inspection, devices: state.devices.map(device => device.id === deviceId
             ? { ...device, model: inspection.model, manufacturer: inspection.manufacturer, compatibility: inspection.compatibility ?? 'unknown', standardTrialAvailable: inspection.standardTrialAvailable === true } : device) });
-          if (inspection?.compatible !== true || inspection.protocol !== 'vinca2' || inspection.model !== 'BM-Vinca2') {
+          if (inspection?.compatible !== true || !thermometerCapabilities(inspection.capabilities ?? {
+            model: inspection.model, protocol: inspection.protocol, compatibility: inspection.compatibility ?? 'compatible',
+          }).temperatureReceive) {
+            if (inspection.standardTrialAvailable === true) { await trialTask(deviceId, call, current); return; }
             publish({ status: 'idle' });
             return;
           }
@@ -512,7 +544,7 @@ export const createFemometerSessionManager = (api) => {
             devices: state.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) });
           confirmed = true;
           publish({ changingDevice: false });
-          if (saved.deviceKey && saved.deviceKey !== previousKey && !previousKeys.includes(saved.deviceKey)) {
+          if (inspection.protocol === 'vinca2' && saved.deviceKey && saved.deviceKey !== previousKey && !previousKeys.includes(saved.deviceKey)) {
             try {
               if (!localState) throw new Error('Almacenamiento no disponible.');
               localState.initializePreferences(saved.deviceKey);
@@ -523,29 +555,49 @@ export const createFemometerSessionManager = (api) => {
           await listen(deviceId, call, current);
         }).then(() => confirmed);
       },
-      startTrial: deviceId => run(async (call, current) => {
-        if (state.selectedDeviceId !== deviceId || state.inspectionResult?.standardTrialAvailable !== true
-          || state.inspectionResult?.compatible === true) throw { code: 'DEVICE_NOT_VERIFIED', message: 'Comprueba primero la recepción estándar disponible.' };
-        publish({ changingDevice: true, status: 'connecting', trial: { status: 'connecting', deviceId, readings: [] } });
-        subscription = await api.addStandardThermometerTrialListener(event => {
-          if (!current()) return;
-          if (event?.experimental === true && Number.isFinite(event.temperatureC)) {
-            publish({ trial: { ...state.trial, readings: [...state.trial.readings, {
-              temperatureC: event.temperatureC, deviceTimestamp: event.deviceTimestamp ?? null, receivedAt: event.receivedAt,
-            }].slice(-50) } });
+      startTrial: deviceId => run((call, current) => trialTask(deviceId, call, current)),
+      confirmTrial: ({ readingId, basalConfirmed } = {}) => {
+        const trial = state.trial;
+        const reading = trial?.readings.find(item => item.readingId === readingId && item.verificationId === trial.verificationId);
+        if (disposed || suspended || bindingJob || job || stopping || trial?.status !== 'listening'
+          || !trial.verificationId || !reading || basalConfirmed !== true) return Promise.resolve(false);
+        const token = ++version;
+        const current = () => !disposed && !suspended && token === version;
+        publish({ bindingBusy: true });
+        bindingJob = (async () => {
+          await removeSubscription();
+          if (!current()) return false;
+          const saved = await api.confirmStandardThermometerTrial(userId, { deviceId: trial.deviceId,
+            verificationId: trial.verificationId, readingId, basalConfirmed: true });
+          if (!current()) return false;
+          if (!saved?.remembered || !saved.deviceKey || saved.protocol !== 'health-thermometer') throw { code: 'VERIFICATION_INVALID' };
+          acquired = false;
+          applyBindings(saved); loadPreferences(saved.deviceKey);
+          const promoted = saved.verifiedReading;
+          const canPromote = promoted?.receptionValidated === true && promoted.deviceKey === saved.deviceKey
+            && promoted.experimental !== true && typeof promoted.deviceTimestamp === 'string' && promoted.deviceTimestamp.length > 0
+            && promoted.deviceProtocol === saved.protocol && promoted.deviceTimestamp === reading.deviceTimestamp
+            && promoted.temperatureC === reading.temperatureC && promoted.promotedVerification === true;
+          if (canPromote) {
+            promotedReplay = { reading: promoted, until: now() + 300000 };
+            onTemperature(promoted);
           }
-          if (event?.error) publish({ trial: { ...state.trial, error: 'Medición no válida.' } });
-          if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) void session.stop();
+          publish({ status: 'idle', changingDevice: false, trial: null, verificationPromoted: canPromote,
+            verificationNeedsNewReading: !canPromote });
+          return true;
+        })().catch(async error => {
+          await disconnect().catch(() => {});
+          if (current()) publish({ status: 'error', error, trial: state.trial ? { ...state.trial, status: 'complete' } : null });
+          return false;
+        }).finally(() => { bindingJob = null; if (!disposed) publish({ bindingBusy: false }); });
+        return bindingJob.then(async confirmed => {
+          if (confirmed && current()) await run((call, valid) => listen(trial.deviceId, call, valid));
+          return confirmed;
         });
-        const result = await call(() => api.startStandardThermometerTrial(deviceId, userId));
-        if (result?.experimental !== true || result?.connectionReady !== true || result?.indicationsActive !== true) {
-          throw { code: 'LISTENER_NOT_READY', message: 'No se pudo iniciar la recepción de prueba.' };
-        }
-        publish({ status: 'trial', trial: { ...state.trial, status: 'listening' } });
-      }),
+      },
       stopTrial: () => session.stop(),
       select: (id) => {
-        if (disposed || job || stopping || state.status === 'listening') return;
+        if (disposed || job || stopping || bindingJob || ['listening', 'trial'].includes(state.status)) return;
         if (state.devices.some(device => device.id === id)) publish({ selectedDeviceId: id, inspectionResult: null });
       },
       listen: () => run((call, current) => listen(state.selectedDeviceId, call, current)),

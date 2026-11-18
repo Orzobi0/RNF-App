@@ -1,4 +1,13 @@
 import { temperatureNumber, measurementsFromRecord } from './temperatureMeasurements.js';
+import { implementedThermometer } from './thermometerCatalog.js';
+
+export const authorizedBleMeasurement = measurement => {
+  // Historical Vinca rows predate protocol/provenance fields and remain reviewable.
+  if (!measurement?.device_protocol) return measurement?.device_model === 'BM-Vinca2';
+  return Boolean(measurement.device_key) && measurement.reception_validated === true
+    && implementedThermometer({ model: measurement.device_model, protocol: measurement.device_protocol,
+      compatibility: measurement.device_protocol === 'vinca2' ? 'compatible' : 'experimental' });
+};
 
 // Normalizes transport diagnostics to the common measurement shape, without persistence.
 // A syntactically valid device clock is still unverified, including after a clock sync:
@@ -18,6 +27,9 @@ export const normalizeBleMeasurement = (event, model = null) => {
     temperature: event.temperatureC, temperature_original: event.temperatureC, time: valid ? raw.slice(11, 16) : '', selected: false,
     temperature_corrected: '', time_corrected: '', use_corrected: false,
     source: 'bluetooth', device_model: event.deviceModel ?? model, device_key: typeof event.deviceKey === 'string' ? event.deviceKey : null,
+    device_protocol: event.deviceProtocol ?? null, reception_validated: event.receptionValidated === true && event.experimental !== true,
+    device_name: event.deviceName ?? null, transmitted_temperature: event.temperatureOriginal ?? event.temperatureC,
+    transmitted_unit: event.temperatureUnit ?? 'celsius', measurement_kind: event.measurementKind ?? null,
     device_timestamp: raw, received_at: event.receivedAt ?? null,
     device_date_reliability: raw === null
       ? (event.deviceTimestampReliability === 'invalid' ? 'invalid' : 'missing')
@@ -95,7 +107,7 @@ export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, u
     || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time ?? '')
     || !Number.isFinite(nowMs) || !Number.isFinite(localDate.getTime()) || localDate.getTime() > nowMs
     || localDate.getHours() !== Number(time.slice(0, 2)) || localDate.getMinutes() !== Number(time.slice(3))
-    || measurement?.source !== 'bluetooth' || measurement.device_model !== 'BM-Vinca2'
+    || measurement?.source !== 'bluetooth' || !authorizedBleMeasurement(measurement)
     || temperatureNumber(measurement.temperature) === null) {
     throw new Error('Confirma una fecha y hora reales válidas, no futuras.');
   }
@@ -116,6 +128,7 @@ const originalMinute = timestamp => {
 // and the user's confirmed date never identify a measurement from the device.
 export const isPossibleBleDuplicate = (existing, incoming) => existing?.source === 'bluetooth'
   && existing.device_model === incoming?.device_model
+  && (!existing.device_key || !incoming?.device_key || existing.device_key === incoming.device_key)
   && typeof incoming.device_timestamp === 'string' && incoming.device_timestamp.length > 0
   && (incoming.device_model === 'BM-Vinca2'
     ? originalMinute(incoming.device_timestamp) !== null && originalMinute(existing.device_timestamp) === originalMinute(incoming.device_timestamp)

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Clock3, Info, Thermometer, Link2, Unlink } from 'lucide-react';
+import { thermometerName } from '@/lib/thermometerCatalog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useFemometer } from '@/contexts/FemometerContext';
@@ -17,6 +18,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
   const active = !deviceKey || deviceKey === sharedState.deviceKey;
   const saved = sharedState.bindings?.find(device => device.deviceKey === deviceKey);
   const sessionState = active ? sharedState : { status: 'stopped', remembered: Boolean(saved), boundModel: saved?.model,
+    boundName: saved?.name, boundProtocol: saved?.protocol, boundCompatibility: saved?.compatibility,
     preferences: sharedState.preferencesByDevice?.[deviceKey] ?? {}, bindings: sharedState.bindings,
     bindingBusy: sharedState.bindingBusy, busy: sharedState.busy || sharedState.configurationBusy, capabilities: {} };
   const clockHistory = active ? sharedClock : null;
@@ -25,7 +27,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
   const [working, setWorking] = useState(false);
   const [actionError, setActionError] = useState(null);
   const operationLock = useRef(false);
-  const model = sessionState.boundModel ?? (remembered ? 'BM-Vinca2' : capabilities?.model);
+  const model = sessionState.boundModel ?? (remembered && !sessionState.boundProtocol ? 'BM-Vinca2' : capabilities?.model);
   const vinca = model === 'BM-Vinca2';
   const listening = status === 'listening';
   const busy = sessionState.configurationBusy || sessionState.bindingBusy || working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.volumeBusy || sessionState.measurementModeBusy || sessionState.restarting
@@ -67,8 +69,9 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
     <div className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
       <>{vinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-20 w-12 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12" aria-hidden="true" />}</>
       <div className="min-w-0">
-        <h2 className="text-xl font-semibold text-titulo">{vinca ? 'Femometer Vinca 2' : model || 'Termómetro'}</h2>
+        <h2 className="text-xl font-semibold text-titulo">{thermometerName({ model, name: sessionState.boundName })}</h2>
         <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">{remembered && <><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</>}</p>
+        <p className="text-xs text-slate-500">{sessionState.boundCompatibility === 'experimental' ? 'Experimental' : ''}</p>
         <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{healthyListening && <svg aria-hidden="true" viewBox="0 0 44 44" className="mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" /></svg>}{healthyListening ? 'Escuchando temperaturas' : vinca2StatusText(status, sessionState)}</p>
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
       </div>
@@ -166,7 +169,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
         <details>
           <summary className={`${rowClass} cursor-pointer`}><Info className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Modelo y compatibilidad</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
-            <p>{vinca ? 'Femometer Vinca 2 / BM-Vinca2. Perfil implementado en FertiliApp.' : 'Compatibilidad pendiente de validar.'}</p>
+            <p>{vinca ? 'Femometer Vinca 2 / BM-Vinca2. Perfil implementado en FertiliApp.' : thermometerName({ model, name: sessionState.boundName })}</p>
             <Button type="button" variant="outline" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-3 py-2 text-sm"
               disabled={busy || recover || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired || !listening || !sessionState.listenerResult?.connectionReady || !sessionState.listenerResult?.indicationsActive}
               onClick={() => run('readDeviceInfo')}>Consultar datos</Button>

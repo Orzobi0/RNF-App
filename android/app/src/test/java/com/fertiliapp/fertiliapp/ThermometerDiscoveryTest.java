@@ -10,6 +10,9 @@ public class ThermometerDiscoveryTest {
         assertEquals("unknown", ThermometerDiscovery.classification(false, null, null, false));
         assertTrue(ThermometerDiscovery.candidate("BM-Vinca2", false, false, false));
         assertTrue(ThermometerDiscovery.candidate("Easy@Home", false, false, false));
+        assertTrue(ThermometerDiscovery.candidate("EBT-300", false, false, false));
+        assertEquals("EBT-300", ThermometerDiscovery.preliminaryModel("EBT-300"));
+        assertNull(ThermometerDiscovery.preliminaryModel("EBT-089"));
         assertTrue(ThermometerDiscovery.candidate(null, true, false, false));
         assertTrue(ThermometerDiscovery.candidate(null, false, true, false));
         assertFalse(ThermometerDiscovery.candidate(null, false, false, false));
