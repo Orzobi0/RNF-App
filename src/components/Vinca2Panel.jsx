@@ -73,9 +73,36 @@ const Vinca2Panel = () => {
       disabled={busy} onClick={() => run(operation)}>{primaryLabel}</Button>
     {listening && <Button type="button" variant="ghost" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal" disabled={busy} onClick={() => run('stop')}>Detener escucha</Button>}
     </div>
-    {pendingCount > 0 && <button type="button" className={`${rowClass} border-b border-slate-100 text-fertiliapp-fuerte`} onClick={() => openReadingReview()}>
-      <Thermometer className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Temperaturas pendientes</span><span>{pendingCount}</span><ChevronRight className="h-4 w-4" aria-hidden="true" />
-    </button>}
+        {pendingCount > 0 && (
+      <button
+        type="button"
+        className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-rose-50/50 p-3 text-left hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400"
+        onClick={() => openReadingReview()}
+      >
+        <Thermometer
+          className="h-5 w-5 shrink-0 text-fertiliapp-fuerte"
+          aria-hidden="true"
+        />
+
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-titulo">
+            Temperaturas pendientes
+            <span className="ml-1 text-fertiliapp-fuerte">
+              {pendingCount}
+            </span>
+          </span>
+
+          <span className="mt-0.5 block text-sm text-slate-600">
+            Pendientes de revisar e incorporar
+          </span>
+        </span>
+
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-slate-400"
+          aria-hidden="true"
+        />
+      </button>
+    )}
     {sessionState.preferenceError && <p role="alert" className="py-2 text-sm text-amber-800">{sessionState.preferenceError}</p>}
     <section aria-labelledby="vinca-configuration" className="pt-6">
       <h3 id="vinca-configuration" className="text-base font-semibold text-titulo">Configuración</h3>
@@ -97,7 +124,7 @@ const Vinca2Panel = () => {
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <div role="group" aria-label="Nivel de volumen" className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-100">
               {Object.entries(volumeLabels).map(([level, label]) => <Button key={level} type="button" variant="outline"
-                className={`relative min-h-11 min-w-0 rounded-none border-0 bg-transparent px-1 py-2 text-sm shadow-none hover:bg-slate-50 disabled:opacity-60 ${sessionState.preferences?.volume === level ? 'font-semibold text-fertiliapp-fuerte after:absolute after:bottom-0 after:left-1/3 after:right-1/3 after:h-0.5 after:bg-fertiliapp-fuerte' : 'text-slate-700'}`}
+                className={`relative min-h-11 min-w-0 rounded-none border-0 bg-transparent px-1 py-2 text-sm shadow-none disabled:opacity-100 ${sessionState.preferences?.volume === level ? 'font-semibold text-fertiliapp-fuerte after:absolute after:bottom-0 after:left-1/4 after:right-1/4 after:h-[3px] after:bg-fertiliapp-fuerte' : 'text-slate-700'}`}
                 aria-pressed={sessionState.preferences?.volume === level}
                 disabled={Boolean(busy || recover || !volumeReady || !capabilities?.volumeWrite || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired)}
                 onClick={() => run('setVolume', level)}>{label}{sessionState.preferences?.volume === level && <span className="sr-only"> (seleccionado)</span>}</Button>)}
@@ -115,7 +142,7 @@ const Vinca2Panel = () => {
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <div role="group" aria-label="Modo de medición" className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-100">
               {Object.entries(measurementModeLabels).map(([level, label]) => <Button key={level} type="button" variant="outline"
-                className={`relative min-h-11 min-w-0 rounded-none border-0 bg-transparent px-1 py-2 text-sm shadow-none hover:bg-slate-50 disabled:opacity-60 ${sessionState.preferences?.measurementMode === level ? 'font-semibold text-fertiliapp-fuerte after:absolute after:bottom-0 after:left-1/3 after:right-1/3 after:h-0.5 after:bg-fertiliapp-fuerte' : 'text-slate-700'}`}
+                className={`relative min-h-11 min-w-0 rounded-none border-0 bg-transparent px-1 py-2 text-sm shadow-none disabled:opacity-100 ${sessionState.preferences?.measurementMode === level ? 'font-semibold text-fertiliapp-fuerte after:absolute after:bottom-0 after:left-1/4 after:right-1/4 after:h-[3px] after:bg-fertiliapp-fuerte' : 'text-slate-700'}`}
                 aria-pressed={sessionState.preferences?.measurementMode === level}
                 disabled={Boolean(busy || recover || !measurementModeReady || !capabilities?.modeConfiguration || sessionState.measurementModeReconnectRequired || sessionState.volumeReconnectRequired)}
                 onClick={() => run('setMeasurementMode', level)}>{label}{sessionState.preferences?.measurementMode === level && <span className="sr-only"> (seleccionado)</span>}</Button>)}

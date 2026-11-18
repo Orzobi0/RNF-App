@@ -102,18 +102,58 @@ export function BleReadingReviewView({
     </section>}
     {error && !duplicate && <p role="alert" className="text-sm text-amber-800">Requiere revisión: {error.message}</p>}
     {error?.code === 'ble-import-conflict' && <Button variant="outline" onClick={() => { onClose(); navigate('/records'); }}>Revisar ciclo en Mis registros</Button>}
-    {!discardConfirm && !storedConfirm && showFields && <footer aria-label="Acciones de revisión" className="space-y-2 border-t border-slate-100 pt-3 pb-[env(safe-area-inset-bottom,0px)]">
-      <div className="flex items-center justify-between gap-2">
-        {!uncertain && !duplicate && <Button type="button" variant="ghost" className="min-h-11 h-auto min-w-0 gap-2 whitespace-normal rounded-xl px-1 py-2 text-left text-sm text-slate-600" disabled={busy || reading.importStatus !== 'pending'} onClick={onRequestDiscard}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" /><span>Descartar temperatura</span></Button>}
-        {!uncertain && <Button type="button" className="ml-auto min-h-11 shrink-0 rounded-xl px-2 text-slate-600" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
-      </div>
-      <div className="flex justify-end">
-        <Button type="button" className="ml-auto min-h-11 h-auto max-w-full whitespace-normal rounded-xl bg-fertiliapp-fuerte px-4 py-2 text-white hover:brightness-95"
-          disabled={busy || !draft.isoDate || !draft.time || (uncertain && !checkedUncertain) || (duplicate && !duplicateApproved)} onClick={confirm}>
-          {busy ? 'Incorporando…' : 'Confirmar e incorporar'}
-        </Button>
-      </div>
-    </footer>}
+          {!discardConfirm && !storedConfirm && showFields && (
+      <footer
+        aria-label="Acciones de revisión"
+        className="grid grid-cols-2 items-start gap-4 border-t border-slate-100 pt-2 pb-[env(safe-area-inset-bottom,0px)]"
+      >
+        {/* Acción secundaria: descartar */}
+        {!uncertain && !duplicate ? (
+          <div className="min-w-0">
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11 h-auto w-[80%] min-w-0 gap-2 whitespace-normal rounded-2xl border border-slate-200 bg-slate-50 px-2 py-2 text-center text-sm leading-snug text-slate-700 hover:bg-slate-100"
+              disabled={busy || reading.importStatus !== 'pending'}
+              onClick={onRequestDiscard}
+            >
+              <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Descartar temperatura</span>
+            </Button>
+          </div>
+        ) : (
+          <div />
+        )}
+
+        {/* Acción principal: confirmar */}
+        <div className="min-w-0">
+          <Button
+            type="button"
+            className="min-h-11 h-auto w-full min-w-0 whitespace-normal rounded-2xl bg-fertiliapp-fuerte px-3 py-2 text-center text-sm font-semibold leading-snug text-white hover:brightness-95"
+            disabled={
+              busy ||
+              !draft.isoDate ||
+              !draft.time ||
+              (uncertain && !checkedUncertain) ||
+              (duplicate && !duplicateApproved)
+            }
+            onClick={confirm}
+          >
+            {busy ? (
+  'Incorporando…'
+) : (
+  <>
+    <CheckCircle2
+      className="h-4 w-4 shrink-0"
+      aria-hidden="true"
+    />
+    <span>Confirmar e incorporar</span>
+  </>
+)}
+          </Button>
+        </div>
+      </footer>
+    )}
 
   </div>;
 }

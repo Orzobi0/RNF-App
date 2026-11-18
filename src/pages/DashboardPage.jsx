@@ -1181,7 +1181,7 @@ const handleRingPointerCancel = useCallback(
             <button
               type="button"
               onClick={onEditStartDate}
-              className="inline-flex items-center gap-2 rounded-full border border-rose-100/80 bg-white/85 px-3 py-1.5 text-sm font-medium text-subtitulo shadow-[0_2px_6px_rgba(216,92,112,0.04)] transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+              className="inline-flex items-center gap-2 rounded-fulltext-sm font-medium text-subtitulo shadow-[0_2px_6px_rgba(216,92,112,0.04)] transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
               title="Editar fecha de inicio del ciclo"
             >
               <Edit className="w-4 h-4" />

@@ -170,8 +170,8 @@ suppressExpandClick.current = false;
           : 'left-3 w-[calc(100%-80px)] overflow-visible border border-rose-200 bg-gradient-to-br from-white via-rose-50 to-pink-50 p-3 shadow-[0_8px_22px_rgba(190,60,100,0.13)]'}
         transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none`}
       style={{
-        top: `calc(${viewport?.top ?? 0}px + var(--ble-safe-top, env(safe-area-inset-top, 0px)) + 12px + var(--ble-notice-height, 0px))`,
-        maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px) - 24px - var(--bottom-nav-safe, 64px) - var(--ble-notice-height, 0px))`,
+        top: `calc(${viewport?.top ?? 0}px + var(--ble-safe-top, env(safe-area-inset-top, 0px)) + 12px)`,
+maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px) - 24px - var(--bottom-nav-safe, 64px))`,
         transform: compact ? `translate3d(${offset.x}px, ${offset.y}px, 0)` : undefined,
         opacity: compact ? opacity : undefined,
         transition: dragging ? 'none' : undefined,
@@ -271,17 +271,20 @@ suppressExpandClick.current = false;
         className="min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left aria-pressed:border-rose-400 aria-pressed:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-60"
         onClick={() => onSelect(row.uiId)}
       >
-        <span className="block space-y-0.5">
-          <span className="text-lg font-semibold text-titulo">
-            {typeof row.temperatureC === 'number'
-              ? row.temperatureC.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              : '—'} °C
-          </span>
+        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+  <span className="whitespace-nowrap text-lg font-semibold text-titulo tabular-nums">
+    {typeof row.temperatureC === 'number'
+      ? row.temperatureC.toLocaleString('es-ES', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : '—'} °C
+  </span>
 
-          <span className="block text-sm text-slate-600">
-            {formatBleDateTime(row.deviceTimestamp)}
-          </span>
-        </span>
+  <span className="whitespace-nowrap text-[15px] font-medium text-slate-700 tabular-nums">
+    {formatBleDateTime(row.deviceTimestamp)}
+  </span>
+</span>
 
         <span className="mt-1 block text-xs text-slate-500">
           {row.normalized?.device_model || 'BM-Vinca2'}
