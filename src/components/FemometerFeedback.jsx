@@ -84,6 +84,16 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
       </div>
       <DialogFooter className="flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-col sm:space-x-0">
         <div className="flex flex-wrap justify-end gap-2">
+          {connected && capabilities?.clockRead && (
+  <Button
+    variant="ghost"
+    className="min-h-11 rounded-xl text-sm"
+    disabled={Boolean(busy || reconnect)}
+    onClick={() => void run('readClock')}
+  >
+    Leer reloj
+  </Button>
+)}
           {connected && capabilities?.clockSync && <Button variant={issue ? 'default' : 'outline'} className={`min-h-11 h-auto max-w-full whitespace-normal rounded-xl px-4 py-2 ${issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} disabled={Boolean(busy || reconnect)} onClick={() => void run('syncClock')}>{easyClock ? 'Enviar ajuste de reloj' : 'Sincronizar y verificar'}</Button>}
           {!connected && <Button className="min-h-11 rounded-xl" disabled={busy} onClick={() => void run(sessionState.remembered ? 'start' : 'scan')}>Conectar</Button>}
           {connected && reconnect && <Button className="min-h-11 h-auto whitespace-normal rounded-xl" disabled={busy} onClick={() => void run('restart')}>Recuperar conexión</Button>}

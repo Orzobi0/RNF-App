@@ -79,7 +79,18 @@ export function DevicesPage() {
     {linked === null && <div role="status" className="text-sm text-slate-500">Consultando vinculación…</div>}
     {bindings.length > 0 && <section aria-label="Termómetros vinculados" className="space-y-2">
       <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-titulo">Mis termómetros</h2><Button variant="ghost" className={compactButton} disabled={busy || changing} onClick={() => run('beginChange')}>+ Añadir</Button></div>
-      {bindings.map(device => <div key={device.deviceKey || 'legacy'} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
+      {bindings.map(device => (
+  <Link
+    key={device.deviceKey || 'legacy'}
+    to={device.deviceKey
+      ? `/settings/devices/${encodeURIComponent(device.deviceKey)}`
+      : '/settings/devices/vinca2'}
+    aria-label={`Abrir ${thermometerName({
+      ...device,
+      ...metadata.devices[device.deviceKey],
+    })}`}
+    className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3 transition-colors active:bg-slate-100 focus-visible:outline-2 focus-visible:outline-rose-400"
+  >
                 {device.model === 'BM-Vinca2' || device.model === 'EBT-300' ? (
           <img
             src={device.model === 'BM-Vinca2'
@@ -105,8 +116,14 @@ export function DevicesPage() {
           <span className="flex items-center gap-1 text-xs text-slate-500"><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</span>
           <span className="block text-xs text-slate-500">{device.compatibility === 'experimental' ? 'Experimental' : ''}</span>
           <span className="block text-sm text-slate-600">{!changing && device.deviceKey === ble.sessionState.deviceKey ? vinca2StatusText(status, ble.sessionState) : 'Desconectado'}</span>
-        </div><Link aria-label={`Abrir ${thermometerName({ ...device, ...metadata.devices[device.deviceKey] })}`} to={device.deviceKey ? `/settings/devices/${encodeURIComponent(device.deviceKey)}` : '/settings/devices/vinca2'} className="flex h-11 w-11 items-center justify-center"><ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
-      </div>)}
+                </div>
+
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-slate-400"
+          aria-hidden="true"
+        />
+      </Link>
+    ))}
     </section>}
     {((linked === false && !bindings.length) || changing) && <section aria-label="Vincular termómetro" className="space-y-4">
       {!searched && status !== 'searching' && devices.length === 0 && <div aria-label="Preparar búsqueda" className="relative space-y-3 rounded-2xl border border-slate-200/70 bg-white p-4">
