@@ -58,7 +58,12 @@ export function DevicesPage() {
     try {
       const confirmed = operation === 'confirmTrial' ? await ble.completeVerification(id) : await ble.sessionRef.current?.[operation](id);
       if (operation === 'beginChange' && confirmed === true) { setChanging(true); setSearched(false); setNormalSearched(false); setAttemptedId(null); }
-      if (operation === 'cancelChange') { setChanging(false); setSearched(false); }
+      if (operation === 'cancelChange') {
+  setChanging(false);
+  setSearched(false);
+  setNormalSearched(false);
+  setAttemptedId(null);
+}
       if (operation === 'connectSaved' && confirmed === true) { setChanging(false); setSearched(false); setAttemptedId(null); }
       if (['selectAndRemember', 'confirmTrial'].includes(operation) && confirmed === true) {
         setLinkedNotice(operation === 'confirmTrial' ? 'incorporated' : true); setChanging(false); setSearched(false); setAttemptedId(null);
@@ -125,64 +130,275 @@ export function DevicesPage() {
       </Link>
     ))}
     </section>}
-    {((linked === false && !bindings.length) || changing) && <section aria-label="Vincular termómetro" className="space-y-4">
-      {!searched && status !== 'searching' && devices.length === 0 && <div aria-label="Preparar búsqueda" className="relative space-y-3 rounded-2xl border border-slate-200/70 bg-white p-4">
+    {((linked === false && !bindings.length) || changing) && (
+      <section aria-label="Vincular termómetro" className="relative space-y-4 rounded-2xl border border-slate-200/70 bg-white p-4">
         <h2 className="pr-10 font-semibold text-titulo">Añadir termómetro</h2>
-        {changing && <button type="button" aria-label="Cerrar adición" className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500" onClick={() => run('cancelChange')}><X className="h-4 w-4" aria-hidden="true" /></button>}
-        {!changing && <Link to="/settings" aria-label="Cerrar adición" className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500"><X className="h-4 w-4" aria-hidden="true" /></Link>}
-        <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-700 marker:font-semibold marker:text-fertiliapp-fuerte">
-          <li>Cierra la aplicación del termómetro, si está conectada.</li>
-          <li>Enciende el termómetro y acércalo al móvil.</li>
-        </ol>
-        <Button className={`${compactButton} bg-fertiliapp-fuerte text-white`} disabled={busy || listening} onClick={() => run('scan')}>Buscar termómetros</Button>
-      </div>}
-      {status === 'searching' && <p role="status" className="rounded-2xl bg-rose-50 p-4 text-sm">Buscando termómetros…</p>}
-      {(searched || devices.length > 0) && status !== 'searching' && <Button variant="ghost" className={compactButton} disabled={busy || listening} onClick={() => run('scan')}>Buscar de nuevo</Button>}
-      {normalSearched && !busy && <Button variant="ghost" className={compactButton} disabled={listening} onClick={() => run('scan', true)}>¿No encuentras tu termómetro?</Button>}
-      {changing && (searched || status === 'searching') && <Button variant="ghost" className={compactButton} disabled={ble.sessionState.bindingBusy} onClick={() => run('cancelChange')}>Cancelar</Button>}
+        {!searched && status !== 'searching' && devices.length === 0 && (
+          changing ? (
+            <button type="button" aria-label="Cerrar adición" className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500" onClick={() => run('cancelChange')}>
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : (
+            <Link to="/settings" aria-label="Cerrar adición" className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500">
+              <X className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )
+        )}
 
-      {searched && !busy && !error && devices.length === 0 && <p role="status" className="text-sm">No se han encontrado termómetros. Acércalo y vuelve a buscar.</p>}
-      {(searched || !linked) && devices.length > 0 && <div className="divide-y divide-slate-100">
-        <h3 className="pb-3 text-sm font-semibold text-titulo">Dispositivos encontrados</h3>
-        {devices.map(device => {
-          const stored = device.deviceKey && bindings.some(binding => binding.deviceKey === device.deviceKey);
-          const preliminaryVinca = device.model ? device.model === 'BM-Vinca2' : device.preliminaryModel === 'BM-Vinca2' || /(?:^|[^a-z0-9])bm-vinca2(?:$|[^a-z0-9])/i.test(device.name || '');
-          const preliminaryEasy = device.model === 'EBT-300' || device.preliminaryModel === 'EBT-300';
-          const attempted = attemptedId === device.id && selectedDeviceId === device.id;
-          return <button key={device.id} type="button" disabled={busy || listening}
-            onClick={() => run(stored ? 'connectSaved' : 'selectAndRemember', stored ? device.deviceKey : device.id)}
-            className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
-                        {preliminaryVinca || preliminaryEasy ? (
-              <img
-                src={preliminaryVinca
-                  ? '/images/vinca2.jpg'
-                  : '/images/EBT300.png'}
-                alt={preliminaryVinca
-                  ? 'Femometer Vinca 2'
-                  : 'Easy@Home EBT-300'}
-                width="32"
-                height="48"
-                className="h-12 w-8 shrink-0 object-contain"
-              />
-            ) : (
-              <Thermometer
-                className="h-4 w-4 shrink-0 text-fertiliapp-fuerte"
+        {/* Etapas del asistente, no porcentaje de progreso de Bluetooth. */}
+        <div aria-hidden="true" className="flex gap-1.5">
+          <span className="h-1 flex-1 rounded-full bg-fertiliapp-fuerte" />
+          <span className={`h-1 flex-1 rounded-full ${searched || status === 'searching' || devices.length > 0 ? 'bg-fertiliapp-fuerte' : 'bg-rose-100'}`} />
+          <span className={`h-1 flex-1 rounded-full ${(searched || devices.length > 0) && !busy && status !== 'searching' ? 'bg-fertiliapp-fuerte' : 'bg-rose-100'}`} />
+        </div>
+
+        {!searched && status !== 'searching' && (
+          <div aria-label="Preparar búsqueda" className="space-y-4">
+            <div className="flex flex-col items-center gap-2 text-center">
+                            <svg
                 aria-hidden="true"
-              />
-            )}
-            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{thermometerName({ ...device, model: preliminaryVinca ? 'BM-Vinca2' : preliminaryEasy ? 'EBT-300' : device.model, ...metadata.devices[device.deviceKey] })}</span>
-              {preliminaryEasy && <span className="block text-xs text-slate-500">Experimental</span>}
-              {device.manufacturer && <span className="block text-xs text-slate-500">{device.manufacturer}</span>}
-              {!preliminaryVinca && !preliminaryEasy && <span className="block text-xs text-slate-600">{device.compatibility === 'possible_standard' ? 'Posible termómetro' : device.compatibility === 'recognized_unsupported' ? 'Soporte pendiente' : 'Dispositivo sin identificar'}</span>}
-              <span className="block text-xs text-fertiliapp-fuerte">{stored ? 'Conectar' : preliminaryVinca || preliminaryEasy ? 'Pulsa para vincular' : 'Comprobar compatibilidad'}</span>
-              {attempted && <span role="status" className="mt-1 block text-xs text-slate-600">{busy ? ble.sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, ble.sessionState)
-                : error || actionError ? 'No se pudo completar la comprobación o vinculación. Vuelve a intentarlo.'
-                  : inspectionResult && inspectionResult.compatible !== true ? inspectionResult.standardTrialAvailable ? 'Prueba disponible' : 'No se puede vincular actualmente' : ''}</span>}
-            </span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-          </button>;
-        })}
-      </div>}
-    </section>}
+                viewBox="0 0 160 100"
+                className="h-28 w-44 max-w-full"
+                fill="none"
+              >
+                {/* Fondo */}
+                <circle cx="80" cy="50" r="43" fill="#fff1f3" />
+
+                {/* Móvil */}
+                <rect
+                  x="29" y="13"
+                  width="29" height="63"
+                  rx="6.5"
+                  fill="white"
+                  stroke="#d65a73"
+                  strokeWidth="1.8"
+                />
+                <rect
+                  x="32" y="16"
+                  width="23" height="57"
+                  rx="4"
+                  fill="#fdf6f8"
+                />
+                <rect
+                  x="40" y="17.5"
+                  width="7" height="2.2"
+                  rx="1.1"
+                  fill="#eab8c4"
+                />
+
+                {/* Símbolo Bluetooth */}
+                <path
+                  d="M38 39l11 11-5.5 5V33l5.5 6-11 11"
+                  stroke="#d65a73"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+
+                {/* Ondas estáticas */}
+                <path
+                  d="M66 39Q74 48 66 57"
+                  stroke="#d65a73"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M75 33Q88 48 75 63"
+                  stroke="#d65a73"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  opacity=".5"
+                />
+
+                {/* Termómetro basal */}
+                <g transform="rotate(20 113 50)">
+
+                  {/* Punta metálica */}
+                  <rect
+                    x="111" y="7"
+                    width="4" height="14"
+                    rx="1.8"
+                    fill="#aeb6c2"
+                  />
+                  <rect
+                    x="112" y="9"
+                    width="1.3" height="9"
+                    rx=".6"
+                    fill="#edf0f4"
+                  />
+
+                  {/* Cuerpo blanco */}
+                  <path
+                    d="M111 19L115 19C115 36 118 44 121 56Q122 61 122 64H104Q104 61 105 56C108 44 111 36 111 19Z"
+                    fill="#ffffff"
+                    stroke="#d1d5db"
+                    strokeWidth="1.1"
+                  />
+
+                  {/* Pantalla */}
+                  <rect
+                    x="109" y="44"
+                    width="8" height="15"
+                    rx="3"
+                    fill="#e4e4e8"
+                    stroke="#d1d5db"
+                    strokeWidth=".6"
+                  />
+                  <text
+                    x="113" y="53"
+                    fontSize="3.5"
+                    fontWeight="500"
+                    textAnchor="middle"
+                    fill="#64748b"
+                    transform="rotate(90 113 51.5)"
+                  >
+                    36.42
+                  </text>
+
+                  {/* Base rosa */}
+                  <path
+                    d="M104 63H122V82Q122 85 119 85H107Q104 85 104 82Z"
+                    fill="#df91ad"
+                    stroke="#cd7495"
+                    strokeWidth="1"
+                  />
+                  <path
+                    d="M107 66V81"
+                    stroke="#f6c3d5"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    opacity=".8"
+                  />
+                </g>
+              </svg>
+              <h3 className="font-semibold text-titulo">Prepara tu termómetro</h3>
+            </div>
+            <ol className="space-y-3 text-sm leading-relaxed text-slate-600">
+              <li className="flex items-start gap-3">
+                <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 font-semibold text-fertiliapp-fuerte">1</span>
+                <span>Cierra la aplicación del termómetro, si está conectada.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 font-semibold text-fertiliapp-fuerte">2</span>
+                <span>Enciende el termómetro y acércalo al móvil.</span>
+              </li>
+            </ol>
+            <div className="flex justify-center pt-1">
+              <Button className={`${compactButton} bg-fertiliapp-fuerte text-white`} disabled={busy || listening} onClick={() => run('scan')}>Buscar termómetros</Button>
+            </div>
+          </div>
+        )}
+
+        {status === 'searching' && (
+          <div role="status" className="space-y-3 py-2 text-center">
+            <div aria-hidden="true" className="relative mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-rose-50 text-fertiliapp-fuerte">
+              <span className="absolute h-12 w-12 rounded-full border border-current opacity-40 motion-safe:animate-ping" style={{ animationDuration: '2.8s' }} />
+              <span className="absolute h-12 w-12 rounded-full border border-current opacity-30 motion-safe:animate-ping" style={{ animationDuration: '2.8s', animationDelay: '0.9s' }} />
+              <span className="absolute h-12 w-12 rounded-full border border-current opacity-20 motion-safe:animate-ping" style={{ animationDuration: '2.8s', animationDelay: '1.8s' }} />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="relative h-8 w-8">
+                <path d="m6.5 6.5 11 11L12 23V1l5.5 5.5-11 11" />
+              </svg>
+            </div>
+            <h3 className="font-semibold text-titulo">Buscando termómetros…</h3>
+            <p className="mx-auto max-w-xs text-sm leading-relaxed text-slate-600">Mantén el termómetro encendido y cerca del móvil.</p>
+          </div>
+        )}
+
+        {searched && busy && status !== 'searching' && devices.length === 0 && (
+          <p role="status" className="py-3 text-center text-sm text-slate-600">Preparando búsqueda…</p>
+        )}
+
+        {searched && !busy && !error && !actionError && devices.length === 0 && (
+          <div role="status" className="space-y-3 py-2 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-fertiliapp-fuerte">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8">
+                <path d="m6.5 6.5 11 11L12 23V1l5.5 5.5-11 11" />
+                <path d="M19 7q4 5 0 10" opacity=".6" />
+              </svg>
+            </div>
+            <h3 className="font-semibold text-titulo">No se han encontrado termómetros</h3>
+            <p className="text-sm leading-relaxed text-slate-600">Comprueba que esté encendido y cerca del móvil. Acércalo y vuelve a buscar.</p>
+          </div>
+        )}
+
+        {(searched || !linked) && devices.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2">
+              {status !== 'searching' && <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />}
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-titulo">Dispositivos encontrados ({devices.length})</h3>
+                <p className="text-xs text-slate-500">{status === 'searching' ? 'Espera a que termine la búsqueda.' : 'Selecciona tu termómetro para continuar.'}</p>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200/70 px-3">
+          {devices.map(device => {
+            const stored = device.deviceKey && bindings.some(binding => binding.deviceKey === device.deviceKey);
+            const preliminaryVinca = device.model ? device.model === 'BM-Vinca2' : device.preliminaryModel === 'BM-Vinca2' || /(?:^|[^a-z0-9])bm-vinca2(?:$|[^a-z0-9])/i.test(device.name || '');
+            const preliminaryEasy = device.model === 'EBT-300' || device.preliminaryModel === 'EBT-300';
+            const attempted = attemptedId === device.id && selectedDeviceId === device.id;
+            return <button key={device.id} type="button" disabled={busy || listening}
+              onClick={() => run(stored ? 'connectSaved' : 'selectAndRemember', stored ? device.deviceKey : device.id)}
+              className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
+                          {preliminaryVinca || preliminaryEasy ? (
+                <img
+                  src={preliminaryVinca
+                    ? '/images/vinca2.jpg'
+                    : '/images/EBT300.png'}
+                  alt={preliminaryVinca
+                    ? 'Femometer Vinca 2'
+                    : 'Easy@Home EBT-300'}
+                  width="32"
+                  height="48"
+                  className="h-12 w-8 shrink-0 object-contain"
+                />
+              ) : (
+                <Thermometer
+                  className="h-4 w-4 shrink-0 text-fertiliapp-fuerte"
+                  aria-hidden="true"
+                />
+              )}
+              <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{thermometerName({ ...device, model: preliminaryVinca ? 'BM-Vinca2' : preliminaryEasy ? 'EBT-300' : device.model, ...metadata.devices[device.deviceKey] })}</span>
+                {preliminaryEasy && <span className="block text-xs text-slate-500">Experimental</span>}
+                {device.manufacturer && <span className="block text-xs text-slate-500">{device.manufacturer}</span>}
+                {!preliminaryVinca && !preliminaryEasy && <span className="block text-xs text-slate-600">{device.compatibility === 'possible_standard' ? 'Posible termómetro' : device.compatibility === 'recognized_unsupported' ? 'Soporte pendiente' : 'Dispositivo sin identificar'}</span>}
+                <span className="block text-xs text-fertiliapp-fuerte">{stored ? 'Conectar' : preliminaryVinca || preliminaryEasy ? 'Pulsa para vincular' : 'Comprobar compatibilidad'}</span>
+                {attempted && <span role="status" className="mt-1 block text-xs text-slate-600">{busy ? ble.sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, ble.sessionState)
+                  : error || actionError ? 'No se pudo completar la comprobación o vinculación. Vuelve a intentarlo.'
+                    : inspectionResult && inspectionResult.compatible !== true ? inspectionResult.standardTrialAvailable ? 'Prueba disponible' : 'No se puede vincular actualmente' : ''}</span>}
+              </span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+            </button>;
+          })}
+            </div>
+          </div>
+        )}
+
+        {(searched || devices.length > 0) && status !== 'searching' && (
+          <div className="flex justify-center">
+            <Button
+              variant={devices.length > 0 ? 'ghost' : 'default'}
+              className={`${compactButton} gap-2 ${devices.length > 0 ? 'text-fertiliapp-fuerte' : 'bg-fertiliapp-fuerte text-white'}`}
+              disabled={busy || listening}
+              onClick={() => run('scan')}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0">
+                <path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 6M18 16a7 7 0 0 1-12 2l-2-6" />
+              </svg>
+              Buscar de nuevo
+            </Button>
+          </div>
+        )}
+        {normalSearched && !busy && (
+          <div className="flex justify-center border-t border-slate-100 pt-2">
+            <Button variant="ghost" className={`${compactButton} text-slate-600`} disabled={listening} onClick={() => run('scan', true)}>¿No encuentras tu termómetro?</Button>
+          </div>
+        )}
+        {changing && (searched || status === 'searching') && (
+          <div className="flex justify-center">
+            <Button variant="ghost" className={`${compactButton} text-slate-600`} disabled={ble.sessionState.bindingBusy} onClick={() => run('cancelChange')}>Cancelar</Button>
+          </div>
+        )}
+      </section>
+    )}
     {ble.pendingCount > 0 && <button type="button" className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-rose-50/50 p-3 text-left hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400" onClick={() => ble.openReadingReview()}>
       <Thermometer className="h-5 w-5 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />
       <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-titulo">Temperaturas pendientes <span className="ml-1 text-fertiliapp-fuerte">{ble.pendingCount}</span></span></span>
