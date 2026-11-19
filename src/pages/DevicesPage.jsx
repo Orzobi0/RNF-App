@@ -1,4 +1,3 @@
-import { ThermometerName } from '@/components/ThermometerName';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
@@ -81,8 +80,28 @@ export function DevicesPage() {
     {bindings.length > 0 && <section aria-label="Termómetros vinculados" className="space-y-2">
       <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-titulo">Mis termómetros</h2><Button variant="ghost" className={compactButton} disabled={busy || changing} onClick={() => run('beginChange')}>+ Añadir</Button></div>
       {bindings.map(device => <div key={device.deviceKey || 'legacy'} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
-        {device.model === 'BM-Vinca2' ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 blanco con funda rosa" width="56" height="88" className="h-16 w-12 shrink-0 object-contain" /> : <Thermometer className="h-8 w-8 shrink-0" aria-hidden="true" />}
-        <div className="min-w-0 flex-1"><ThermometerName device={device} className="font-semibold text-titulo" />
+                {device.model === 'BM-Vinca2' || device.model === 'EBT-300' ? (
+          <img
+            src={device.model === 'BM-Vinca2'
+              ? '/images/vinca2.jpg'
+              : '/images/EBT300.png'}
+            alt={device.model === 'BM-Vinca2'
+              ? 'Femometer Vinca 2'
+              : 'Easy@Home EBT-300'}
+            width="56"
+            height="88"
+            className="h-16 w-12 shrink-0 object-contain"
+          />
+        ) : (
+          <Thermometer className="h-8 w-8 shrink-0" aria-hidden="true" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-titulo break-words">
+  {thermometerName({
+    ...device,
+    ...metadata.devices[device.deviceKey],
+  })}
+</div>
           <span className="flex items-center gap-1 text-xs text-slate-500"><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</span>
           <span className="block text-xs text-slate-500">{device.compatibility === 'experimental' ? 'Experimental' : ''}</span>
           <span className="block text-sm text-slate-600">{!changing && device.deviceKey === ble.sessionState.deviceKey ? vinca2StatusText(status, ble.sessionState) : 'Desconectado'}</span>
@@ -116,7 +135,24 @@ export function DevicesPage() {
           return <button key={device.id} type="button" disabled={busy || listening}
             onClick={() => run(stored ? 'connectSaved' : 'selectAndRemember', stored ? device.deviceKey : device.id)}
             className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
-            {preliminaryVinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2" width="32" height="48" className="h-12 w-8 shrink-0 object-contain" /> : <Thermometer className="h-4 w-4 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />}
+                        {preliminaryVinca || preliminaryEasy ? (
+              <img
+                src={preliminaryVinca
+                  ? '/images/vinca2.jpg'
+                  : '/images/EBT300.png'}
+                alt={preliminaryVinca
+                  ? 'Femometer Vinca 2'
+                  : 'Easy@Home EBT-300'}
+                width="32"
+                height="48"
+                className="h-12 w-8 shrink-0 object-contain"
+              />
+            ) : (
+              <Thermometer
+                className="h-4 w-4 shrink-0 text-fertiliapp-fuerte"
+                aria-hidden="true"
+              />
+            )}
             <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{thermometerName({ ...device, model: preliminaryVinca ? 'BM-Vinca2' : preliminaryEasy ? 'EBT-300' : device.model, ...metadata.devices[device.deviceKey] })}</span>
               {preliminaryEasy && <span className="block text-xs text-slate-500">Experimental</span>}
               {device.manufacturer && <span className="block text-xs text-slate-500">{device.manufacturer}</span>}

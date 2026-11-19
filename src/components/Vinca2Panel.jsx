@@ -74,12 +74,74 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
   const rowClass = 'flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50';
   return <div id="bluetooth-readings" className="min-w-0 text-slate-700">
     <div className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
-      <>{vinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-20 w-12 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12" aria-hidden="true" />}</>
-      <div className="min-w-0">
+            {vinca || model === 'EBT-300' ? (
+        <img
+          src={vinca ? '/images/vinca2.jpg' : '/images/EBT300.png'}
+          alt={vinca ? 'Femometer Vinca 2' : 'Easy@Home EBT-300'}
+          width="56"
+          height="88"
+          className="h-20 w-12 shrink-0 object-contain"
+        />
+      ) : (
+        <Thermometer className="h-12 w-12 shrink-0" aria-hidden="true" />
+      )}
+      <div className="min-w-0 flex-1">
         <ThermometerName className="text-xl font-semibold text-titulo" device={{ deviceKey: deviceKey ?? sharedState.deviceKey, model, name: sessionState.boundName }} />
         <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">{remembered && <><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</>}</p>
-        <p className="text-xs text-slate-500">{sessionState.boundCompatibility === 'experimental' ? sessionState.boundProtocol === 'health-thermometer' ? 'Experimental comprobado' : 'Experimental pendiente de validación física' : 'Compatible'}</p>
-        <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{healthyListening && <svg aria-hidden="true" viewBox="0 0 44 44" className="mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" /></svg>}{healthyListening ? 'Escuchando temperaturas' : vinca2StatusText(status, sessionState)}</p>
+                {sessionState.boundCompatibility === 'experimental' && (
+          <p className="text-xs text-slate-500">
+            {sessionState.boundProtocol === 'health-thermometer'
+              ? 'Experimental comprobado'
+              : 'Experimental'}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-1">
+          <p
+            role="status"
+            className={`text-sm ${
+              retry
+                ? 'text-amber-800'
+                : listening && !sessionState.configurationBusy
+                  ? 'text-fertiliapp-fuerte'
+                  : 'text-slate-600'
+            }`}
+          >
+            {healthyListening && (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 44 44"
+                className="mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
+                <path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" />
+              </svg>
+            )}
+            {healthyListening
+              ? 'Escuchando temperaturas'
+              : vinca2StatusText(status, sessionState)}
+          </p>
+
+          {listening && (
+            <button
+              type="button"
+              aria-label="Detener escucha"
+              title="Detener escucha"
+              disabled={busy}
+              onClick={() => run('stop')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte hover:bg-rose-50 disabled:opacity-40"
+            >
+              <span
+                aria-hidden="true"
+                className="h-3.5 w-3.5 bg-current"
+              />
+              <span className="sr-only">Detener escucha</span>
+            </button>
+          )}
+        </div>
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
       </div>
     </div>
@@ -90,11 +152,18 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
       {sessionState.error?.code === 'DEVICE_NOT_VERIFIED' && <Button variant="ghost" disabled={busy} onClick={async () => { await run('recheckSaved'); navigate('/settings/devices'); }}>Repetir comprobación de este dispositivo</Button>}
       {sessionState.error?.code === 'BLUETOOTH_DISABLED' && <p>Activa Bluetooth en los ajustes del móvil y vuelve a intentarlo.</p>}
     </div>}
-    <div className="flex flex-wrap items-center gap-2 py-2">
-    {!listening && <Button type="button" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
-      disabled={busy} onClick={() => run(operation)}>{primaryLabel}</Button>}
-    {listening && <Button type="button" variant="ghost" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal" disabled={busy} onClick={() => run('stop')}>Detener escucha</Button>}
-    </div>
+        {!listening && (
+      <div className="py-2">
+        <Button
+          type="button"
+          className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
+          disabled={busy}
+          onClick={() => run(operation)}
+        >
+          {primaryLabel}
+        </Button>
+      </div>
+    )}
         {pendingCount > 0 && (
       <button
         type="button"

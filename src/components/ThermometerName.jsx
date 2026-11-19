@@ -22,13 +22,13 @@ export function ThermometerName({ device, className = '' }) {
     setEditing(false);
   };
   return <div className={className}>
-    <div className="flex min-h-11 min-w-0 items-center gap-1">
+    <div className="flex min-w-0 items-start gap-1">
       {editing ? <input aria-label="Nombre del termómetro" maxLength={40} value={draft}
         className="w-full min-w-0 rounded bg-white font-inherit text-inherit outline outline-1 outline-rose-300"
         ref={inputRef}
         onChange={event => setDraft(event.target.value)} onBlur={() => finish(false)}
         onKeyDown={event => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); finish(event.key === 'Escape'); } }} />
-        : <><span className="min-w-0 break-words">{name}</span><button type="button" aria-label="Editar nombre del termómetro" className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-500" onClick={() => { finished.current = false; setDraft(name); setEditing(true); }}><Pencil className="h-4 w-4" /></button></>}
+        : <><span className="min-w-0 break-words">{name}</span><button type="button" aria-label="Editar nombre del termómetro" className="flex h-11 w-11 shrink-0 items-start justify-center pt-1.5 text-slate-400 hover:text-fertiliapp-fuerte" onClick={() => { finished.current = false; setDraft(name); setEditing(true); }}><Pencil className="h-3 w-3" /></button></>}
     </div>
     {error && <p role="alert" className="text-xs font-normal text-amber-800">{error}</p>}
   </div>;
