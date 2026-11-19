@@ -24,8 +24,8 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   open ? 'scale-105 ring-2 ' : 'scale-100'
 } ${listening ? 'text-emerald-700' : 'text-slate-500'}`}
     >
-      {(searching || listening) && <svg aria-hidden="true" viewBox="0 0 44 44" className="absolute inset-0 h-11 w-11 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" />
+      {(searching || listening) && <svg aria-hidden="true" viewBox="0 0 32 32" className="pointer-events-none absolute inset-0 m-auto h-8 w-8 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+        <path d="M7 11 Q3 16 7 21 M25 11 Q29 16 25 21" />
       </svg>}
       <Icon aria-hidden="true" className="h-5 w-5" />
       {unlinked && <Plus aria-hidden="true" className="absolute bottom-2 right-1 h-3 w-3" />}

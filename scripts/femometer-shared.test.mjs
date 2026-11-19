@@ -481,14 +481,14 @@ Clock3: 'clock',
 });
 
 test('global clock prompt stays closed until explicit action', async () => {
-  const harness = hooks(); let syncs = 0; const opened = [];
+  const harness = hooks(); let syncs = 0; let reads = 0; const opened = [];
   const navigate = () => {};
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
     ...harness.bindings, useClockIssue: await clockHook(harness), useNavigate: () => navigate, useLocation: () => ({ key: 'page' }), BleSavedNotice: 'saved-notice', toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
     Thermometer: 'thermometer', Link2: 'icon', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
-  const props = { readings: [], sessionRef: { current: { syncClock: () => { syncs++; } } }, clockDialogOpen: false,
-    setClockDialogOpen: value => opened.push(value), sessionState: { status: 'listening', listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { clockSync: true },
+  const props = { readings: [], sessionRef: { current: { readClock: () => { reads++; }, syncClock: () => { syncs++; } } }, clockDialogOpen: false,
+    setClockDialogOpen: value => opened.push(value), sessionState: { status: 'listening', listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { clockRead: true, clockSync: true },
       clockResult: { significantDrift: true, deviceLocalTime: '2020-01-01T08:00:00', phoneLocalTime: '2026-11-03T08:00:00' } } };
   const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
   let tree = render();
@@ -497,7 +497,18 @@ test('global clock prompt stays closed until explicit action', async () => {
   treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Cerrar')).props.onClick();
   render(); render();
   assert.deepEqual(opened, [false]);
-  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Sincronizar y verificar')).props.onClick();
+  const clockButton = label => treeNodes(render()).find(node => node.type === 'button' && node.props.children.includes(label));
+  assert.equal(reads, 0);
+  for (const flag of ['clockBusy', 'volumeBusy', 'measurementModeBusy', 'deviceInfoBusy']) {
+    props.sessionState[flag] = true;
+    assert.equal(clockButton('Leer reloj').props.disabled, true);
+    assert.equal(clockButton('Sincronizar y verificar').props.disabled, true);
+    props.sessionState[flag] = false;
+  }
+  clockButton('Leer reloj').props.onClick();
+  assert.equal(reads, 1);
+  await flush();
+  clockButton('Sincronizar y verificar').props.onClick();
   assert.equal(syncs, 1);
   await flush();
   props.sessionState.clockResult = { operation: 'read', driftSeconds: 6, significantDrift: false, deviceLocalTime: '2026-11-11T11:08:56', phoneLocalTime: '2026-11-11T11:09:02' };
@@ -515,11 +526,11 @@ test('global clock prompt stays closed until explicit action', async () => {
   render();
   assert.deepEqual(opened, [false]);
   harness.cleanup();
-  props.sessionState = { ...props.sessionState, boundProtocol: 'easyhome-ebt300', clockError: null,
+  props.sessionState = { ...props.sessionState, boundProtocol: 'easyhome-ebt300', clockError: null, capabilities: { clockSync: true, clockRead: false },
     clockResult: { operation: 'sync', writeAccepted: true, verified: false }, listenerResult: { connectionReady: true, indicationsActive: true } };
   assert.match(JSON.stringify(render()), /Enviar ajuste de reloj/);
   assert.match(JSON.stringify(render()), /El protocolo no permite verificar el reloj/);
-  assert.doesNotMatch(JSON.stringify(render()), /Sincronizar y verificar|Hora del termómetro/);
+  assert.doesNotMatch(JSON.stringify(render()), /Sincronizar y verificar|Hora del termómetro|Leer reloj/);
 
 });
 
@@ -1314,8 +1325,13 @@ async function vincaPanelFixture(initial = {}, props = {}, metadata = { devices:
   }, ['Vinca2Panel']);
   const render = () => harness.render(() => ({ props: { value: Vinca2Panel(props) } }));
   const button = label => treeNodes(render()).find(node => node.type === 'button' && JSON.stringify(node.props.children).includes(label));
+  const toggleInfo = open => {
+    const details = treeNodes(render()).find(node => node.type === 'details' && typeof node.props.onToggle === 'function');
+    assert.ok(details, 'Modelo y compatibilidad must support automatic refresh');
+    return details.props.onToggle({ currentTarget: { open } });
+  };
   render();
-  return { ble, calls, render, button, cleanup: harness.cleanup };
+  return { ble, calls, render, button, toggleInfo, cleanup: harness.cleanup };
 }
 
 async function devicesFixture(initial = {}) {
@@ -1398,7 +1414,10 @@ test('saved devices stay visible while adding and scan results connect by opaque
   for (const status of ['searching', 'inspecting', 'stopping', 'stopped']) {
     h.ble.sessionState.status = status;
     const links = treeNodes(h.render()).filter(n => n.type === 'link');
-    assert.ok(links.some(n => n.props.to === '/settings/devices/first'));
+    const firstCard = links.find(n => n.props.to === '/settings/devices/first');
+    assert.ok(firstCard);
+    assert.ok(treeNodes(firstCard).some(n => n.type === 'img'));
+    assert.match(JSON.stringify(firstCard), /Vinculado/);
     assert.ok(links.some(n => n.props.to === '/settings/devices/second'));
     assert.match(JSON.stringify(h.render()), /Vinculado/);
   }
@@ -1436,7 +1455,7 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   h.ble.sessionRef.current = { start: () => { h.calls.push('start'); return wait.promise; },
     restart: async () => h.calls.push('restart'), stop: async () => h.calls.push('stop'), unlink: async () => { h.calls.push(['unlink']); return true; } };
   assert.match(JSON.stringify(h.render()), /Femometer Vinca 2/); assert.match(JSON.stringify(h.render()), /Desconectado/);
-  h.button('Temperaturas pendientes').props.onClick(); h.button('Reloj del termómetro').props.onClick();
+  h.button('Temperaturas pendientes').props.onClick(); h.button('Reloj').props.onClick();
   assert.deepEqual(h.calls, ['review', 'clock']);
   assert.match(h.button('Conectar').props.className, /w-fit/);
   assert.doesNotMatch(h.button('Conectar').props.className, /(^|\s)w-full(\s|$)/);
@@ -1483,17 +1502,18 @@ test('technical diagnostics are collapsed by default and rendering never calls t
   harness.cleanup();
 });
 
-test('Vinca configuration distinguishes read-correct history from verified sync and keeps manual clock controls', async () => {
+test('Vinca configuration distinguishes clock states and opens the shared clock dialog', async () => {
   const h = await vincaPanelFixture({ remembered: true, status: 'listening', capabilities: { clockRead: true, clockSync: true } });
   h.ble.sessionRef.current = { readClock: async () => h.calls.push('read'), syncClock: async () => h.calls.push('sync') };
-  for (const [state, label] of [['unknown', 'Sin verificar'], ['read_correct', 'Hora aparentemente correcta'], ['synchronized_verified', 'Sincronización verificada'], ['misaligned', 'Desajustado']]) {
+  for (const [state, label] of [['unknown', 'Sin verificar'], ['read_correct', 'Parece correcto'], ['synchronized_verified', 'Verificado'], ['misaligned', 'Desajustado']]) {
     h.ble.clockHistory = { state };
-    assert.ok(JSON.stringify(h.button('Reloj del termómetro')).includes(label));
+    assert.ok(JSON.stringify(h.button('Reloj')).includes(label));
   }
-  await h.button('Leer reloj').props.onClick(); await h.button('Sincronizar fecha y hora').props.onClick();
-  assert.deepEqual(h.calls, ['read', 'sync']);
+  assert.equal(h.button('Leer reloj'), undefined);
+  assert.equal(h.button('Sincronizar fecha y hora'), undefined);
+  h.button('Reloj').props.onClick();
+  assert.deepEqual(h.calls, ['clock']);
   h.ble.sessionState.clockBusy = true;
-  assert.equal(h.button('Leer reloj').props.disabled, true);
   assert.equal(treeNodes(h.render()).find(n => n.type === 'diagnostics').props.restartDisabled, true);
   h.cleanup();
 });
@@ -1709,28 +1729,35 @@ test('a disconnected event cancels device info without removing pending measurem
   owner.cleanup(); await flush();
 });
 
-test('Vinca device info button requires ready listening, renders separate rows and a local error', async () => {
+test('Vinca device info refreshes on opening only when ready, renders separate rows and a local error', async () => {
   const h = await vincaPanelFixture({ remembered: true, status: 'listening' });
-  assert.equal(h.button('Consultar datos').props.disabled, true);
-  h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
   h.ble.sessionRef.current.readDeviceInfo = async () => h.calls.push('info');
-  assert.equal(h.button('Consultar datos').props.disabled, false);
-  await h.button('Consultar datos').props.onClick(); assert.deepEqual(h.calls, ['info']);
+  await h.toggleInfo(true); assert.deepEqual(h.calls, []);
+  h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
+  await h.toggleInfo(false); assert.deepEqual(h.calls, []);
+  await h.toggleInfo(true); assert.deepEqual(h.calls, ['info']);
+  assert.equal(h.button('Consultar datos'), undefined);
   h.ble.sessionState.deviceInfoResult = { battery: 85, firmware: null, software: 'SW-only' };
-  let text = JSON.stringify(h.render());
+  const text = JSON.stringify(h.render());
   assert.match(text, /85 %/); assert.match(text, /SW-only/); assert.doesNotMatch(text, /No disponible/);
   assert.equal(treeNodes(h.render()).filter(node => node.type === 'dd').length, 2);
+  const summary = treeNodes(h.render()).find(node => node.type === 'summary' && JSON.stringify(node.props.children).includes('Modelo y compatibilidad'));
+  assert.ok(summary);
+  assert.ok(treeNodes(summary).some(node => node.type === 'span' && node.props.title === 'Último nivel conocido de batería' && node.props.children.includes(85)));
   h.ble.sessionState.deviceInfoBusy = true;
-  assert.equal(h.button('Consultar datos').props.disabled, true);
+  await h.toggleInfo(true); assert.deepEqual(h.calls, ['info']);
   assert.match(JSON.stringify(h.render()), /Consultando datos/);
   h.ble.sessionState.deviceInfoBusy = false;
   h.ble.sessionState.deviceInfoError = { message: 'Consulta fallida' };
   assert.match(JSON.stringify(h.render()), /Consulta fallida/);
-  assert.equal(h.button('Consultar datos').props.disabled, false);
-  h.ble.sessionState.clockBusy = true;
-  assert.equal(h.button('Consultar datos').props.disabled, true);
-  h.ble.sessionState.clockBusy = false; h.ble.sessionState.status = 'stopped';
-  assert.equal(h.button('Consultar datos').props.disabled, true);
+  await h.toggleInfo(true); assert.deepEqual(h.calls, ['info', 'info']);
+  for (const flag of ['clockBusy', 'gattReconnectRequired', 'volumeReconnectRequired', 'measurementModeReconnectRequired']) {
+    h.ble.sessionState[flag] = true;
+    await h.toggleInfo(true); assert.deepEqual(h.calls, ['info', 'info']);
+    h.ble.sessionState[flag] = false;
+  }
+  h.ble.sessionState.status = 'stopped';
+  await h.toggleInfo(true); assert.deepEqual(h.calls, ['info', 'info']);
   assert.doesNotMatch(JSON.stringify(h.render()), /85 %|SW-only/);
   h.cleanup();
 });
@@ -1921,7 +1948,8 @@ test('Vinca volume controls show only sent levels, no default, and disable unsaf
   assert.deepEqual(h.calls, ['low', 'medium', 'high']);
   h.ble.sessionState.volumeResult = null; h.ble.sessionState.volumeBusy = true;
   assert.match(JSON.stringify(h.render()), /Aplicando ajuste/);
-  assert.equal(h.button('Consultar datos').props.disabled, true); assert.equal(h.button('Leer reloj').props.disabled, true);
+  h.ble.sessionRef.current.readDeviceInfo = async () => h.calls.push('info');
+  await h.toggleInfo(true); assert.deepEqual(h.calls, ['low', 'medium', 'high']);
   h.ble.sessionState.volumeBusy = false; h.ble.sessionState.volumeReconnectRequired = true;
   h.ble.sessionState.volumeError = { message: 'Resultado desconocido; reconecta' };
   assert.match(JSON.stringify(h.render()), /Resultado desconocido/); assert.doesNotMatch(JSON.stringify(h.render()), /Ajuste enviado:/);
@@ -2153,7 +2181,8 @@ test('Vinca measurement mode controls show only sent levels, no default, and dis
   assert.deepEqual(h.calls, ['quick', 'normal', 'precise']);
   h.ble.sessionState.measurementModeResult = null; h.ble.sessionState.measurementModeBusy = true;
   assert.match(JSON.stringify(h.render()), /Aplicando ajuste…/);
-  assert.equal(h.button('Consultar datos').props.disabled, true); assert.equal(h.button('Leer reloj').props.disabled, true);
+  h.ble.sessionRef.current.readDeviceInfo = async () => h.calls.push('info');
+  await h.toggleInfo(true); assert.deepEqual(h.calls, ['quick', 'normal', 'precise']);
   h.ble.sessionState.measurementModeBusy = false; h.ble.sessionState.measurementModeReconnectRequired = true;
   h.ble.sessionState.measurementModeError = { message: 'Resultado desconocido; reconecta' };
   assert.match(JSON.stringify(h.render()), /Resultado desconocido/); assert.doesNotMatch(JSON.stringify(h.render()), /Ajuste enviado:/);
@@ -2860,7 +2889,7 @@ test('opening another device shows its own preferences and connects by its opaqu
     listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { volumeWrite: true } }, { deviceKey: 'second' });
   assert.equal(h.button('Alto').props['aria-pressed'], true); assert.equal(h.button('Alto').props.disabled, true);
   assert.equal(h.button('Bajo').props['aria-pressed'], false);
-  assert.equal(h.button('Reloj del termómetro').props.disabled, true);
+  assert.equal(h.button('Reloj').props.disabled, true);
   let connected; h.ble.sessionRef.current.connectSaved = async key => { connected = key; };
   await h.button('Conectar').props.onClick(); assert.equal(connected, 'second');
   assert.equal(treeNodes(h.render()).some(node => node.type === 'diagnostics'), false);
@@ -3021,7 +3050,9 @@ test('persisted thermometer info survives disconnection and keeps original ident
   const h = await vincaPanelFixture({ remembered: true, deviceKey: 'key', boundModel: 'BM-Vinca2', status: 'stopped' }, { deviceKey: 'key' }, metadata);
   const text = JSON.stringify(h.render());
   assert.match(text, /FW-2/); assert.match(text, /75 %/); assert.match(text, /BM-Vinca2/); assert.match(text, /Bajo/);
-  assert.equal(h.button('Actualizar datos').props.disabled, true); assert.doesNotMatch(text, /No disponible/); h.cleanup();
+  h.ble.sessionRef.current.readDeviceInfo = async () => h.calls.push('info');
+  await h.toggleInfo(true); assert.deepEqual(h.calls, []);
+  assert.doesNotMatch(text, /No disponible/); h.cleanup();
 });
 
 test('EasyHome unit and clock operations exclude information reads and never invoke Vinca settings', async () => {

@@ -28,7 +28,7 @@ export function ThermometerName({ device, className = '' }) {
         ref={inputRef}
         onChange={event => setDraft(event.target.value)} onBlur={() => finish(false)}
         onKeyDown={event => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); finish(event.key === 'Escape'); } }} />
-        : <><span className="min-w-0 break-words">{name}</span><button type="button" aria-label="Editar nombre del termómetro" className="flex h-11 w-11 shrink-0 items-start justify-center pt-1.5 text-slate-400 hover:text-fertiliapp-fuerte" onClick={() => { finished.current = false; setDraft(name); setEditing(true); }}><Pencil className="h-3 w-3" /></button></>}
+        : <><span className="min-w-0 break-words">{name}</span><button type="button" aria-label="Editar nombre del termómetro" className="relative flex h-7 w-11 shrink-0 items-center justify-center text-slate-400 hover:text-fertiliapp-fuerte after:absolute after:inset-x-0 after:-inset-y-2 after:content-['']" onClick={() => { finished.current = false; setDraft(name); setEditing(true); }}><Pencil className="h-3 w-3" /></button></>}
     </div>
     {error && <p role="alert" className="text-xs font-normal text-amber-800">{error}</p>}
   </div>;
