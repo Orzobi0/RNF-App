@@ -1,3 +1,5 @@
+import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
+import { measurementSourceLabel } from '@/lib/temperatureMeasurements';
 import React, { useEffect, useRef, useState } from 'react';
 import { PlusCircle, Copy, AlertTriangle, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,6 +27,7 @@ export default function FemometerReviewCard({
   deviceKey,
   children,
 }) {
+  const metadata = useThermometerMetadata();
   const card = useRef(null);
   const gesture = useRef(null);
   const suppressExpandClick = useRef(false);
@@ -287,7 +290,7 @@ maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-saf
 </span>
 
         <span className="mt-1 block text-xs text-slate-500">
-          {row.normalized?.device_model || row.deviceModel || 'Termómetro Bluetooth'}
+          {measurementSourceLabel(row.normalized ?? { source: 'bluetooth', device_model: row.deviceModel }, metadata.devices[row.deviceKey]?.customName)}
 
           {!row.deviceKey
             ? ' · Origen sin vincular'

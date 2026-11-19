@@ -130,9 +130,9 @@ export default function BluetoothVisualLab({ Provider, children }) {
     if (profile?.protocol && profile.protocol !== 'vinca2') {
       cancelConfiguration();
       setSessionState(previous => ({ ...previous, deviceKey, boundModel: profile.model, boundName: profile.name,
-        boundProtocol: profile.protocol, boundCompatibility: 'experimental', preferences: {}, status: 'listening',
+        boundProtocol: profile.protocol, boundCompatibility: 'experimental', preferences, status: 'listening',
         busy: false, configurationBusy: false, configurationIssue: false, clockBusy: false, clockResult: null,
-        capabilities: { model: profile.model, protocol: profile.protocol, compatibility: 'experimental', temperatureReceive: true, deviceInfo: true },
+        capabilities: { model: profile.model, protocol: profile.protocol, compatibility: 'experimental', temperatureReceive: true, deviceInfo: true, clockSync: profile.protocol === 'easyhome-ebt300', unitWrite: profile.protocol === 'easyhome-ebt300' },
         listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } }));
       return;
     }
@@ -398,6 +398,11 @@ export default function BluetoothVisualLab({ Provider, children }) {
       if (operationBlocked() || deviceId !== sessionState.selectedDeviceId || !sessionState.inspectionResult?.standardTrialAvailable) return;
       beginStandardTrial(deviceId);
     },
+    setTemperatureUnit: async unit => {
+      if (sessionState.boundProtocol !== 'easyhome-ebt300' || sessionState.status !== 'listening' || sessionState.clockBusy) return;
+      preferencesByDevice.current[sessionState.deviceKey] = { ...preferencesByDevice.current[sessionState.deviceKey], temperatureUnit: unit };
+      setSessionState(previous => ({ ...previous, preferences: preferencesByDevice.current[previous.deviceKey], unitResult: { writeAccepted: true, verified: false, requestedUnit: unit }, gattReconnectRequired: true }));
+    },
     confirmTrial: async ({ readingId, basalConfirmed } = {}) => {
       const trial = sessionState.trial;
       const reading = trial?.readings.find(item => item.readingId === readingId && item.verificationId === trial.verificationId);
@@ -453,16 +458,16 @@ export default function BluetoothVisualLab({ Provider, children }) {
       timer.current = setTimeout(() => {
         labClockBusy.current = false;
         const failed = scenario === 'clockFailure';
-        const verified = !failed && scenario !== 'clockUnverified';
+        const verified = !failed && scenario !== 'clockUnverified' && sessionState.boundProtocol !== 'easyhome-ebt300';
         setSessionState(previous => ({ ...previous, clockBusy: false,
           clockError: failed ? { message: 'Simulación: no se pudo verificar el reloj. Reinténtalo.' } : null,
-          clockResult: failed ? null : { operation: 'sync', verified, significantDrift: false, driftSeconds: verified ? 0 : null },
+          clockResult: failed ? null : { operation: 'sync', writeAccepted: true, verified, significantDrift: false, driftSeconds: verified ? 0 : null },
         }));
         if (verified) setClockHistory({ state: 'synchronized_verified' });
       }, 1200);
     },
   };
-  const ble = { enabled, visualLab: true, preview: true, sessionState, readings, pendingCount: enabled ? readings.length : 0,
+  const ble = { completeVerification: async evidence => { const result = await sessionRef.current.confirmTrial(evidence); if (result) setReadings(rows => rows.filter(row => !(row.promotedVerification && row.readingId === evidence.readingId))); return result; }, enabled, visualLab: true, preview: true, sessionState, readings, pendingCount: enabled ? readings.length : 0,
     sessionRef, lifecycleStatus: 'preview', clockHistory, temperatureListenerMessage: 'Datos Bluetooth ficticios; no se guardan.',
     openReadingReview: id => { setReviewVisibleOn(location.key); setSelectedId(id ?? selectedId); setExpanded(true); }, openClockDialog: () => setClockDialogOpen(true),
     incorporateReading: async () => { throw new Error('El laboratorio no permite guardados reales.'); },

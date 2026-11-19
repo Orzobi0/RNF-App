@@ -68,7 +68,16 @@ final class FemometerIdentityStore {
     synchronized Binding remember(String user, String address, String model, String name, String manufacturer,
             String protocol, String firmware, String compatibility) {
         Bindings old = all(user);
-        for (Binding binding : old.devices) if (address.equals(binding.address)) { select(user, binding.key); return binding; }
+        for (Binding binding : old.devices) if (address.equals(binding.address)) {
+            // Called only after explicit inspection/verification. Never change protocol silently.
+            if (!java.util.Objects.equals(binding.protocol, protocol)) throw new IllegalStateException("DEVICE_PROTOCOL_CHANGED");
+            Binding refreshed = new Binding(address, binding.key, model == null ? binding.model : model,
+                name == null ? binding.name : name, manufacturer == null ? binding.manufacturer : manufacturer,
+                protocol, firmware == null ? binding.firmware : firmware, compatibility);
+            List<Binding> updated = new ArrayList<>(old.devices);
+            updated.set(updated.indexOf(binding), refreshed);
+            save(user, new Bindings(updated, binding.key)); return refreshed;
+        }
         Binding next = new Binding(address, UUID.randomUUID().toString(), model, name, manufacturer, protocol, firmware, compatibility);
         List<Binding> devices = new ArrayList<>(old.devices); devices.add(next);
         save(user, new Bindings(devices, next.key)); return next;

@@ -1,0 +1,815 @@
+
+> web-app@0.0.0 test:staging
+> node --test scripts/staging-isolation.test.mjs
+
+TAP version 13
+# Subtest: Vinca2 possible duplicate uses original minute and exact original temperature, never reception time
+ok 1 - Vinca2 possible duplicate uses original minute and exact original temperature, never reception time
+  ---
+  duration_ms: 2.4584
+  ...
+# Subtest: manual BLE confirmation preserves the original clock and never establishes automatic reliability
+ok 2 - manual BLE confirmation preserves the original clock and never establishes automatic reliability
+  ---
+  duration_ms: 21.0609
+  ...
+# Subtest: incorporation into an empty day selects the reading and round-trips Bluetooth origin through the summary
+ok 3 - incorporation into an empty day selects the reading and round-trips Bluetooth origin through the summary
+  ---
+  duration_ms: 291.3709
+  ...
+# Subtest: a day with mucus and observations retains all existing information
+ok 4 - a day with mucus and observations retains all existing information
+  ---
+  duration_ms: 21.3274
+  ...
+# Subtest: second and third temperatures append without changing selection, corrections or existing measurement documents
+ok 5 - second and third temperatures append without changing selection, corrections or existing measurement documents
+  ---
+  duration_ms: 19.1173
+  ...
+# Subtest: possible duplicates include the single-summary case and a different confirmed day
+ok 6 - possible duplicates include the single-summary case and a different confirmed day
+  ---
+  duration_ms: 16.6956
+  ...
+# Subtest: different map property order is not a conflict for the day, origin metadata or measurements
+ok 7 - different map property order is not a conflict for the day, origin metadata or measurements
+  ---
+  duration_ms: 19.9114
+  ...
+# Subtest: unrelated days are not locked; current non-temperature fields are preserved from the transaction
+ok 8 - unrelated days are not locked; current non-temperature fields are preserved from the transaction
+  ---
+  duration_ms: 16.1982
+  ...
+# Subtest: an SDK retry cannot reuse membership after a concurrent append changes the parent revision
+ok 9 - an SDK retry cannot reuse membership after a concurrent append changes the parent revision
+  ---
+  duration_ms: 19.1683
+  ...
+# Subtest: if stored measurements have no selection, the appended reading is selected without rewriting them
+ok 10 - if stored measurements have no selection, the appended reading is selected without rewriting them
+  ---
+  duration_ms: 16.9704
+  ...
+# Subtest: cancellation or missing authorization never writes; connectivity and feature gates fail closed
+ok 11 - cancellation or missing authorization never writes; connectivity and feature gates fail closed
+  ---
+  duration_ms: 81.2928
+  ...
+# Subtest: ambiguous cycles, duplicate daily records and concurrent modifications stop without overwriting
+ok 12 - ambiguous cycles, duplicate daily records and concurrent modifications stop without overwriting
+  ---
+  duration_ms: 92.3018
+  ...
+# Subtest: a concurrent append with an unchanged selected summary is detected through the day revision
+ok 13 - a concurrent append with an unchanged selected summary is detected through the day revision
+  ---
+  duration_ms: 15.537
+  ...
+# Subtest: normal manual replacement can still edit measurements and preserve their original Bluetooth information
+ok 14 - normal manual replacement can still edit measurements and preserve their original Bluetooth information
+  ---
+  duration_ms: 14.9354
+  ...
+# Subtest: uncertain attempt reads the complete server day, including legacy summary and multiple readings, without writes
+ok 15 - uncertain attempt reads the complete server day, including legacy summary and multiple readings, without writes
+  ---
+  duration_ms: 16.0263
+  ...
+# Subtest: uncertain server check rejects offline, cache, incomplete records and changes during the query
+ok 16 - uncertain server check rejects offline, cache, incomplete records and changes during the query
+  ---
+  duration_ms: 111.4462
+  ...
+# Subtest: standard selection verifies, binds, promotes only the confirmed reading and reconnects without Vinca commands
+ok 17 - standard selection verifies, binds, promotes only the confirmed reading and reconnects without Vinca commands
+  ---
+  duration_ms: 6.1975
+  ...
+# Subtest: negative, timeout, late and failed standard confirmations preserve old bindings and never promote
+ok 18 - negative, timeout, late and failed standard confirmations preserve old bindings and never promote
+  ---
+  duration_ms: 2.4601
+  ...
+# Subtest: account disposal invalidates a pending standard confirmation and its late readings
+ok 19 - account disposal invalidates a pending standard confirmation and its late readings
+  ---
+  duration_ms: 1.537
+  ...
+# Subtest: verification confirmation requires explicit basal/current take acknowledgement and selection
+ok 20 - verification confirmation requires explicit basal/current take acknowledgement and selection
+  ---
+  duration_ms: 22.2836
+  ...
+# Subtest: manual multibrand incorporation requires validated reception and preserves transmitted units and original date
+not ok 21 - manual multibrand incorporation requires validated reception and preserves transmitted units and original date
+  ---
+  duration_ms: 1.0319
+  location: 'C:\\Mario\\FertiliAPP\\FertiliAPP\\scripts\\femometer-shared.test.mjs:119:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Mario/FertiliAPP/FertiliAPP/scripts/femometer-shared.test.mjs:129:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:931:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:629:18)
+    Test.postRun (node:internal/test_runner/test:1042:19)
+    Test.run (node:internal/test_runner/test:970:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:629:7)
+  ...
+# Subtest: foreground keeps live listening, restarts an expired listener once and retains pending readings
+ok 22 - foreground keeps live listening, restarts an expired listener once and retains pending readings
+  ---
+  duration_ms: 13.0289
+  ...
+# Subtest: foreground after unsuccessful scan is bounded and requires a remembered device
+ok 23 - foreground after unsuccessful scan is bounded and requires a remembered device
+  ---
+  duration_ms: 8.8805
+  ...
+# Subtest: shared owner survives page consumers and retains consecutive identical readings; only successful save marks its row
+ok 24 - shared owner survives page consumers and retains consecutive identical readings; only successful save marks its row
+  ---
+  duration_ms: 7.7747
+  ...
+# Subtest: account change and unmount dispose old listener, clear readings and ignore a late save
+ok 25 - account change and unmount dispose old listener, clear readings and ignore a late save
+  ---
+  duration_ms: 7.3856
+  ...
+# Subtest: scan cancellation drains native cleanup before automatic or manual searches can restart
+ok 26 - scan cancellation drains native cleanup before automatic or manual searches can restart
+  ---
+  duration_ms: 2.3362
+  ...
+# Subtest: StrictMode-style remount and duplicate starts leave one native connection/listener
+ok 27 - StrictMode-style remount and duplicate starts leave one native connection/listener
+  ---
+  duration_ms: 0.8709
+  ...
+# Subtest: automatic clock read fails without interrupting temperatures, and is repeated only on reconnection
+ok 28 - automatic clock read fails without interrupting temperatures, and is repeated only on reconnection
+  ---
+  duration_ms: 1.3152
+  ...
+# Subtest: clock comparison uses phone local time and rejects invalid dates
+ok 29 - clock comparison uses phone local time and rejects invalid dates
+  ---
+  duration_ms: 0.1355
+  ...
+# Subtest: end of bounded listening retains readings without automatically reconnecting
+ok 30 - end of bounded listening retains readings without automatically reconnecting
+  ---
+  duration_ms: 8.6615
+  ...
+# Subtest: disposing during automatic clock read drains it and removes the temperature listener
+ok 31 - disposing during automatic clock read drains it and removes the temperature listener
+  ---
+  duration_ms: 1.3402
+  ...
+# Subtest: web, production and signed-out sessions never mount a BLE owner
+ok 32 - web, production and signed-out sessions never mount a BLE owner
+  ---
+  duration_ms: 16.2495
+  ...
+# Subtest: Bluetooth popover keeps waves during listening and offers manual restart with independent indicators
+ok 33 - Bluetooth popover keeps waves during listening and offers manual restart with independent indicators
+  ---
+  duration_ms: 8.2999
+  ...
+# Subtest: global clock prompt stays closed until explicit action
+ok 34 - global clock prompt stays closed until explicit action
+  ---
+  duration_ms: 8.356
+  ...
+# Subtest: confirmed notices group, remain dismissible and link to the exact day
+ok 35 - confirmed notices group, remain dismissible and link to the exact day
+  ---
+  duration_ms: 7.3796
+  ...
+# Subtest: a voluntary failed clock synchronization preserves listening and pending readings
+ok 36 - a voluntary failed clock synchronization preserves listening and pending readings
+  ---
+  duration_ms: 6.1859
+  ...
+# Subtest: device routes use the shared state and are unavailable outside the enabled prototype
+not ok 37 - device routes use the shared state and are unavailable outside the enabled prototype
+  ---
+  duration_ms: 15.084
+  location: 'C:\\Mario\\FertiliAPP\\FertiliAPP\\scripts\\femometer-shared.test.mjs:557:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(treeNodes(render()).some(node => node.type === 'link' && node.props.to === '/settings/devices/vinca2'))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Mario/FertiliAPP/FertiliAPP/scripts/femometer-shared.test.mjs:566:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:932:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:629:7)
+  ...
+# Subtest: Bluetooth origin details show only available metadata and remain read-only and gated
+ok 38 - Bluetooth origin details show only available metadata and remain read-only and gated
+  ---
+  duration_ms: 7.8249
+  ...
+# Subtest: quick review preserves the original date, cancels without saving and requires a second explicit duplicate confirmation
+ok 39 - quick review preserves the original date, cancels without saving and requires a second explicit duplicate confirmation
+  ---
+  duration_ms: 16.8725
+  ...
+# Subtest: current clock verification cannot make an unattributed historical measurement eligible automatically
+ok 40 - current clock verification cannot make an unattributed historical measurement eligible automatically
+  ---
+  duration_ms: 0.2118
+  ...
+# Subtest: Ver día waits for exact date and loaded detail, scrolls once and never opens temperature sheet
+ok 41 - Ver día waits for exact date and loaded detail, scrolls once and never opens temperature sheet
+  ---
+  duration_ms: 21.1224
+  ...
+# Subtest: local pending queue recovers by account/device, preserves drafts and fails closed on interrupted writes
+ok 42 - local pending queue recovers by account/device, preserves drafts and fails closed on interrupted writes
+  ---
+  duration_ms: 0.5217
+  ...
+# Subtest: clock history distinguishes sync from read, survives recreation and invalidates trust on forget
+ok 43 - clock history distinguishes sync from read, survives recreation and invalidates trust on forget
+  ---
+  duration_ms: 0.3268
+  ...
+# Subtest: decision never infers a clock epoch or processing receipt from BLE time/model
+ok 44 - decision never infers a clock epoch or processing receipt from BLE time/model
+  ---
+  duration_ms: 0.4068
+  ...
+# Subtest: owner restores pending work and edits, removes only confirmed saves and never retries an interrupted save
+ok 45 - owner restores pending work and edits, removes only confirmed saves and never retries an interrupted save
+  ---
+  duration_ms: 17.5501
+  ...
+# Subtest: persistent review card selects readings, minimizes explicitly and advances after save
+ok 46 - persistent review card selects readings, minimizes explicitly and advances after save
+  ---
+  duration_ms: 10.3801
+  ...
+# Subtest: three pending readings do not prevent a new bounded listening session or a fourth reading
+ok 47 - three pending readings do not prevent a new bounded listening session or a fourth reading
+  ---
+  duration_ms: 6.3745
+  ...
+# Subtest: 24-hour candidate window never verifies the clock and resolves DST conservatively
+ok 48 - 24-hour candidate window never verifies the clock and resolves DST conservatively
+  ---
+  duration_ms: 4.7966
+  ...
+# Subtest: visual laboratory is explicitly localhost development only; state is fictitious and detached
+ok 49 - visual laboratory is explicitly localhost development only; state is fictitious and detached
+  ---
+  duration_ms: 1.4219
+  ...
+# Subtest: Bluetooth success presentation has no expiry and supports outside, swipe and explicit dismissal
+ok 50 - Bluetooth success presentation has no expiry and supports outside, swipe and explicit dismissal
+  ---
+  duration_ms: 5.4883
+  ...
+# Subtest: integrated lab keeps the real application children and route state; fake BLE never runs a save adapter
+ok 51 - integrated lab keeps the real application children and route state; fake BLE never runs a save adapter
+  ---
+  duration_ms: 26.0815
+  ...
+# Subtest: lab owner is authenticated and available without query parameters across route navigation without mounting native BLE
+ok 52 - lab owner is authenticated and available without query parameters across route navigation without mounting native BLE
+  ---
+  duration_ms: 6.2794
+  ...
+# Subtest: background invalidates listening immediately and foreground drains cleanup before reconnecting
+ok 53 - background invalidates listening immediately and foreground drains cleanup before reconnecting
+  ---
+  duration_ms: 1.3972
+  ...
+# Subtest: manual restart is single flight, drains listeners, retains readings and allows retry after missing device
+ok 54 - manual restart is single flight, drains listeners, retains readings and allows retry after missing device
+  ---
+  duration_ms: 1.9651
+  ...
+# Subtest: background during manual restart cancels its search; rapid lifecycle changes cannot overlap connections
+ok 55 - background during manual restart cancels its search; rapid lifecycle changes cannot overlap connections
+  ---
+  duration_ms: 1.2336
+  ...
+# Subtest: pending notice hides on dismissal and navigation, reopens explicitly and resurfaces compact for a new reading
+ok 56 - pending notice hides on dismissal and navigation, reopens explicitly and resurfaces compact for a new reading
+  ---
+  duration_ms: 6.2445
+  ...
+# Subtest: discard commits only the selected local pending and fails closed on storage, saving and stale sessions
+not ok 57 - discard commits only the selected local pending and fails closed on storage, saving and stale sessions
+  ---
+  duration_ms: 5.2874
+  location: 'C:\\Mario\\FertiliAPP\\FertiliAPP\\scripts\\femometer-shared.test.mjs:1096:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Mario/FertiliAPP/FertiliAPP/scripts/femometer-shared.test.mjs:1104:12)
+    async Test.run (node:internal/test_runner/test:932:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:629:7)
+  ...
+# Subtest: original attempt destination is durable before saving and recovers uncertain without opening the notice
+ok 58 - original attempt destination is durable before saving and recovers uncertain without opening the notice
+  ---
+  duration_ms: 11.1816
+  ...
+# Subtest: uncertain review queries the original destination and requires an explicit missing decision before saving
+ok 59 - uncertain review queries the original destination and requires an explicit missing decision before saving
+  ---
+  duration_ms: 4.61
+  ...
+# Subtest: uncertain query rejects partial or failed reads, invalidates date/cycle changes and ignores stale completions
+ok 60 - uncertain query rejects partial or failed reads, invalidates date/cycle changes and ignores stale completions
+  ---
+  duration_ms: 4.3777
+  ...
+# Subtest: already stored retires only the local reading; later and legacy attempts never retry
+ok 61 - already stored retires only the local reading; later and legacy attempts never retry
+  ---
+  duration_ms: 3.8381
+  ...
+# Subtest: duplicate permission is explicit and invalidated by editing; discard has a separate confirmation
+ok 62 - duplicate permission is explicit and invalidated by editing; discard has a separate confirmation
+  ---
+  duration_ms: 2.8564
+  ...
+# Subtest: cancel hides the whole pending window; only a subsequent new reading automatically shows a compact notice
+ok 63 - cancel hides the whole pending window; only a subsequent new reading automatically shows a compact notice
+  ---
+  duration_ms: 5.3432
+  ...
+# Subtest: uncertain check starts once per opening and ignores a closed or replaced review
+ok 64 - uncertain check starts once per opening and ignores a closed or replaced review
+  ---
+  duration_ms: 3.9262
+  ...
+# Subtest: special review sections replace decisions and hide unsafe or redundant incorporation controls
+ok 65 - special review sections replace decisions and hide unsafe or redundant incorporation controls
+  ---
+  duration_ms: 4.5713
+  ...
+# Subtest: Devices searches with one permission request and links with one result tap after inspection and cleanup
+ok 66 - Devices searches with one permission request and links with one result tap after inspection and cleanup
+  ---
+  duration_ms: 7.3686
+  ...
+# Subtest: Devices loading and permission/Bluetooth failures are retryable without a second permission mechanism
+ok 67 - Devices loading and permission/Bluetooth failures are retryable without a second permission mechanism
+  ---
+  duration_ms: 4.5319
+  ...
+# Subtest: saved devices stay visible while adding and scan results connect by opaque key, not model name
+ok 68 - saved devices stay visible while adding and scan results connect by opaque key, not model name
+  ---
+  duration_ms: 5.8407
+  ...
+# Subtest: adding can be abandoned and retains the existing device on failure
+ok 69 - adding can be abandoned and retains the existing device on failure
+  ---
+  duration_ms: 4.5118
+  ...
+# Subtest: linked Vinca exposes shared pending review and clock, serializes operations and confirms unlink without deleting readings
+ok 70 - linked Vinca exposes shared pending review and clock, serializes operations and confirms unlink without deleting readings
+  ---
+  duration_ms: 9.064
+  ...
+# Subtest: technical diagnostics are collapsed by default and rendering never calls the session
+ok 71 - technical diagnostics are collapsed by default and rendering never calls the session
+  ---
+  duration_ms: 4.7247
+  ...
+# Subtest: Vinca configuration distinguishes read-correct history from verified sync and keeps manual clock controls
+ok 72 - Vinca configuration distinguishes read-correct history from verified sync and keeps manual clock controls
+  ---
+  duration_ms: 7.2024
+  ...
+# Subtest: coordinated binding waits for disconnect, freezes selection and keeps previous binding until native confirmation
+ok 73 - coordinated binding waits for disconnect, freezes selection and keeps previous binding until native confirmation
+  ---
+  duration_ms: 1.4553
+  ...
+# Subtest: incompatible, failed inspection/cleanup and unconfirmed persistence never replace the previous binding
+ok 74 - incompatible, failed inspection/cleanup and unconfirmed persistence never replace the previous binding
+  ---
+  duration_ms: 1.6938
+  ...
+# Subtest: binding rejects identifiers outside the current scan without inspecting or persisting them
+ok 75 - binding rejects identifiers outside the current scan without inspecting or persisting them
+  ---
+  duration_ms: 0.4769
+  ...
+# Subtest: stop, suspend and account replacement invalidate late inspections before persistence
+ok 76 - stop, suspend and account replacement invalidate late inspections before persistence
+  ---
+  duration_ms: 1.6391
+  ...
+# Subtest: cancellation while inspection disconnect is pending cannot proceed to native remember
+ok 77 - cancellation while inspection disconnect is pending cannot proceed to native remember
+  ---
+  duration_ms: 4.4598
+  ...
+# Subtest: device info validates each field without conflating firmware/software or retaining identifiers
+ok 78 - device info validates each field without conflating firmware/software or retaining identifiers
+  ---
+  duration_ms: 0.9953
+  ...
+# Subtest: device info is explicit, sequential with clock jobs, ignores duplicate presses and keeps temperatures
+ok 79 - device info is explicit, sequential with clock jobs, ignores duplicate presses and keeps temperatures
+  ---
+  duration_ms: 5.6319
+  ...
+# Subtest: device info absent fields, total absence and transport/timeout errors stay local to the query
+ok 80 - device info absent fields, total absence and transport/timeout errors stay local to the query
+  ---
+  duration_ms: 1.9187
+  ...
+# Subtest: device info cancellation clears immediately and late results cannot cross connections or accounts
+ok 81 - device info cancellation clears immediately and late results cannot cross connections or accounts
+  ---
+  duration_ms: 2.4984
+  ...
+# Subtest: a disconnected event cancels device info without removing pending measurements
+ok 82 - a disconnected event cancels device info without removing pending measurements
+  ---
+  duration_ms: 5.2146
+  ...
+# Subtest: Vinca device info button requires ready listening, renders separate rows and a local error
+not ok 83 - Vinca device info button requires ready listening, renders separate rows and a local error
+  ---
+  duration_ms: 5.4287
+  location: 'C:\\Mario\\FertiliAPP\\FertiliAPP\\scripts\\femometer-shared.test.mjs:1706:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /No disponible/. Input:
+    
+    '{"type":"div","props":{"id":"bluetooth-readings","className":"min-w-0 text-slate-700","children":[{"type":"div","props":{"className":"flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3","children":[{"props":{"children":[{"type":"img","props":{"src":"/images/vinca2.jpg","alt":"Femometer Vinca 2 con funda rosa","width":"56","height":"88","className":"h-20 w-12 shrink-0 object-contain","children":[]}}]}},{"type":"div","props":{"className":"min-w-0","children":[{"type":"device-name","props":{"className":"text-xl font-semibold text-titulo","device":{"model":"BM-Vinca2"},"children":[]}},{"type":"p","props":{"className":"mt-1 flex items-center gap-1 text-xs text-slate-500","children":[{"props":{"children":[{"type":"icon","props":{"className":"h-3 w-3","aria-hidden":"true","children":[]}},"Vinculado"]}}]}},{"type":"p","props":{"className":"text-xs text-slate-500","children":["Compatible"]}},{"type":"p","props":{"role":"status","className":"mt-1 text-sm text-fertiliapp-fuerte","children":[{"type":"svg","props":{"aria-hidden":"true","viewBox":"0 0 44 44","className":"mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none","fill":"none","stroke":"currentColor","strokeWidth":"1.5","strokeLinecap":"round","children":[{"type":"path","props":{"d":"M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32","children":[]}}]}},"Escuchando temperaturas"]}},null]}}]}},null,{"type":"div","props":{"className":"flex flex-wrap items-center gap-2 py-2","children":[false,{"type":"button","props":{"type":"button","variant":"ghost","className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal","disabled":false,"children":["Detener escucha"]}}]}},{"type":"button","props":{"type":"button","className":"flex min-h-11 w-full items-center gap-3 rounded-xl bg-rose-50/50 p-3 text-left hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400","children":[{"type":"icon","props":{"className":"h-5 w-5 shrink-0 text-fertiliapp-fuerte","aria-hidden":"true","children":[]}},{"type":"span","props":{"className":"min-w-0 flex-1","children":[{"type":"span","props":{"className":"block text-sm font-semibold text-titulo","children":["Temperaturas pendientes",{"type":"span","props":{"className":"ml-1 text-fertiliapp-fuerte","children":[2]}}]}}]}},{"type":"icon","props":{"className":"h-4 w-4 shrink-0 text-slate-400","aria-hidden":"true","children":[]}}]}},null,{"type":"section","props":{"aria-labelledby":"vinca-configuration","className":"mt-4 rounded-2xl border border-slate-200/70 bg-white px-4 pt-3","children":[{"type":"h3","props":{"id":"vinca-configuration","className":"text-base font-semibold text-titulo","children":["Configuración"]}},{"type":"div","props":{"className":"divide-y divide-slate-100","children":[false,false,false,false,{"type":"details","props":{"children":[{"type":"summary","props":{"className":"flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50 cursor-pointer","children":[{"type":"icon","props":{"className":"h-4 w-4 shrink-0","aria-hidden":"true","children":[]}},{"type":"span","props":{"className":"flex-1","children":["Modelo y compatibilidad"]}},{"type":"icon","props":{"className":"h-4 w-4","aria-hidden":"true","children":[]}}]}},{"type":"div","props":{"className":"space-y-2 pb-4 text-sm text-slate-500","children":[{"type":"p","props":{"children":["Femometer Vinca 2 / BM-Vinca2. Perfil implementado en FertiliApp."]}},{"type":"button","props":{"type":"button","variant":"outline","className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-3 py-2 text-sm","disabled":false,"children":["Consultar datos"]}},null,null,{"type":"dl","props":{"className":"divide-y divide-slate-100","children":[[{"type":"div","props":{"key":"battery","className":"flex items-start justify-between gap-4 py-2","children":[{"type":"dt","props":{"children":["Batería"]}},{"type":"dd","props":{"className":"min-w-0 break-words text-right text-slate-700","children":["85 %"]}}]}},null,null,null,{"type":"div","props":{"key":"software","className":"flex items-start justify-between gap-4 py-2","children":[{"type":"dt","props":{"children":["Software"]}},{"type":"dd","props":{"className":"min-w-0 break-words text-right text-slate-700","children":["SW-only"]}}]}}]]}},null,null,null,null,null,null,null,null]}}]}},{"type":"button","props":{"type":"button","className":"flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50","disabled":false,"children":[{"type":"icon","props":{"className":"h-4 w-4 shrink-0","aria-hidden":"true","children":[]}},{"type":"span","props":{"className":"flex-1","children":["Desvincular termómetro"]}},{"type":"icon","props":{"className":"h-4 w-4","aria-hidden":"true","children":[]}}]}}]}}]}},{"type":"dialog","props":{"open":false,"children":[{"type":"dialog-content","props":{"className":"[&>button:last-child]:flex [&>button:last-child]:h-11 [&>button:last-child]:w-11 [&>button:last-child]:items-center [&>button:last-child]:justify-center [&>button:last-child]:right-1 [&>button:last-child]:top-1 motion-reduce:animate-none top-[calc(env(safe-area-inset-top,0px)+16px)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-32px)] w-[calc(100%-32px)] max-w-md translate-y-0 overflow-y-auto rounded-2xl","children":[{"type":"header","props":{"className":"pr-5 text-left","children":[{"type":"title","props":{"children":["Desvincular termómetro"]}},{"type":"description","props":{"children":["Se quitará la vinculación de esta cuenta en este móvil. No se borrarán temperaturas pendientes ni registros guardados."]}}]}},{"type":"p","props":{"className":"text-sm","children":["Se detendrá la escucha antes de desvincular."]}},{"type":"p","props":{"className":"text-sm","children":["Tienes ",2," temperaturas pendientes conservadas localmente. Podrás seguir revisándolas."]}},null,{"type":"footer","props":{"children":[{"type":"button","props":{"variant":"outline","className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2","children":["Cancelar"]}},{"type":"button","props":{"className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2","disabled":false,"children":["Confirmar desvinculación"]}}]}}]}}]}},{"type":"diagnostics","props":{"restartDisabled":false,"recoveryRequired":false,"children":[]}}]}}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: '{"type":"div","props":{"id":"bluetooth-readings","className":"min-w-0 text-slate-700","children":[{"type":"div","props":{"className":"flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3","children":[{"props":{"children":[{"type":"img","props":{"src":"/images/vinca2.jpg","alt":"Femometer Vinca 2 con funda rosa","width":"56","height":"88","className":"h-20 w-12 shrink-0 object-contain","children":[]}}]}},{"type":"div","props":{"className":"min-w-0","children":[{"type":"device-name","props":{"className":"text-xl font-semibold text-titulo","device":{"model":"BM-Vinca2"},"children":[]}},{"type":"p","props":{"className":"mt-1 flex items-center gap-1 text-xs text-slate-500","children":[{"props":{"children":[{"type":"icon","props":{"className":"h-3 w-3","aria-hidden":"true","children":[]}},"Vinculado"]}}]}},{"type":"p","props":{"className":"text-xs text-slate-500","children":["Compatible"]}},{"type":"p","props":{"role":"status","className":"mt-1 text-sm text-fertiliapp-fuerte","children":[{"type":"svg","props":{"aria-hidden":"true","viewBox":"0 0 44 44","className":"mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none","fill":"none","stroke":"currentColor","strokeWidth":"1.5","strokeLinecap":"round","children":[{"type":"path","props":{"d":"M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32","children":[]}}]}},"Escuchando temperaturas"]}},null]}}]}},null,{"type":"div","props":{"className":"flex flex-wrap items-center gap-2 py-2","children":[false,{"type":"button","props":{"type":"button","variant":"ghost","className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal","disabled":false,"children":["Detener escucha"]}}]}},{"type":"button","props":{"type":"button","className":"flex min-h-11 w-full items-center gap-3 rounded-xl bg-rose-50/50 p-3 text-left hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400","children":[{"type":"icon","props":{"className":"h-5 w-5 shrink-0 text-fertiliapp-fuerte","aria-hidden":"true","children":[]}},{"type":"span","props":{"className":"min-w-0 flex-1","children":[{"type":"span","props":{"className":"block text-sm font-semibold text-titulo","children":["Temperaturas pendientes",{"type":"span","props":{"className":"ml-1 text-fertiliapp-fuerte","children":[2]}}]}}]}},{"type":"icon","props":{"className":"h-4 w-4 shrink-0 text-slate-400","aria-hidden":"true","children":[]}}]}},null,{"type":"section","props":{"aria-labelledby":"vinca-configuration","className":"mt-4 rounded-2xl border border-slate-200/70 bg-white px-4 pt-3","children":[{"type":"h3","props":{"id":"vinca-configuration","className":"text-base font-semibold text-titulo","children":["Configuración"]}},{"type":"div","props":{"className":"divide-y divide-slate-100","children":[false,false,false,false,{"type":"details","props":{"children":[{"type":"summary","props":{"className":"flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50 cursor-pointer","children":[{"type":"icon","props":{"className":"h-4 w-4 shrink-0","aria-hidden":"true","children":[]}},{"type":"span","props":{"className":"flex-1","children":["Modelo y compatibilidad"]}},{"type":"icon","props":{"className":"h-4 w-4","aria-hidden":"true","children":[]}}]}},{"type":"div","props":{"className":"space-y-2 pb-4 text-sm text-slate-500","children":[{"type":"p","props":{"children":["Femometer Vinca 2 / BM-Vinca2. Perfil implementado en FertiliApp."]}},{"type":"button","props":{"type":"button","variant":"outline","className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-3 py-2 text-sm","disabled":false,"children":["Consultar datos"]}},null,null,{"type":"dl","props":{"className":"divide-y divide-slate-100","children":[[{"type":"div","props":{"key":"battery","className":"flex items-start justify-between gap-4 py-2","children":[{"type":"dt","props":{"children":["Batería"]}},{"type":"dd","props":{"className":"min-w-0 break-words text-right text-slate-700","children":["85 %"]}}]}},null,null,null,{"type":"div","props":{"key":"software","className":"flex items-start justify-between gap-4 py-2","children":[{"type":"dt","props":{"children":["Software"]}},{"type":"dd","props":{"className":"min-w-0 break-words text-right text-slate-700","children":["SW-only"]}}]}}]]}},null,null,null,null,null,null,null,null]}}]}},{"type":"button","props":{"type":"button","className":"flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50","disabled":false,"children":[{"type":"icon","props":{"className":"h-4 w-4 shrink-0","aria-hidden":"true","children":[]}},{"type":"span","props":{"className":"flex-1","children":["Desvincular termómetro"]}},{"type":"icon","props":{"className":"h-4 w-4","aria-hidden":"true","children":[]}}]}}]}}]}},{"type":"dialog","props":{"open":false,"children":[{"type":"dialog-content","props":{"className":"[&>button:last-child]:flex [&>button:last-child]:h-11 [&>button:last-child]:w-11 [&>button:last-child]:items-center [&>button:last-child]:justify-center [&>button:last-child]:right-1 [&>button:last-child]:top-1 motion-reduce:animate-none top-[calc(env(safe-area-inset-top,0px)+16px)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-32px)] w-[calc(100%-32px)] max-w-md translate-y-0 overflow-y-auto rounded-2xl","children":[{"type":"header","props":{"className":"pr-5 text-left","children":[{"type":"title","props":{"children":["Desvincular termómetro"]}},{"type":"description","props":{"children":["Se quitará la vinculación de esta cuenta en este móvil. No se borrarán temperaturas pendientes ni registros guardados."]}}]}},{"type":"p","props":{"className":"text-sm","children":["Se detendrá la escucha antes de desvincular."]}},{"type":"p","props":{"className":"text-sm","children":["Tienes ",2," temperaturas pendientes conservadas localmente. Podrás seguir revisándolas."]}},null,{"type":"footer","props":{"children":[{"type":"button","props":{"variant":"outline","className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2","children":["Cancelar"]}},{"type":"button","props":{"className":"inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2","disabled":false,"children":["Confirmar desvinculación"]}}]}}]}}]}},{"type":"diagnostics","props":{"restartDisabled":false,"recoveryRequired":false,"children":[]}}]}}'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Mario/FertiliAPP/FertiliAPP/scripts/femometer-shared.test.mjs:1715:69)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:932:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:629:7)
+  ...
+# Subtest: lab device info simulates all results and cancellation without a native adapter
+ok 84 - lab device info simulates all results and cancellation without a native adapter
+  ---
+  duration_ms: 13.1802
+  ...
+# Subtest: volume adapter validates the level and keeps the Android Staging boundary
+ok 85 - volume adapter validates the level and keeps the Android Staging boundary
+  ---
+  duration_ms: 5.2189
+  ...
+# Subtest: volume is explicit, has no default and preserves listening and pending temperatures
+ok 86 - volume is explicit, has no default and preserves listening and pending temperatures
+  ---
+  duration_ms: 5.8549
+  ...
+# Subtest: volume refuses unsupported and invalid requests and is excluded by clock and device info
+ok 87 - volume refuses unsupported and invalid requests and is excluded by clock and device info
+  ---
+  duration_ms: 1.6611
+  ...
+# Subtest: volume errors distinguish write failure, cancellation and unknown result and require reconnection
+ok 88 - volume errors distinguish write failure, cancellation and unknown result and require reconnection
+  ---
+  duration_ms: 2.7966
+  ...
+# Subtest: malformed volume responses never advertise an accepted or verified adjustment
+ok 89 - malformed volume responses never advertise an accepted or verified adjustment
+  ---
+  duration_ms: 1.2088
+  ...
+# Subtest: volume cancellation and late completion cannot cross account or connection boundaries
+ok 90 - volume cancellation and late completion cannot cross account or connection boundaries
+  ---
+  duration_ms: 4.4458
+  ...
+# Subtest: Vinca volume controls show only sent levels, no default, and disable unsafe actions
+ok 91 - Vinca volume controls show only sent levels, no default, and disable unsafe actions
+  ---
+  duration_ms: 7.4585
+  ...
+# Subtest: volume lab simulates two stages, errors, timeout and exclusions without native access
+ok 92 - volume lab simulates two stages, errors, timeout and exclusions without native access
+  ---
+  duration_ms: 23.054
+  ...
+# Subtest: volume cannot write while listener initialization is pending or readiness is incomplete
+ok 93 - volume cannot write while listener initialization is pending or readiness is incomplete
+  ---
+  duration_ms: 1.5923
+  ...
+# Subtest: measurement mode adapter validates the level and keeps the Android Staging boundary
+ok 94 - measurement mode adapter validates the level and keeps the Android Staging boundary
+  ---
+  duration_ms: 6.0353
+  ...
+# Subtest: measurement mode is explicit, has no default and preserves listening and pending temperatures
+ok 95 - measurement mode is explicit, has no default and preserves listening and pending temperatures
+  ---
+  duration_ms: 6.409
+  ...
+# Subtest: measurement mode refuses unsupported and invalid requests and is excluded by clock and device info
+ok 96 - measurement mode refuses unsupported and invalid requests and is excluded by clock and device info
+  ---
+  duration_ms: 1.8314
+  ...
+# Subtest: measurement mode errors distinguish write failure, cancellation and unknown result and require reconnection
+ok 97 - measurement mode errors distinguish write failure, cancellation and unknown result and require reconnection
+  ---
+  duration_ms: 2.9223
+  ...
+# Subtest: malformed measurement mode responses never advertise an accepted or verified adjustment
+ok 98 - malformed measurement mode responses never advertise an accepted or verified adjustment
+  ---
+  duration_ms: 1.1713
+  ...
+# Subtest: measurement mode cancellation and late completion cannot cross account or connection boundaries
+ok 99 - measurement mode cancellation and late completion cannot cross account or connection boundaries
+  ---
+  duration_ms: 3.4498
+  ...
+# Subtest: Vinca measurement mode controls show only sent levels, no default, and disable unsafe actions
+ok 100 - Vinca measurement mode controls show only sent levels, no default, and disable unsafe actions
+  ---
+  duration_ms: 19.3263
+  ...
+# Subtest: measurement mode lab simulates two stages, errors, timeout and exclusions without native access
+ok 101 - measurement mode lab simulates two stages, errors, timeout and exclusions without native access
+  ---
+  duration_ms: 13.9953
+  ...
+# Subtest: measurement mode cannot write while listener initialization is pending or readiness is incomplete
+ok 102 - measurement mode cannot write while listener initialization is pending or readiness is incomplete
+  ---
+  duration_ms: 1.4992
+  ...
+# Subtest: measurement mode and volume exclude each other and quarantine their shared characteristic
+ok 103 - measurement mode and volume exclude each other and quarantine their shared characteristic
+  ---
+  duration_ms: 2.0029
+  ...
+# Subtest: preferences: account/device isolation, legacy absence, invalid values and non-destructive persistence
+ok 104 - preferences: account/device isolation, legacy absence, invalid values and non-destructive persistence
+  ---
+  duration_ms: 0.8048
+  ...
+# Subtest: preferences: accepted manual changes persist; rejected writes and failed storage retain the last durable choice
+ok 105 - preferences: accepted manual changes persist; rejected writes and failed storage retain the last durable choice
+  ---
+  duration_ms: 1.2281
+  ...
+# Subtest: binding: confirmed link survives a subsequent listener failure and retry does not bind again
+ok 106 - binding: confirmed link survives a subsequent listener failure and retry does not bind again
+  ---
+  duration_ms: 0.8488
+  ...
+# Subtest: binding: unlink drains configuration and closes before forget, preserving pending review
+ok 107 - binding: unlink drains configuration and closes before forget, preserving pending review
+  ---
+  duration_ms: 1.9023
+  ...
+# Subtest: binding: failed close or native forget keeps binding; change suppresses foreground reconnect until cancelled
+ok 108 - binding: failed close or native forget keeps binding; change suppresses foreground reconnect until cancelled
+  ---
+  duration_ms: 2.395
+  ...
+# Subtest: lifecycle: automatic settings serialize, exclude manual work and still deliver temperatures
+ok 109 - lifecycle: automatic settings serialize, exclude manual work and still deliver temperatures
+  ---
+  duration_ms: 1.6967
+  ...
+# Subtest: lifecycle: uncertain configuration stops the sequence without stopping temperatures; late result cannot cross accounts
+ok 110 - lifecycle: uncertain configuration stops the sequence without stopping temperatures; late result cannot cross accounts
+  ---
+  duration_ms: 2.0385
+  ...
+# Subtest: clock: local thresholds of 120 seconds and 24 hours, one automatic correction with read-back verification
+ok 111 - clock: local thresholds of 120 seconds and 24 hours, one automatic correction with read-back verification
+  ---
+  duration_ms: 2.5702
+  ...
+# Subtest: clock: failed/unverified correction is not a verified sync, does not loop or mutate pending history
+ok 112 - clock: failed/unverified correction is not a verified sync, does not loop or mutate pending history
+  ---
+  duration_ms: 2.5701
+  ...
+# Subtest: discard: ordinary pending review requests confirmation, cancel retains it, confirm never incorporates
+ok 113 - discard: ordinary pending review requests confirmation, cancel retains it, confirm never incorporates
+  ---
+  duration_ms: 4.0395
+  ...
+# Subtest: discard: unlink leaves pending readings reviewable with original binding and individual durable removal
+ok 114 - discard: unlink leaves pending readings reviewable with original binding and individual durable removal
+  ---
+  duration_ms: 5.9311
+  ...
+# Subtest: UI: stored preferences remain selected when disconnected, and normal review puts discard before the primary incorporation action
+ok 115 - UI: stored preferences remain selected when disconnected, and normal review puts discard before the primary incorporation action
+  ---
+  duration_ms: 13.3262
+  ...
+# Subtest: lab integration: new binding prepares preferences, restoration is serial, cancellation and unlink keep fictitious pending work
+ok 116 - lab integration: new binding prepares preferences, restoration is serial, cancellation and unlink keep fictitious pending work
+  ---
+  duration_ms: 12.6053
+  ...
+# Subtest: preferences: an existing binding without preferences never receives defaults, including reselecting the same thermometer
+ok 117 - preferences: an existing binding without preferences never receives defaults, including reselecting the same thermometer
+  ---
+  duration_ms: 0.8568
+  ...
+# Subtest: lifecycle: a listener reporting another binding is closed before any automatic settings
+ok 118 - lifecycle: a listener reporting another binding is closed before any automatic settings
+  ---
+  duration_ms: 0.424
+  ...
+# Subtest: presentation: local clock formatting validates calendar fields without timezone conversion
+ok 119 - presentation: local clock formatting validates calendar fields without timezone conversion
+  ---
+  duration_ms: 4.3526
+  ...
+# Subtest: presentation: segmented preferences retain accessible selection and three equal touch targets
+ok 120 - presentation: segmented preferences retain accessible selection and three equal touch targets
+  ---
+  duration_ms: 5.6001
+  ...
+# Subtest: presentation: binding notice only follows confirmation, closes and expires without hiding the device
+ok 121 - presentation: binding notice only follows confirmation, closes and expires without hiding the device
+  ---
+  duration_ms: 4.7461
+  ...
+# Subtest: presentation: review footer has discard on the left and incorporation on the right; closing belongs to the container
+ok 122 - presentation: review footer has discard on the left and incorporation on the right; closing belongs to the container
+  ---
+  duration_ms: 5.6493
+  ...
+# Subtest: presentation: readiness requires active indications and connection, and product images keep their proportions
+ok 123 - presentation: readiness requires active indications and connection, and product images keep their proportions
+  ---
+  duration_ms: 9.0672
+  ...
+# Subtest: multibrand: expanded search is explicit and never changes an existing binding
+ok 124 - multibrand: expanded search is explicit and never changes an existing binding
+  ---
+  duration_ms: 0.5035
+  ...
+# Subtest: multibrand: only the implemented and inspected profile can replace a binding
+ok 125 - multibrand: only the implemented and inspected profile can replace a binding
+  ---
+  duration_ms: 0.8705
+  ...
+# Subtest: multibrand: a reconnected unknown profile cannot configure clock, volume or mode
+ok 126 - multibrand: a reconnected unknown profile cannot configure clock, volume or mode
+  ---
+  duration_ms: 0.3781
+  ...
+# Subtest: multibrand: origin stays with each pending reading across device changes and recovery
+ok 127 - multibrand: origin stays with each pending reading across device changes and recovery
+  ---
+  duration_ms: 5.3835
+  ...
+# Subtest: multibrand: UI distinguishes discovery states and expanded search; unknown models have no Vinca image or settings
+ok 128 - multibrand: UI distinguishes discovery states and expanded search; unknown models have no Vinca image or settings
+  ---
+  duration_ms: 9.4858
+  ...
+# Subtest: multibrand: capability flags require both the implemented model and validated protocol
+ok 129 - multibrand: capability flags require both the implemented model and validated protocol
+  ---
+  duration_ms: 1.1194
+  ...
+# Subtest: review container dismissal retains the pending reading and draft in durable storage
+ok 130 - review container dismissal retains the pending reading and draft in durable storage
+  ---
+  duration_ms: 5.667
+  ...
+# Subtest: search presentation replaces instructions with progress/results and recognizes Vinca before inspection
+ok 131 - search presentation replaces instructions with progress/results and recognizes Vinca before inspection
+  ---
+  duration_ms: 4.9462
+  ...
+# Subtest: multiple bindings switch one connection, preserve preferences and reconnect only the selected device
+ok 132 - multiple bindings switch one connection, preserve preferences and reconnect only the selected device
+  ---
+  duration_ms: 1.7245
+  ...
+# Subtest: failed addition and individual unlink preserve other bindings and durable pending temperatures
+ok 133 - failed addition and individual unlink preserve other bindings and durable pending temperatures
+  ---
+  duration_ms: 1.262
+  ...
+# Subtest: opening another device shows its own preferences and connects by its opaque key
+ok 134 - opening another device shows its own preferences and connects by its opaque key
+  ---
+  duration_ms: 5.5587
+  ...
+# Subtest: standard trial is isolated from the normal queue, storage, settings and binding selection
+ok 135 - standard trial is isolated from the normal queue, storage, settings and binding selection
+  ---
+  duration_ms: 6.6335
+  ...
+# Subtest: adding a supported device retains saved devices; reselecting an existing one never creates defaults
+ok 136 - adding a supported device retains saved devices; reselecting an existing one never creates defaults
+  ---
+  duration_ms: 1.0177
+  ...
+# Subtest: trial cancellation drains a late start and rejects late trial events without reconnecting
+ok 137 - trial cancellation drains a late start and rejects late trial events without reconnecting
+  ---
+  duration_ms: 0.7915
+  ...
+# Subtest: concurrent unlink requests cannot report success for a different device
+ok 138 - concurrent unlink requests cannot report success for a different device
+  ---
+  duration_ms: 0.8449
+  ...
+# Subtest: thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key
+ok 139 - thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key
+  ---
+  duration_ms: 2.2251
+  ...
+# Subtest: inline thermometer name commits Enter once, cancels Escape and preserves explicit removal
+ok 140 - inline thermometer name commits Enter once, cancels Escape and preserves explicit removal
+  ---
+  duration_ms: 3.7067
+  ...
+# Subtest: standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt
+ok 141 - standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt
+  ---
+  duration_ms: 17.8223
+  ...
+# Subtest: EasyHome settings are profile gated and ambiguous units or historical packets cannot be incorporated
+ok 142 - EasyHome settings are profile gated and ambiguous units or historical packets cannot be incorporated
+  ---
+  duration_ms: 0.426
+  ...
+# Subtest: staging works on its own Hosting origin and localhost
+ok 143 - staging works on its own Hosting origin and localhost
+  ---
+  duration_ms: 0.5035
+  ...
+# Subtest: mixed backend configuration fails before Firebase initialization
+ok 144 - mixed backend configuration fails before Firebase initialization
+  ---
+  duration_ms: 0.3896
+  ...
+# Subtest: build and Hosting project must agree in both directions
+ok 145 - build and Hosting project must agree in both directions
+  ---
+  duration_ms: 0.163
+  ...
+# Subtest: deploy command rejects project overrides before invoking the CLI
+ok 146 - deploy command rejects project overrides before invoking the CLI
+  ---
+  duration_ms: 888.3357
+  ...
+1..146
+# tests 146
+# suites 0
+# pass 142
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 14095.577

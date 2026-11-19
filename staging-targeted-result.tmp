@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: manual multibrand incorporation requires validated reception and preserves transmitted units and original date
+ok 1 - manual multibrand incorporation requires validated reception and preserves transmitted units and original date
+  ---
+  duration_ms: 32.6947
+  ...
+# Subtest: device routes use the shared state and are unavailable outside the enabled prototype
+ok 2 - device routes use the shared state and are unavailable outside the enabled prototype
+  ---
+  duration_ms: 50.2973
+  ...
+# Subtest: discard commits only the selected local pending and fails closed on storage, saving and stale sessions
+ok 3 - discard commits only the selected local pending and fails closed on storage, saving and stale sessions
+  ---
+  duration_ms: 24.1927
+  ...
+# Subtest: Vinca device info button requires ready listening, renders separate rows and a local error
+ok 4 - Vinca device info button requires ready listening, renders separate rows and a local error
+  ---
+  duration_ms: 12.939
+  ...
+# Subtest: thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key
+ok 5 - thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key
+  ---
+  duration_ms: 4.5921
+  ...
+# Subtest: standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt
+ok 6 - standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt
+  ---
+  duration_ms: 37.8227
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1493.9252

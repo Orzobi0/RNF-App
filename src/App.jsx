@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
+import { ThermometerMetadataProvider } from '@/contexts/ThermometerMetadataContext';
 import { FemometerProvider } from '@/contexts/FemometerContext';
 import { WhatsNewProvider } from '@/contexts/WhatsNewContext.jsx';
 import AppBackground from '@/components/layout/AppBackground';
@@ -325,11 +326,11 @@ function App() {
       <AuthProvider>
         <WhatsNewProvider>
           <CycleDataProvider>
-            <FemometerProvider>
+            <ThermometerMetadataProvider><FemometerProvider>
               <ErrorBoundary>
                 <AppContent />
               </ErrorBoundary>
-            </FemometerProvider>
+            </FemometerProvider></ThermometerMetadataProvider>
           </CycleDataProvider>
         </WhatsNewProvider>
         <Toaster />

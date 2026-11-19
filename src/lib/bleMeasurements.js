@@ -2,6 +2,7 @@ import { temperatureNumber, measurementsFromRecord } from './temperatureMeasurem
 import { implementedThermometer } from './thermometerCatalog.js';
 
 export const authorizedBleMeasurement = measurement => {
+  if (measurement?.device_protocol === 'easyhome-ebt300' && (measurement.measurement_kind === 'historical' || measurement.transmitted_unit !== 'celsius' || temperatureNumber(measurement.temperature) < 32 || temperatureNumber(measurement.temperature) > 43)) return false;
   // Historical Vinca rows predate protocol/provenance fields and remain reviewable.
   if (!measurement?.device_protocol) return measurement?.device_model === 'BM-Vinca2';
   return Boolean(measurement.device_key) && measurement.reception_validated === true
@@ -28,7 +29,7 @@ export const normalizeBleMeasurement = (event, model = null) => {
     temperature_corrected: '', time_corrected: '', use_corrected: false,
     source: 'bluetooth', device_model: event.deviceModel ?? model, device_key: typeof event.deviceKey === 'string' ? event.deviceKey : null,
     device_protocol: event.deviceProtocol ?? null, reception_validated: event.receptionValidated === true && event.experimental !== true,
-    device_name: event.deviceName ?? null, transmitted_temperature: event.temperatureOriginal ?? event.temperatureC,
+    device_custom_name: event.deviceCustomName ?? null, device_name: event.deviceName ?? null, transmitted_temperature: event.temperatureOriginal ?? event.temperatureC,
     transmitted_unit: event.temperatureUnit ?? 'celsius', measurement_kind: event.measurementKind ?? null,
     device_timestamp: raw, received_at: event.receivedAt ?? null,
     device_date_reliability: raw === null
@@ -102,6 +103,12 @@ const validIsoDay = (day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.te
 
 // Manual confirmation authorizes this incorporation, never verifies the device clock.
 export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, userId, cycleId, nowMs } = {}) => {
+  if (measurement?.device_protocol === 'easyhome-ebt300' && !authorizedBleMeasurement(measurement)) {
+    const uncertainUnit = measurement.measurement_kind === 'historical' || measurement.transmitted_unit !== 'celsius';
+    throw Object.assign(new Error(uncertainUnit ? 'No se puede incorporar esta lectura EBT-300: su unidad original no está confirmada.' : 'La lectura EBT-300 no tiene una temperatura o una recepción válidas.'), {
+      code: uncertainUnit ? 'ble-unit-unconfirmed' : 'ble-invalid-reading', title: 'Lectura pendiente de comprobación',
+    });
+  }
   const localDate = new Date(`${isoDate}T${time}:00`);
   if (confirmed !== true || !userId || !cycleId || !validIsoDay(isoDate)
     || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time ?? '')
@@ -129,10 +136,11 @@ const originalMinute = timestamp => {
 export const isPossibleBleDuplicate = (existing, incoming) => existing?.source === 'bluetooth'
   && existing.device_model === incoming?.device_model
   && (!existing.device_key || !incoming?.device_key || existing.device_key === incoming.device_key)
-  && typeof incoming.device_timestamp === 'string' && incoming.device_timestamp.length > 0
-  && (incoming.device_model === 'BM-Vinca2'
+  && (typeof incoming.device_timestamp === 'string' && incoming.device_timestamp.length > 0 && existing.device_timestamp
+    ? (incoming.device_model === 'BM-Vinca2'
     ? originalMinute(incoming.device_timestamp) !== null && originalMinute(existing.device_timestamp) === originalMinute(incoming.device_timestamp)
     : existing.device_timestamp === incoming.device_timestamp)
+    : Boolean(incoming.confirmed_timestamp && existing.confirmed_timestamp && incoming.confirmed_timestamp.slice(0, 16) === existing.confirmed_timestamp.slice(0, 16)))
   && temperatureNumber(incoming.temperature_original ?? incoming.temperature) !== null
   && temperatureNumber(existing.temperature_original ?? existing.temperature) === temperatureNumber(incoming.temperature_original ?? incoming.temperature);
 

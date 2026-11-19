@@ -1,3 +1,4 @@
+import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React from 'react';
 import { CheckCircle2, Trash2, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ export function BleReadingReviewView({
   duplicateApproved = false, discardConfirm = false, onDifferent, onRepeated, onCancelDiscard, onDiscard, onRequestDiscard,
   change, confirm, onClose, navigate,
 }) {
+  const metadata = useThermometerMetadata();
   const uncertain = reading.importStatus === 'uncertain';
   const duplicate = error?.code === 'ble-possible-duplicate';
   const complete = check.status === 'complete';
@@ -36,7 +38,7 @@ export function BleReadingReviewView({
         {check.result.measurements.length ? <ul className="max-h-40 space-y-2 overflow-y-auto">
           {check.result.measurements.map((item, index) => <li key={item.id ?? index} className="rounded-xl border border-rose-200 bg-white p-2">
             <span className="font-semibold text-rose-700">{measurementDisplay(item)}</span> · {item.time || 'Hora no disponible'}
-            <span className="block text-xs text-slate-600">{measurementSourceLabel(item) || 'Procedencia no disponible'}{item.source === 'bluetooth' ? ' · Bluetooth' : ''}{item.selected === true ? ' · Seleccionada' : ''}</span>
+            <span className="block text-xs text-slate-600">{measurementSourceLabel(item, metadata.devices[item.device_key]?.customName) || 'Procedencia no disponible'}{item.source === 'bluetooth' ? ' · Bluetooth' : ''}{item.selected === true ? ' · Seleccionada' : ''}</span>
           </li>)}
         </ul> : <p>{check.result.exists ? 'El día no contiene mediciones.' : 'No existe un registro para ese día.'}</p>}
       </div>}

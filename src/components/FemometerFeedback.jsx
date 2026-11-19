@@ -42,7 +42,7 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
     finally { operationLock.current = false; setWorking(false); }
   };
   useEffect(() => {
-    const saved = readings.filter(row => row.importStatus === 'incorporated' && !savedIds.current.has(row.uiId));
+    const saved = readings.filter(row => row.importStatus === 'incorporated' && !row.verificationCombinedSave && !savedIds.current.has(row.uiId));
     saved.forEach(row => savedIds.current.add(row.uiId));
     if (saved.length) {
       const last = saved.at(-1);
@@ -54,6 +54,7 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
       savedBatch.current = { time: now, count };
     }
   }, [readings, navigate, openReadingReview]);
+  const easyClock = sessionState.boundProtocol === 'easyhome-ebt300';
   const connected = status === 'listening' && sessionState.listenerResult?.connectionReady === true && sessionState.listenerResult?.indicationsActive === true;
   const reconnect = sessionState.gattReconnectRequired || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired;
   return <><BleSavedNotice notice={notice} onDismiss={() => setNotice(null)}
@@ -65,25 +66,25 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
       <div className="space-y-2 text-sm">
         <dl className="divide-y divide-slate-100 rounded-2xl border border-slate-100 px-4">
           <div className="py-3"><dt className="text-sm text-slate-500">Hora del móvil</dt><dd className="mt-1 font-medium tabular-nums text-titulo">{formatClockLocalTime(clockResult?.phoneLocalTime)}</dd></div>
-          <div className="py-3"><dt className="text-sm text-slate-500">Hora del termómetro</dt><dd className="mt-1 font-medium tabular-nums text-titulo">{formatClockLocalTime(clockResult?.deviceLocalTime)}</dd></div>
+          {!easyClock && <div className="py-3"><dt className="text-sm text-slate-500">Hora del termómetro</dt><dd className="mt-1 font-medium tabular-nums text-titulo">{formatClockLocalTime(clockResult?.deviceLocalTime)}</dd></div>}
         </dl>
         {issue && <p className="text-amber-800">{clockResult?.significantDrift || clockHistory?.state === 'misaligned'
           ? 'Se ha detectado una desviación en el reloj.'
           : 'Hay una incidencia pendiente al comprobar o ajustar el reloj.'}</p>}
-        {!connected && <p>Conecta el termómetro primero. Los desfases superiores a 24 horas se intentan corregir al conectar.</p>}
+        {!connected && <p>{easyClock ? 'Conecta el termómetro para enviar la hora local del móvil.' : 'Conecta el termómetro primero. Los desfases superiores a 24 horas se intentan corregir al conectar.'}</p>}
         {busy && <p role="status">{sessionState.configurationBusy ? 'Preparando ajustes…' : clockBusy || (working && connected) ? 'Sincronizando / comprobando el reloj…' : 'Conectando con el termómetro…'}</p>}
         {(clockError || actionError) && <p role="alert" className="text-amber-800">{actionError || clockError.message || 'No se pudo comprobar o ajustar el reloj. Puedes reintentarlo.'}</p>}
         {!connected && sessionState.error && <p role="alert">{sessionState.error.code === 'CONNECTION_CANCELLED' ? 'Conexión cancelada.' : sessionState.error.message || 'No se pudo conectar.'}</p>}
         {status === 'missing' && <p role="status">Termómetro no encontrado. Acércalo y vuelve a conectar.</p>}
         {!busy && verified && <p role="status">{clockResult?.operation === 'sync' && clockResult?.verified === true ? 'Fecha y hora sincronizadas y verificadas' : 'La hora del termómetro parece correcta'}</p>}
-        {!busy && clockResult?.operation === 'sync' && !verified && <p role="status">{clockResult.significantDrift
+        {!busy && clockResult?.operation === 'sync' && !verified && <p role="status">{easyClock && clockResult.writeAccepted ? 'Ajuste enviado. El protocolo no permite verificar el reloj.' : clockResult.significantDrift
           ? 'La comprobación sigue mostrando una desviación. Puedes reintentarlo.'
           : 'El ajuste no tiene una verificación válida. La incidencia sigue pendiente.'}</p>}
         {connected && !capabilities?.clockSync && <p>Este dispositivo no permite ajustar el reloj desde la aplicación. Revisa las opciones en Dispositivos.</p>}
       </div>
       <DialogFooter className="flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-col sm:space-x-0">
         <div className="flex flex-wrap justify-end gap-2">
-          {connected && capabilities?.clockSync && <Button variant={issue ? 'default' : 'outline'} className={`min-h-11 h-auto max-w-full whitespace-normal rounded-xl px-4 py-2 ${issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} disabled={Boolean(busy || reconnect)} onClick={() => void run('syncClock')}>Sincronizar y verificar</Button>}
+          {connected && capabilities?.clockSync && <Button variant={issue ? 'default' : 'outline'} className={`min-h-11 h-auto max-w-full whitespace-normal rounded-xl px-4 py-2 ${issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} disabled={Boolean(busy || reconnect)} onClick={() => void run('syncClock')}>{easyClock ? 'Enviar ajuste de reloj' : 'Sincronizar y verificar'}</Button>}
           {!connected && <Button className="min-h-11 rounded-xl" disabled={busy} onClick={() => void run(sessionState.remembered ? 'start' : 'scan')}>Conectar</Button>}
           {connected && reconnect && <Button className="min-h-11 h-auto whitespace-normal rounded-xl" disabled={busy} onClick={() => void run('restart')}>Recuperar conexión</Button>}
           <Button variant={issue ? 'ghost' : 'default'} className={`min-h-11 rounded-xl ${!issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} onClick={() => setClockDialogOpen(false)}>Cerrar</Button>

@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { thermometerName } from '../src/lib/thermometerCatalog.js';
+import { createThermometerMetadataStore, mergeThermometerFields, sanitizeThermometerMetadata } from '../src/lib/thermometerMetadata.js';
 import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
 import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
-import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
+import { loadFrontend, hooks as baseHooks, deferred, flush } from './helpers/load-frontend.mjs';
+
+const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft }); return harness; };
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -101,13 +104,15 @@ test('verification confirmation requires explicit basal/current take acknowledge
     onConfirm: value => calls.push(value), onStop: () => calls.push('cancel'), onRetry: () => {} };
   const nodes = () => treeNodes(harness.render(() => ({ props: { value: ThermometerVerificationView(props) } })));
   const button = text => nodes().find(node => node.type === 'button' && JSON.stringify(node.props.children).includes(text));
-  assert.equal(button('Sí, coincide').props.disabled, true);
+  assert.equal(button('Confirmar, incorporar y vincular').props.disabled, true);
   nodes().find(node => node.type === 'select').props.onChange({ target: { value: 'current' } }); nodes();
-  nodes().find(node => node.type === 'input').props.onChange({ target: { checked: true } });
-  assert.equal(button('Sí, coincide').props.disabled, false);
-  button('Sí, coincide').props.onClick(); assert.deepEqual(calls[0], { readingId: 'current', basalConfirmed: true });
+  nodes().find(node => node.props.type === 'date').props.onChange({ target: { value: '2026-11-18' } });
+  nodes().find(node => node.props.type === 'time').props.onChange({ target: { value: '08:05' } });
+  nodes().find(node => node.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+  assert.equal(button('Confirmar, incorporar y vincular').props.disabled, false);
+  button('Confirmar, incorporar y vincular').props.onClick(); assert.deepEqual(calls[0], { readingId: 'current', basalConfirmed: true, isoDate: '2026-11-18', time: '08:05' });
   assert.match(JSON.stringify(nodes()), /36,47/);
-  button('No, es diferente').props.onClick(); assert.equal(calls.at(-1), 'cancel');
+  button('No coincide').props.onClick(); assert.equal(calls.at(-1), 'cancel');
   harness.cleanup();
 });
 
@@ -121,7 +126,7 @@ test('manual multibrand incorporation requires validated reception and preserves
   assert.equal(draft.device_timestamp, incoming.device_timestamp); assert.equal(draft.device_date_reliability, 'unverified');
   for (const patch of [{ reception_validated: false }, { device_key: null }, { device_protocol: 'unknown' }])
     assert.throws(() => prepareManualBleDraft({ ...incoming, ...patch }, confirmation));
-  assert.equal(authorizedBleMeasurement({ ...incoming, device_model: 'EBT-300', device_protocol: 'easyhome-ebt300' }), true);
+  assert.equal(authorizedBleMeasurement({ ...incoming, device_model: 'EBT-300', device_protocol: 'easyhome-ebt300', transmitted_unit: 'celsius' }), true);
   assert.equal(authorizedBleMeasurement({ ...incoming, device_model: 'EBT-089', device_protocol: 'easyhome-ebt300' }), false);
 });
 
@@ -177,14 +182,14 @@ const bridge = () => {
   return { factory: createFemometerSessionManager(api), api, calls, flags, storage, emit: event => emit?.({ deviceKey, deviceModel: 'BM-Vinca2', ...event }) };
 };
 
-async function mountedOwner(native, initialUser = 'a') {
+async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: null, isLoading: false }) {
   const harness = hooks();
   let userId = initialUser;
   let routeKey = 'dashboard';
   const lifecycle = new Set();
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
+    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
@@ -510,6 +515,12 @@ test('global clock prompt stays closed until explicit action', async () => {
   render();
   assert.deepEqual(opened, [false]);
   harness.cleanup();
+  props.sessionState = { ...props.sessionState, boundProtocol: 'easyhome-ebt300', clockError: null,
+    clockResult: { operation: 'sync', writeAccepted: true, verified: false }, listenerResult: { connectionReady: true, indicationsActive: true } };
+  assert.match(JSON.stringify(render()), /Enviar ajuste de reloj/);
+  assert.match(JSON.stringify(render()), /El protocolo no permite verificar el reloj/);
+  assert.doesNotMatch(JSON.stringify(render()), /Sincronizar y verificar|Hora del termómetro/);
+
 });
 
 test('confirmed notices group, remain dismissible and link to the exact day', async () => {
@@ -878,7 +889,7 @@ test('integrated lab keeps the real application children and route state; fake B
   let location = { key: 'dashboard', pathname: '/', search: '', hash: '' };
   const children = { type: 'real-application', props: {} };
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, authorizedBleMeasurement, useLocation: () => location, useNavigate: () => (...args) => routes.push(args),
+    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => location, useNavigate: () => (...args) => routes.push(args),
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -1291,13 +1302,13 @@ test('special review sections replace decisions and hide unsafe or redundant inc
   assert.equal(hasButton('Cancelar'), false);
 });
 
-async function vincaPanelFixture(initial = {}, props = {}) {
+async function vincaPanelFixture(initial = {}, props = {}, metadata = { devices: {} }) {
   const harness = hooks();
   const calls = [];
   let ble = { pendingCount: 2, clockHistory: null, sessionState: { remembered: false, status: 'idle', devices: [], ...initial },
     sessionRef: { current: {} }, openReadingReview: () => calls.push('review'), openClockDialog: () => calls.push('clock') };
   const { Vinca2Panel } = await loadFrontend('src/components/Vinca2Panel.jsx', {
-    ...harness.bindings, thermometerName, useFemometer: () => ble, window: { location: { hash: '' } },
+    ...harness.bindings, useThermometerMetadata: () => metadata, thermometerName, useFemometer: () => ble, window: { location: { hash: '' } },
     Button: 'button', Bluetooth: 'icon', ChevronRight: 'icon', Clock3: 'icon', Info: 'icon', Thermometer: 'icon', Link2: 'icon', Unlink: 'icon',
     Dialog: 'dialog', DialogContent: 'dialog-content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Vinca2Diagnostics: 'diagnostics',
   }, ['Vinca2Panel']);
@@ -1707,7 +1718,8 @@ test('Vinca device info button requires ready listening, renders separate rows a
   await h.button('Consultar datos').props.onClick(); assert.deepEqual(h.calls, ['info']);
   h.ble.sessionState.deviceInfoResult = { battery: 85, firmware: null, software: 'SW-only' };
   let text = JSON.stringify(h.render());
-  assert.match(text, /85 %/); assert.match(text, /SW-only/); assert.match(text, /No disponible/);
+  assert.match(text, /85 %/); assert.match(text, /SW-only/); assert.doesNotMatch(text, /No disponible/);
+  assert.equal(treeNodes(h.render()).filter(node => node.type === 'dd').length, 2);
   h.ble.sessionState.deviceInfoBusy = true;
   assert.equal(h.button('Consultar datos').props.disabled, true);
   assert.match(JSON.stringify(h.render()), /Consultando datos/);
@@ -1728,7 +1740,7 @@ test('lab device info simulates all results and cancellation without a native ad
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -1925,7 +1937,7 @@ test('volume lab simulates two stages, errors, timeout and exclusions without na
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -2157,7 +2169,7 @@ test('measurement mode lab simulates two stages, errors, timeout and exclusions 
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -2485,7 +2497,7 @@ test('lab integration: new binding prepares preferences, restoration is serial, 
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const timers = new Set();
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
-    ...harness.bindings, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
     createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
@@ -2925,4 +2937,120 @@ test('concurrent unlink requests cannot report success for a different device', 
   wait.resolve(); assert.equal(await first, true);
   assert.deepEqual(h.snapshot().bindings.map(row => row.deviceKey), ['second']);
   assert.equal(h.snapshot().deviceKey, null); await h.session.dispose();
+});
+
+
+test('thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key', async () => {
+  const storage = memoryStorage(); let notify, state; let offline = false, revision = 0;
+  const remoteData = { first: { customName: { value: 'Remote', updatedAt: 20, revision: 'remote' }, volume: { value: 'low', updatedAt: 20, revision: 'remote' } } };
+  const remote = { subscribe: callback => { notify = callback; return () => {}; }, merge: async (key, fields) => {
+    if (offline) throw new Error('offline');
+    return remoteData[key] = mergeThermometerFields(remoteData[key], fields);
+  } };
+  let store = createThermometerMetadataStore({ userId: 'a', storage, remote, now: () => 30, uuid: () => String(++revision), changed: value => { state = value; } });
+  store.patch('first', { volume: 'medium', model: 'BM-Vinca2' }, true); await flush();
+  assert.equal(store.get('first').volume, 'low');
+  assert.equal(store.get('first').customName, 'Remote');
+  store.patch('second', { customName: 'Other', volume: 'high' }); await flush();
+  offline = true; store.patch('first', { customName: null, firmware: '2' }); await flush();
+  assert.match(state.error, /conservados/); assert.equal(store.get('first').customName, null);
+  notify([['first', { batteryLevel: { value: 80, updatedAt: 40, revision: 'battery' } }]]);
+  assert.equal(store.get('first').firmware, '2'); store.dispose();
+  store = createThermometerMetadataStore({ userId: 'a', storage, remote, changed: value => { state = value; } });
+  assert.equal(store.get('first').customName, null); offline = false; await store.flush();
+  assert.equal(remoteData.first.customName.value, null); assert.equal(store.get('second').volume, 'high'); store.dispose();
+  const other = createThermometerMetadataStore({ userId: 'b', storage, remote: { subscribe: () => () => {}, merge: async () => ({}) }, changed: () => {} });
+  assert.deepEqual(other.get('first'), {}); other.dispose();
+  assert.deepEqual(sanitizeThermometerMetadata({ address: 'private', serial: 'private', selected: true, model: 'AA:BB:CC:DD:EE:FF', customName: 'x'.repeat(41) }), {});
+});
+
+test('inline thermometer name commits Enter once, cancels Escape and preserves explicit removal', async () => {
+  const harness = hooks(), calls = [], devices = {};
+  const { ThermometerName } = await loadFrontend('src/components/ThermometerName.jsx', { ...harness.bindings, Pencil: 'pencil', thermometerName,
+    useThermometerMetadata: () => ({ devices, patch: (key, value) => { calls.push([key, value]); devices[key] = value; } }) }, ['ThermometerName']);
+  const nodes = () => treeNodes(harness.render(() => ({ props: { value: ThermometerName({ device: { deviceKey: 'one', model: 'BM-Vinca2' } }) } })));
+  const edit = () => nodes().find(node => node.type === 'button').props.onClick();
+  edit(); nodes().find(node => node.type === 'input').props.onChange({ target: { value: 'VINCA USO' } });
+  const field = nodes().find(node => node.type === 'input');
+  field.props.onKeyDown({ key: 'Enter', preventDefault() {} }); field.props.onBlur();
+  assert.deepEqual(calls, [['one', { customName: 'VINCA USO' }]]);
+  edit(); nodes().find(node => node.type === 'input').props.onKeyDown({ key: 'Escape', preventDefault() {} }); assert.equal(calls.length, 1);
+  edit(); nodes().find(node => node.type === 'input').props.onChange({ target: { value: ' ' } }); nodes().find(node => node.type === 'input').props.onBlur();
+  assert.equal(calls.at(-1)[1].customName, null);
+  const measurement = normalizeBleMeasurement({ temperatureC: 36.5, deviceModel: 'BM-Vinca2', deviceKey: 'one', deviceCustomName: 'Old name' });
+  assert.equal(measurementSourceLabel(measurement), 'Old name');
+  assert.equal(measurementSourceLabel(measurement, 'Current name'), 'Current name');
+  assert.equal(measurementSourceLabel(measurement, null), 'Vinca 2'); harness.cleanup();
+});
+
+test('standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt', async () => {
+  for (const outcome of ['success', 'duplicate', 'uncertain']) {
+    const h = standardVerificationFixture(); h.sample.deviceTimestamp = null;
+    const storage = memoryStorage(); let owner, saves = 0;
+    const cycle = { currentCycle: { id: 'cycle', startDate: '2026-11-01' }, isLoading: false,
+      incorporateBleMeasurement: async payload => {
+        saves++; const row = createFemometerLocalState(storage, 'a').recover()[0];
+        assert.equal(row.importStatus, 'uncertain'); assert.ok(row.attempt.id);
+        assert.equal(payload.measurements[0].device_timestamp, null);
+        assert.equal(payload.measurements[0].confirmed_timestamp, '2026-11-18T08:05:00');
+        if (outcome !== 'success') throw Object.assign(new Error('failure'), outcome === 'duplicate' ? { code: 'ble-possible-duplicate' } : {});
+        return { isoDate: payload.isoDate, measurements: payload.measurements };
+      } };
+    owner = await mountedOwner({ factory: createFemometerSessionManager(h.api), storage }, 'a', cycle);
+    const session = owner.render().sessionRef.current;
+    await session.scan(); await session.selectAndRemember('standard'); h.trial(h.sample);
+    const action = owner.render().completeVerification({ readingId: 'reading', basalConfirmed: true, isoDate: '2026-11-18', time: '08:05' });
+    if (outcome === 'success') assert.equal(await action, true); else await assert.rejects(action, /pendiente/);
+    assert.equal(saves, 1); assert.equal(h.saved().deviceKey, 'standard-key');
+    const state = owner.render(); assert.equal(state.pendingCount, outcome === 'success' ? 0 : 1);
+    if (outcome !== 'success') assert.equal(state.readings[0].importStatus, outcome === 'duplicate' ? 'pending' : 'uncertain');
+    owner.cleanup(); await flush(); await h.session.dispose();
+  }
+});
+
+test('EasyHome settings are profile gated and ambiguous units or historical packets cannot be incorporated', () => {
+  const raw = { temperatureC: 36.52, deviceKey: 'easy', deviceModel: 'EBT-300', deviceProtocol: 'easyhome-ebt300', receptionValidated: true, temperatureUnit: 'celsius', measurementKind: 'current' };
+  assert.equal(authorizedBleMeasurement(normalizeBleMeasurement(raw)), true);
+  for (const patch of [{ measurementKind: 'historical' }, { temperatureUnit: 'fahrenheit' }, { temperatureC: 96 }, { temperatureC: 0 }])
+    assert.equal(authorizedBleMeasurement(normalizeBleMeasurement({ ...raw, ...patch })), false);
+});
+
+
+test('persisted thermometer info survives disconnection and keeps original identity separate from nickname', async () => {
+  const metadata = { devices: { 'key': { customName: 'VINCA USO', firmware: 'FW-2', batteryLevel: 75, batteryCheckedAt: 10000, infoCheckedAt: 10000, volume: 'low' } } };
+  const h = await vincaPanelFixture({ remembered: true, deviceKey: 'key', boundModel: 'BM-Vinca2', status: 'stopped' }, { deviceKey: 'key' }, metadata);
+  const text = JSON.stringify(h.render());
+  assert.match(text, /FW-2/); assert.match(text, /75 %/); assert.match(text, /BM-Vinca2/); assert.match(text, /Bajo/);
+  assert.equal(h.button('Actualizar datos').props.disabled, true); assert.doesNotMatch(text, /No disponible/); h.cleanup();
+});
+
+test('EasyHome unit and clock operations exclude information reads and never invoke Vinca settings', async () => {
+  const n = bridge(), pending = deferred(), local = createFemometerLocalState(n.storage, 'a'); let state;
+  n.api.getRememberedFemometer = async () => ({ remembered: true, deviceKey: 'easy', model: 'EBT-300', protocol: 'easyhome-ebt300', compatibility: 'experimental' });
+  n.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'easy', connectionReady: true, indicationsActive: true,
+    capabilities: { model: 'EBT-300', protocol: 'easyhome-ebt300', compatibility: 'experimental', clockSync: true, unitWrite: true } });
+  let units = 0;
+  n.api.setFemometerTemperatureUnit = async unit => { units++; assert.equal(unit, 'F'); return pending.promise; };
+  const session = n.factory('a', next => { state = next; }, () => {}, local);
+  await session.start(); assert.equal(n.calls.clock, 0); assert.equal(n.calls.sync, 0); assert.deepEqual(n.calls.volume, []);
+  const setting = session.setTemperatureUnit('F'); await flush();
+  await session.readDeviceInfo(); await session.syncClock(); await session.setTemperatureUnit('C');
+  assert.equal(n.calls.info, 0); assert.equal(n.calls.sync, 0); assert.equal(units, 1);
+  pending.resolve({ writeAccepted: true, verified: false }); await setting;
+  assert.equal(state.unitResult.verified, false); assert.equal(state.gattReconnectRequired, true);
+  assert.equal(local.preferences('easy').temperatureUnit, 'F'); await session.dispose();
+});
+
+test('navigation during first binding leaves its received take pending without saving an obsolete destination', async () => {
+  const h = standardVerificationFixture(), wait = deferred(), original = h.api.confirmStandardThermometerTrial;
+  let saves = 0;
+  h.api.confirmStandardThermometerTrial = async (...args) => { await wait.promise; return original(...args); };
+  const owner = await mountedOwner({ factory: createFemometerSessionManager(h.api), storage: memoryStorage() }, 'a', {
+    currentCycle: { id: 'cycle', startDate: '2026-11-01' }, isLoading: false, incorporateBleMeasurement: async () => { saves++; } });
+  const session = owner.render().sessionRef.current;
+  await session.scan(); await session.selectAndRemember('standard'); h.trial(h.sample);
+  const result = owner.render().completeVerification({ readingId: 'reading', basalConfirmed: true, isoDate: '2026-11-18', time: '08:05' });
+  await flush(); owner.navigate('other-screen'); wait.resolve(); await assert.rejects(result, /pendiente/);
+  assert.equal(saves, 0); assert.equal(owner.render().pendingCount, 1); assert.equal(h.saved().deviceKey, 'standard-key');
+  owner.cleanup(); await flush(); await h.session.dispose();
 });

@@ -1,3 +1,4 @@
+import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -17,7 +18,9 @@ import {
 } from '@/lib/temperatureMeasurements';
 
 export const MeasurementSourceChip = ({ measurement, label }) => {
-  const text = measurementSourceLabel(measurement, label);
+  const metadata = useThermometerMetadata();
+  const saved = metadata.devices[measurement?.device_key];
+  const text = measurementSourceLabel(measurement, saved && Object.hasOwn(saved, 'customName') ? saved.customName : label);
   return text ? <span title={text} className="inline-block min-w-0 max-w-20 truncate rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-normal leading-4 text-slate-600">{text}</span> : null;
 };
 

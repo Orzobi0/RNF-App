@@ -381,12 +381,13 @@ export const setFemometerMeasurementMode = async level => {
 export const readFemometerDeviceInfo = () => callFemometerBle('readDeviceInfo');
 
 export const readFemometerClock = () => callFemometerBle('readClock');
+export const setFemometerTemperatureUnit = unit => callFemometerBle('setTemperatureUnit', { unit });
 export const syncFemometerClock = () => callFemometerBle('syncClock');
 
 export const createFemometerPanelSession = createFemometerSessionManager({
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer, selectRememberedFemometer,
-  readFemometerClock, syncFemometerClock, readFemometerDeviceInfo, setFemometerVolume, setFemometerMeasurementMode,
+  readFemometerClock, syncFemometerClock, setFemometerTemperatureUnit, readFemometerDeviceInfo, setFemometerVolume, setFemometerMeasurementMode,
   startStandardThermometerTrial, addStandardThermometerTrialListener, confirmStandardThermometerTrial,
 });

@@ -27,6 +27,18 @@ public class EasyHomeProfileTest {
         invalid = current(); invalid[11] = 30; reject(invalid, true);
         assertArrayEquals(new byte[] {90,6,6,1,-1,-1,-1,-1,-6}, EasyHomeProfile.celsiusCommand());
     }
+    @Test public void documentedClockAndUnitCommandsAndTemperatureRange() {
+        java.util.Calendar local = new java.util.GregorianCalendar(2026, 10, 19, 8, 5, 9);
+        assertArrayEquals(new byte[] {90,3,6,56,11,19,8,5,9}, EasyHomeProfile.clockCommand(local));
+        assertArrayEquals(new byte[] {90,6,6,2,-1,-1,-1,-1,-6}, EasyHomeProfile.unitCommand(2));
+        try { EasyHomeProfile.unitCommand(0); fail("unit"); } catch (IllegalArgumentException expected) { }
+        local.set(java.util.Calendar.YEAR, 2226);
+        try { EasyHomeProfile.clockCommand(local); fail("year"); } catch (IllegalArgumentException expected) { }
+        byte[] value = current(); value[4] = 0; value[5] = 0; reject(value, true);
+        value = current(); value[4] = (byte)0x80; value[5] = 0x25; reject(value, true); // 96 F is never guessed
+        value = current(); value[4] = (byte)0xCC; value[5] = 0x10;
+        assertEquals(43.0, EasyHomeProfile.decode(value, true).temperature, 0.001);
+    }
     private void reject(byte[] packet, boolean configured) {
         try { EasyHomeProfile.decode(packet, configured); fail("must reject"); }
         catch (IllegalArgumentException expected) { }

@@ -8,5 +8,5 @@ export const implementedThermometer = ({ model, protocol, compatibility } = {}) 
   thermometerCatalog.some(item => item.model === model && item.protocol === protocol && item.compatibility === compatibility)
   || (protocol === 'health-thermometer' && compatibility === 'experimental');
 
-export const thermometerName = device => thermometerCatalog.find(item => item.model === device?.model)?.name
+export const thermometerName = device => device?.customName || thermometerCatalog.find(item => item.model === device?.model)?.name
   || device?.name || device?.model || 'Termómetro Bluetooth';

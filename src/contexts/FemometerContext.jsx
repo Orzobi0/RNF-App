@@ -1,3 +1,7 @@
+import { thermometerName } from '@/lib/thermometerCatalog';
+import { useCycleData } from '@/hooks/useCycleData';
+import { prepareManualBleDraft } from '@/lib/bleMeasurements';
+import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { createContext, useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +36,11 @@ export const FemometerProvider = ({ children }) => {
 };
 
 export const FemometerSessionOwner = ({ userId, children }) => {
+  const cycle = useCycleData();
+  const cycleRef = useRef(cycle); cycleRef.current = cycle;
+  const verificationBusy = useRef(false);
+  const metadata = useThermometerMetadata();
+  const metadataRef = useRef(metadata); metadataRef.current = metadata;
   const location = useLocation();
   const locationKey = useRef(location.key);
   locationKey.current = location.key;
@@ -72,7 +81,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     let lastClockObservation;
     let recovered = [];
     try {
-      localRef.current = createFemometerLocalState(globalThis.localStorage, userId);
+      localRef.current = createFemometerLocalState(globalThis.localStorage, userId, { get: key => metadataRef.current.get(key), patch: (...args) => metadataRef.current.patch(...args) });
       recovered = localRef.current.recover();
     } catch (error) { localRef.current = null; setStorageError('No se pueden recuperar los pendientes locales. No cierres la aplicación tras recibir lecturas nuevas.'); }
     readingsRef.current = recovered; setReadings(recovered);
@@ -81,6 +90,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     const session = createFemometerPanelSession(userId, next => {
       if (!alive) return;
       setSessionState(next);
+      for (const device of next.bindings ?? []) {
+        try { metadataRef.current.patch(device.deviceKey, { ...device, commercialName: thermometerName(device), ...(device.protocol === 'easyhome-ebt300' ? { temperatureUnit: 'C' } : {}), ...next.preferencesByDevice?.[device.deviceKey] }, true); } catch { setStorageError("No se pudieron conservar los metadatos del termómetro."); }
+      }
       try {
         if (next.remembered !== null) localRef.current?.activate(next.deviceKey ?? null);
         const observation = next.clockResult ?? next.clockError ?? (next.clockBusy ? next.clockAttempt : null);
@@ -107,21 +119,24 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       previousStatus = next.status;
     }, event => {
       if (!alive || event?.experimental === true) return;
-      const normalized = normalizeBleMeasurement(event);
+      const normalized = normalizeBleMeasurement({ ...event, deviceCustomName: metadataRef.current.get(event.deviceKey).customName ?? null });
       if (normalized?.device_protocol && !authorizedBleMeasurement(normalized)) return;
       if (normalized) {
         // UI-only sequence, never passed as a device identity or measurement key.
-        updateReadings([...readingsRef.current, { ...event, normalized, deviceKey: normalized.device_key,
+        const row = { ...event, normalized, deviceKey: normalized.device_key,
           localId: globalThis.crypto.randomUUID(), receivedOrder: receivedOrder = Math.max(Date.now(), receivedOrder + 1),
           dateReview: decideVinca2Reading(normalized, { deviceKey: normalized.device_key,
               nowMs: Date.now(), timeZone: localRef.current?.clock(normalized.device_key)?.lastValidCheck?.phoneTimeZone,
               clockHistory: localRef.current?.clock(normalized.device_key) }),
-            uiId: ++sequence, importStatus: 'pending' }]);
-        setReviewVisibleOn(locationKey.current);
+            uiId: ++sequence, importStatus: 'pending' };
+        try { updateReadings([...readingsRef.current, row], event.promotedVerification === true); }
+        catch (error) { readingsRef.current = [...readingsRef.current, row]; setReadings(readingsRef.current); setReviewVisibleOn(locationKey.current); throw error; }
+        if (!event.promotedVerification) setReviewVisibleOn(locationKey.current);
         if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) {
           setReviewExpanded(false); setReviewReadingId(sequence);
         }
         setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
+        return row;
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);
     }, localRef.current);
@@ -153,7 +168,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
 
   // Only wraps an explicitly confirmed save supplied by the existing panel.
   // The shared status survives navigation while that save is in flight.
-  const incorporateReading = async (uiId, save, { reviewedUncertain = false, reviewedAttemptId, attempt } = {}) => {
+  const incorporateReading = async (uiId, save, { reviewedUncertain = false, reviewedAttemptId, attempt, combinedVerification = false } = {}) => {
     const owner = sessionRef.current;
     const row = readingsRef.current.find(item => item.uiId === uiId);
     if (!owner || !(row?.importStatus === 'pending' || (row?.importStatus === 'uncertain' && reviewedUncertain && row.attempt?.id && reviewedAttemptId === row.attempt.id)) || readingsRef.current.some(item => item.importStatus === 'saving')) throw new Error('Comprueba el resultado pendiente o espera a que termine la incorporación en curso.');
@@ -163,7 +178,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       if (sessionRef.current === owner) updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus, ...extra } : item));
     };
     // Persist the in-flight state BEFORE Firestore. A restart never retries it automatically.
-    updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus: 'saving', attempt: attempt ?? item.attempt } : item), true);
+    updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus: 'saving', verificationCombinedSave: combinedVerification, attempt: attempt ?? item.attempt } : item), true);
     try {
       const result = await save();
       status('incorporated', { savedIsoDate: result?.isoDate,
@@ -193,11 +208,42 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     setReviewVisibleOn(location.key);
     setReviewExpanded(true);
   };
+  const completeVerification = async ({ readingId, basalConfirmed, isoDate, time }) => {
+    if (verificationBusy.current) throw new Error('Espera a que termine la incorporación.');
+    const owner = sessionRef.current, route = locationKey.current, destination = cycleRef.current;
+    const trial = sessionState.trial;
+    const received = trial?.readings?.find(row => row.readingId === readingId);
+    const valid = () => sessionRef.current === owner && locationKey.current === route && cycleRef.current.currentCycle?.id === destination.currentCycle?.id;
+    if (!received || !owner || destination.isLoading || !destination.currentCycle?.id || !basalConfirmed) throw new Error('Comprueba la medición y espera a que se cargue el ciclo actual.');
+    const draft = { isoDate, time, confirmed: true, userId, cycleId: destination.currentCycle.id, nowMs: Date.now() };
+    prepareManualBleDraft(normalizeBleMeasurement({ ...received, deviceKey: 'verification-preview', deviceProtocol: 'health-thermometer', receptionValidated: true, experimental: false }), draft);
+    if (isoDate < destination.currentCycle.startDate || (destination.currentCycle.endDate && isoDate > destination.currentCycle.endDate)) throw new Error('La fecha no pertenece al ciclo actual.');
+    verificationBusy.current = true;
+    let failure = null, incorporated = false;
+    try {
+      const bound = await owner.confirmTrial({ readingId, basalConfirmed, incorporate: async row => {
+        try {
+          if (!valid() || !row?.normalized) throw new Error('La operación ha cambiado. La temperatura queda pendiente.');
+          updateReadingDraft(row.uiId, { isoDate, time });
+          const payload = prepareManualBleDraft(row.normalized, draft);
+          const attempt = { id: crypto.randomUUID(), userId, cycleId: draft.cycleId, isoDate, time };
+          await incorporateReading(row.uiId, () => {
+            if (!valid()) throw Object.assign(new Error('Operación cancelada'), { code: 'ble-cancelled' });
+            return destination.incorporateBleMeasurement(payload, { allowPossibleDuplicate: false });
+          }, { attempt, combinedVerification: true });
+          incorporated = true;
+        } catch (error) { failure = error; if (valid() && row?.uiId) openReadingReview(row.uiId); }
+      } });
+      if (!bound) throw new Error('No se pudo completar la vinculación. Comprueba los pendientes antes de reintentar.');
+      if (failure || !incorporated) throw new Error('Termómetro vinculado. La temperatura sigue pendiente: continúa su revisión para incorporarla.');
+      return true;
+    } finally { verificationBusy.current = false; }
+  };
   const pendingReadings = readings.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
   const reviewReading = pendingReadings.find(row => row.uiId === reviewReadingId) ?? pendingReadings[0];
   const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...draft, confirmed: false } } : row));
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
-    pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
+    completeVerification, pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
     listeningStartedAt, temperatureListenerMessage, incorporateReading, discardReading, lifecycleStatus, openReadingReview,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}

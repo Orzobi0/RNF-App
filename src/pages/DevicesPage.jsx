@@ -1,3 +1,5 @@
+import { ThermometerName } from '@/components/ThermometerName';
+import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { CheckCircle2, X, ChevronLeft, ChevronRight, Thermometer, Link2 } from 'lucide-react';
@@ -22,6 +24,7 @@ const compactButton = 'inline-flex min-h-11 h-auto w-fit max-w-full whitespace-n
 
 export function DevicesPage() {
   const ble = useFemometer();
+  const metadata = useThermometerMetadata();
   const [localChanging, setChanging] = useState(false);
   const [working, setWorking] = useState(false);
   const [attemptedId, setAttemptedId] = useState(null);
@@ -54,36 +57,37 @@ export function DevicesPage() {
     if (operation === 'scan') { setSearched(true); if (id !== true) setNormalSearched(true); setAttemptedId(null); }
     else setAttemptedId(id);
     try {
-      const confirmed = await ble.sessionRef.current?.[operation](id);
+      const confirmed = operation === 'confirmTrial' ? await ble.completeVerification(id) : await ble.sessionRef.current?.[operation](id);
       if (operation === 'beginChange' && confirmed === true) { setChanging(true); setSearched(false); setNormalSearched(false); setAttemptedId(null); }
       if (operation === 'cancelChange') { setChanging(false); setSearched(false); }
       if (operation === 'connectSaved' && confirmed === true) { setChanging(false); setSearched(false); setAttemptedId(null); }
       if (['selectAndRemember', 'confirmTrial'].includes(operation) && confirmed === true) {
-        setLinkedNotice(true); setChanging(false); setSearched(false); setAttemptedId(null);
+        setLinkedNotice(operation === 'confirmTrial' ? 'incorporated' : true); setChanging(false); setSearched(false); setAttemptedId(null);
       }
     } catch (failure) {
       setActionError(failure?.message || 'No se pudo completar la comprobación. Vuelve a intentarlo.');
     } finally { operationLock.current = false; setWorking(false); }
   };
   return <DevicePageShell title="Dispositivos" back="/settings">
+    {metadata.error && <p role="status" className="text-sm text-amber-800">{metadata.error}</p>}
     {linkedNotice && linked && <section aria-label="Vinculación confirmada" className="relative rounded-xl bg-rose-50 px-3 py-2 pr-12">
       <div role="status" aria-live="polite" aria-atomic="true" className="flex items-start gap-2">
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />
-        <p className="font-semibold text-titulo">Termómetro vinculado</p>
+        <p className="font-semibold text-titulo">{linkedNotice === 'incorporated' ? 'Termómetro vinculado y temperatura incorporada' : 'Termómetro vinculado'}</p>
       </div>
       <button type="button" aria-label="Cerrar aviso de vinculación" className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 focus-visible:outline-2 focus-visible:outline-rose-400" onClick={() => setLinkedNotice(false)}><X className="h-4 w-4" aria-hidden="true" /></button>
     </section>}
     {linked === null && <div role="status" className="text-sm text-slate-500">Consultando vinculación…</div>}
     {bindings.length > 0 && <section aria-label="Termómetros vinculados" className="space-y-2">
       <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-titulo">Mis termómetros</h2><Button variant="ghost" className={compactButton} disabled={busy || changing} onClick={() => run('beginChange')}>+ Añadir</Button></div>
-      {bindings.map(device => <Link key={device.deviceKey || 'legacy'} to={device.deviceKey ? `/settings/devices/${encodeURIComponent(device.deviceKey)}` : '/settings/devices/vinca2'} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
+      {bindings.map(device => <div key={device.deviceKey || 'legacy'} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
         {device.model === 'BM-Vinca2' ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 blanco con funda rosa" width="56" height="88" className="h-16 w-12 shrink-0 object-contain" /> : <Thermometer className="h-8 w-8 shrink-0" aria-hidden="true" />}
-        <span className="min-w-0 flex-1"><span className="block font-semibold text-titulo">{thermometerName(device)}</span>
+        <div className="min-w-0 flex-1"><ThermometerName device={device} className="font-semibold text-titulo" />
           <span className="flex items-center gap-1 text-xs text-slate-500"><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</span>
           <span className="block text-xs text-slate-500">{device.compatibility === 'experimental' ? 'Experimental' : ''}</span>
           <span className="block text-sm text-slate-600">{!changing && device.deviceKey === ble.sessionState.deviceKey ? vinca2StatusText(status, ble.sessionState) : 'Desconectado'}</span>
-        </span><ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-      </Link>)}
+        </div><Link aria-label={`Abrir ${thermometerName({ ...device, ...metadata.devices[device.deviceKey] })}`} to={device.deviceKey ? `/settings/devices/${encodeURIComponent(device.deviceKey)}` : '/settings/devices/vinca2'} className="flex h-11 w-11 items-center justify-center"><ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
+      </div>)}
     </section>}
     {((linked === false && !bindings.length) || changing) && <section aria-label="Vincular termómetro" className="space-y-4">
       {!searched && status !== 'searching' && devices.length === 0 && <div aria-label="Preparar búsqueda" className="relative space-y-3 rounded-2xl border border-slate-200/70 bg-white p-4">
@@ -107,15 +111,17 @@ export function DevicesPage() {
         {devices.map(device => {
           const stored = device.deviceKey && bindings.some(binding => binding.deviceKey === device.deviceKey);
           const preliminaryVinca = device.model ? device.model === 'BM-Vinca2' : device.preliminaryModel === 'BM-Vinca2' || /(?:^|[^a-z0-9])bm-vinca2(?:$|[^a-z0-9])/i.test(device.name || '');
+          const preliminaryEasy = device.model === 'EBT-300' || device.preliminaryModel === 'EBT-300';
           const attempted = attemptedId === device.id && selectedDeviceId === device.id;
           return <button key={device.id} type="button" disabled={busy || listening}
             onClick={() => run(stored ? 'connectSaved' : 'selectAndRemember', stored ? device.deviceKey : device.id)}
             className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
             {preliminaryVinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2" width="32" height="48" className="h-12 w-8 shrink-0 object-contain" /> : <Thermometer className="h-4 w-4 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />}
-            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{preliminaryVinca ? 'Femometer Vinca 2' : thermometerName(device)}</span>
+            <span className="min-w-0 flex-1 break-words"><span className="block font-medium">{thermometerName({ ...device, model: preliminaryVinca ? 'BM-Vinca2' : preliminaryEasy ? 'EBT-300' : device.model, ...metadata.devices[device.deviceKey] })}</span>
+              {preliminaryEasy && <span className="block text-xs text-slate-500">Experimental</span>}
               {device.manufacturer && <span className="block text-xs text-slate-500">{device.manufacturer}</span>}
-              {!preliminaryVinca && <span className="block text-xs text-slate-600">{device.compatibility === 'possible_standard' ? 'Posible termómetro' : device.compatibility === 'recognized_unsupported' ? 'Soporte pendiente' : 'Dispositivo sin identificar'}</span>}
-              <span className="block text-xs text-fertiliapp-fuerte">{stored ? 'Conectar' : preliminaryVinca ? 'Pulsa para vincular' : 'Comprobar compatibilidad'}</span>
+              {!preliminaryVinca && !preliminaryEasy && <span className="block text-xs text-slate-600">{device.compatibility === 'possible_standard' ? 'Posible termómetro' : device.compatibility === 'recognized_unsupported' ? 'Soporte pendiente' : 'Dispositivo sin identificar'}</span>}
+              <span className="block text-xs text-fertiliapp-fuerte">{stored ? 'Conectar' : preliminaryVinca || preliminaryEasy ? 'Pulsa para vincular' : 'Comprobar compatibilidad'}</span>
               {attempted && <span role="status" className="mt-1 block text-xs text-slate-600">{busy ? ble.sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, ble.sessionState)
                 : error || actionError ? 'No se pudo completar la comprobación o vinculación. Vuelve a intentarlo.'
                   : inspectionResult && inspectionResult.compatible !== true ? inspectionResult.standardTrialAvailable ? 'Prueba disponible' : 'No se puede vincular actualmente' : ''}</span>}
@@ -129,7 +135,7 @@ export function DevicesPage() {
       <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-titulo">Temperaturas pendientes <span className="ml-1 text-fertiliapp-fuerte">{ble.pendingCount}</span></span></span>
       <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
     </button>}
-    {trial && <ThermometerVerificationView trial={trial} name={thermometerName(devices.find(device => device.id === trial.deviceId))}
+    {trial && <ThermometerVerificationView error={actionError} trial={trial} name={thermometerName(devices.find(device => device.id === trial.deviceId))}
       busy={working || ble.sessionState.bindingBusy} onConfirm={evidence => run('confirmTrial', evidence)}
       onStop={() => run('stopTrial')} onRetry={() => run('startTrial', trial.deviceId)} />}
     {ble.sessionState.verificationPromoted && promotedReading && <Button variant="ghost" className={compactButton} onClick={() => ble.openReadingReview(promotedReading.uiId)}>Revisar temperatura de comprobación</Button>}

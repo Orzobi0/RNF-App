@@ -18,6 +18,15 @@ public class FemometerIdentityStoreTest {
         assertEquals(standard.key, store.remember("a", "new", null, "New label", "Maker", "health-thermometer", "1", "experimental").key);
         assertEquals(2, store.all("a").devices.size());
     }
+    @Test public void explicitReverificationPreservesKeyButCannotChangeProtocol() {
+        FemometerIdentityStore store = new FemometerIdentityStore(new Memory());
+        FemometerIdentityStore.Binding first = store.remember("a", "address", null, "Name", "Maker", "health-thermometer", "1", "experimental");
+        FemometerIdentityStore.Binding next = store.remember("a", "address", null, "Name", "Maker", "health-thermometer", "2", "experimental");
+        assertEquals(first.key, next.key); assertEquals("2", next.firmware);
+        try { store.remember("a", "address", "EBT-300", "Name", "Maker", "easyhome-ebt300", "2", "experimental"); fail("protocol"); }
+        catch (IllegalStateException expected) { assertEquals("DEVICE_PROTOCOL_CHANGED", expected.getMessage()); }
+        assertEquals(first.key, store.get("a").key);
+    }
     static class Memory implements FemometerIdentityStore.Storage {
         Map<String, String> legacy = new HashMap<>();
         Map<String, FemometerIdentityStore.Binding> records = new HashMap<>();

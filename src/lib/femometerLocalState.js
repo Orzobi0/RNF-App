@@ -1,12 +1,12 @@
 export const femometerPreferenceValues = {
-  volume: ['low', 'medium', 'high'], measurementMode: ['quick', 'normal', 'precise'],
+  volume: ['low', 'medium', 'high'], temperatureUnit: ['C', 'F'], measurementMode: ['quick', 'normal', 'precise'],
 };
 const validPreferences = values => Object.fromEntries(Object.entries(femometerPreferenceValues)
   .filter(([field, allowed]) => allowed.includes(values?.[field])).map(([field]) => [field, values[field]]));
 
 // One small local document per account. Never a second collection of daily records.
 // Local IDs identify review work only, not unique thermometer measurements.
-export const createFemometerLocalState = (storage, userId) => {
+export const createFemometerLocalState = (storage, userId, metadata = null) => {
   const key = `fertiliapp:ble-review:v1:${encodeURIComponent(userId)}`;
   const empty = () => ({ version: 1, activeDeviceKey: null, devices: {} });
   const raw = storage.getItem(key);
@@ -14,13 +14,15 @@ export const createFemometerLocalState = (storage, userId) => {
   if (state.version !== 1 || !state.devices || typeof state.devices !== 'object') throw new Error('Almacenamiento Bluetooth no válido.');
   const commit = next => { storage.setItem(key, JSON.stringify(next)); state = next; };
   return {
-    preferences: deviceKey => validPreferences(state.devices[deviceKey]?.preferences),
+    preferences: deviceKey => validPreferences({ ...state.devices[deviceKey]?.preferences, ...metadata?.get(deviceKey) }),
+    saveMetadata: (deviceKey, values) => metadata?.patch(deviceKey, values),
     initializePreferences: deviceKey => {
       if (!deviceKey) throw new Error('Vinculación no confirmada.');
       const device = state.devices[deviceKey] ?? { pending: [], clock: null };
       if (device.preferences) return validPreferences(device.preferences);
       const preferences = { volume: 'medium', measurementMode: 'normal' };
       commit({ ...state, devices: { ...state.devices, [deviceKey]: { ...device, preferences } } });
+      metadata?.patch(deviceKey, preferences, true);
       return { ...preferences };
     },
     savePreference: (deviceKey, field, value) => {
@@ -28,6 +30,7 @@ export const createFemometerLocalState = (storage, userId) => {
       const device = state.devices[deviceKey] ?? { pending: [], clock: null };
       const preferences = { ...validPreferences(device.preferences), [field]: value };
       commit({ ...state, devices: { ...state.devices, [deviceKey]: { ...device, preferences } } });
+      metadata?.patch(deviceKey, { [field]: value });
       return { ...preferences };
     },
     recover: () => Object.entries(state.devices).flatMap(([deviceKey, device]) => (device.pending ?? []).map(row => ({

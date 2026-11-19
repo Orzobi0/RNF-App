@@ -14,7 +14,7 @@ export const hasMeasurementTemperature = (measurement) =>
 export const measurementOriginFields = (measurement) => Object.fromEntries([
   'temperature_original', 'device_timestamp', 'received_at', 'device_date_reliability',
   'device_timezone', 'confirmed_timestamp', 'confirmed_timezone',
-  'device_protocol', 'device_name', 'reception_validated', 'transmitted_temperature', 'transmitted_unit', 'measurement_kind',
+  'device_custom_name', 'device_protocol', 'device_name', 'reception_validated', 'transmitted_temperature', 'transmitted_unit', 'measurement_kind',
 ].filter(key => measurement?.[key] !== undefined).map(key => [key, measurement[key]]));
 
 export const normalizeMeasurements = (measurements) => {
@@ -54,6 +54,7 @@ export const measurementSourceLabel = (measurement, resolvedLabel) => {
   if (resolvedLabel) return resolvedLabel;
   if (measurement?.source === 'manual') return 'Manual';
   if (measurement?.source === 'bluetooth') {
+    if (resolvedLabel !== null && measurement.device_custom_name) return measurement.device_custom_name;
     return measurement.device_model === 'BM-Vinca2' ? 'Vinca 2' : measurement.device_model || measurement.device_name || 'Bluetooth';
   }
   return null;

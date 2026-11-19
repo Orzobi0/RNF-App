@@ -25,7 +25,19 @@ final class EasyHomeProfile {
             notify.getDescriptor(HealthThermometerProfile.CCCD) != null);
     }
     // Source configures Celsius before receiving packets; no unit flag is documented in a packet.
-    static byte[] celsiusCommand() { return new byte[] {90, 6, 6, 1, (byte)255, (byte)255, (byte)255, (byte)255, (byte)250}; }
+    static byte[] celsiusCommand() { return unitCommand(1); }
+    static byte[] unitCommand(int unit) {
+        if (unit != 1 && unit != 2) throw new IllegalArgumentException("unit");
+        return new byte[] {90, 6, 6, (byte)unit, (byte)255, (byte)255, (byte)255, (byte)255, (byte)250};
+    }
+    static byte[] clockCommand(java.util.Calendar local) {
+        int year = local.get(java.util.Calendar.YEAR);
+        if (year < 1970 || year > 2225 || local.get(java.util.Calendar.ERA) != java.util.GregorianCalendar.AD) throw new IllegalArgumentException("year");
+        int month = local.get(java.util.Calendar.MONTH) + 1, day = local.get(java.util.Calendar.DAY_OF_MONTH);
+        int hour = local.get(java.util.Calendar.HOUR_OF_DAY), minute = local.get(java.util.Calendar.MINUTE), second = local.get(java.util.Calendar.SECOND);
+        BleClockCodec.dateTime(year, month, day, hour, minute, second);
+        return new byte[] {90, 3, 6, (byte)(year - 1970), (byte)month, (byte)day, (byte)hour, (byte)minute, (byte)second};
+    }
     static final class Reading {
         final double temperature; final String timestamp; final boolean live;
         Reading(double temperature, String timestamp, boolean live) { this.temperature = temperature; this.timestamp = timestamp; this.live = live; }
@@ -37,6 +49,9 @@ final class EasyHomeProfile {
         if (year > 2100) throw new IllegalArgumentException("year");
         String timestamp = BleClockCodec.dateTime(year, data[10] & 255, data[11] & 255,
             data[12] & 255, data[13] & 255, data[14] & 255);
-        return new Reading(((data[4] & 255) + ((data[5] & 255) << 8)) / 100.0, timestamp, data[1] == 1);
+        double temperature = ((data[4] & 255) + ((data[5] & 255) << 8)) / 100.0;
+        // Manufacturer EBT-300 manual: 89.6–109.4 F (32–43 C).
+        if (temperature < 32 || temperature > 43) throw new IllegalArgumentException("range");
+        return new Reading(temperature, timestamp, data[1] == 1);
     }
 }
