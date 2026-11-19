@@ -1320,11 +1320,17 @@ async function vincaPanelFixture(initial = {}, props = {}, metadata = { devices:
     sessionRef: { current: {} }, openReadingReview: () => calls.push('review'), openClockDialog: () => calls.push('clock') };
   const { Vinca2Panel } = await loadFrontend('src/components/Vinca2Panel.jsx', {
     ...harness.bindings, useThermometerMetadata: () => metadata, thermometerName, useFemometer: () => ble, window: { location: { hash: '' } },
-    Button: 'button', Bluetooth: 'icon', ChevronRight: 'icon', Clock3: 'icon', Info: 'icon', Thermometer: 'icon', Link2: 'icon', Unlink: 'icon',
+    Button: 'button', Bluetooth: 'icon', RefreshCw: 'icon', ChevronRight: 'icon', Clock3: 'icon', Info: 'icon', Thermometer: 'icon', Link2: 'icon', Unlink: 'icon',
     Dialog: 'dialog', DialogContent: 'dialog-content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Vinca2Diagnostics: 'diagnostics',
   }, ['Vinca2Panel']);
   const render = () => harness.render(() => ({ props: { value: Vinca2Panel(props) } }));
-  const button = label => treeNodes(render()).find(node => node.type === 'button' && JSON.stringify(node.props.children).includes(label));
+  const button = label => treeNodes(render()).find(node =>
+  node.type === 'button' &&
+  (
+    node.props['aria-label'] === label ||
+    JSON.stringify(node.props.children).includes(label)
+  )
+);
   const toggleInfo = open => {
     const details = treeNodes(render()).find(node => node.type === 'details' && typeof node.props.onToggle === 'function');
     assert.ok(details, 'Modelo y compatibilidad must support automatic refresh');
@@ -1457,7 +1463,8 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   assert.match(JSON.stringify(h.render()), /Femometer Vinca 2/); assert.match(JSON.stringify(h.render()), /Desconectado/);
   h.button('Temperaturas pendientes').props.onClick(); h.button('Reloj').props.onClick();
   assert.deepEqual(h.calls, ['review', 'clock']);
-  assert.match(h.button('Conectar').props.className, /w-fit/);
+  assert.match(h.button('Conectar').props.className, /w-11/);
+  assert.equal(h.button('Conectar').props['aria-label'], 'Conectar');
   assert.doesNotMatch(h.button('Conectar').props.className, /(^|\s)w-full(\s|$)/);
   assert.equal(h.button('Buscar termómetros'), undefined);
   const click = h.button('Conectar').props.onClick;
@@ -1465,7 +1472,12 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   wait.resolve(); await operation;
   for (const status of ['searching', 'connecting', 'stopping', 'inspecting']) {
     h.ble.sessionState.status = status;
-    assert.ok(treeNodes(h.render()).filter(n => n.type === 'button' && n.props.className?.includes('bg-fertiliapp-fuerte')).every(n => n.props.disabled));
+    const action = h.button(status === 'stopping'
+  ? 'Desconectado'
+  : 'Conectando…');
+
+assert.ok(action);
+assert.equal(action.props.disabled, true);
   }
   h.ble.sessionState.status = 'listening';
   h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };

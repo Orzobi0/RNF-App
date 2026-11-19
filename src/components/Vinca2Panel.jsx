@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { ThermometerName } from '@/components/ThermometerName';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Clock3, Info, Thermometer, Link2, Unlink } from 'lucide-react';
+import { ChevronRight, Clock3, Info, Thermometer, Link2, Unlink, Bluetooth, RefreshCw } from 'lucide-react';
 import { thermometerName } from '@/lib/thermometerCatalog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -110,10 +110,10 @@ const canReadDeviceInfo =
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center justify-between gap-1">
           <p
             role="status"
-            className={`text-sm ${
+            className={`min-w-0 text-sm ${
               retry
                 ? 'text-amber-800'
                 : listening && !sessionState.configurationBusy
@@ -124,37 +124,55 @@ const canReadDeviceInfo =
             {healthyListening && (
               <svg
                 aria-hidden="true"
-                viewBox="0 0 44 44"
-                className="mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none"
+                viewBox="0 0 32 32"
+                className="mr-1 inline-block h-5 w-5 align-middle"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               >
-                <path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" />
+                <path
+                  d="M7 11 Q3 16 7 21"
+                  className="ble-wave-left"
+                />
+                <path
+                  d="M25 11 Q29 16 25 21"
+                  className="ble-wave-right"
+                />
               </svg>
             )}
+
             {healthyListening
               ? 'Escuchando temperaturas'
               : vinca2StatusText(status, sessionState)}
           </p>
 
-          {listening && (
-            <button
-              type="button"
-              aria-label="Detener escucha"
-              title="Detener escucha"
-              disabled={busy}
-              onClick={() => run('stop')}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte hover:bg-rose-50 disabled:opacity-40"
+          <button
+            type="button"
+            aria-label={listening ? 'Detener escucha' : primaryLabel}
+            title={listening ? 'Detener escucha' : primaryLabel}
+            disabled={busy}
+            onClick={() => run(listening ? 'stop' : operation)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte hover:bg-rose-50 disabled:opacity-40"
+          >
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50"
+              aria-hidden="true"
             >
-              <span
-                aria-hidden="true"
-                className="h-3.5 w-3.5 bg-current"
-              />
-              <span className="sr-only">Detener escucha</span>
-            </button>
-          )}
+              {listening ? (
+                <span className="h-3 w-3 bg-current" />
+              ) : busy ? (
+                <RefreshCw className="h-4 w-4 motion-safe:animate-spin" />
+              ) : retry ? (
+                <RefreshCw className="h-4 w-4" />
+              ) : (
+                <Bluetooth className="h-5 w-5" />
+              )}
+            </span>
+            <span className="sr-only">
+              {listening ? 'Detener escucha' : primaryLabel}
+            </span>
+          </button>
         </div>
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
       </div>
@@ -166,18 +184,6 @@ const canReadDeviceInfo =
       {sessionState.error?.code === 'DEVICE_NOT_VERIFIED' && <Button variant="ghost" disabled={busy} onClick={async () => { await run('recheckSaved'); navigate('/settings/devices'); }}>Repetir comprobación de este dispositivo</Button>}
       {sessionState.error?.code === 'BLUETOOTH_DISABLED' && <p>Activa Bluetooth en los ajustes del móvil y vuelve a intentarlo.</p>}
     </div>}
-        {!listening && (
-      <div className="py-2">
-        <Button
-          type="button"
-          className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
-          disabled={busy}
-          onClick={() => run(operation)}
-        >
-          {primaryLabel}
-        </Button>
-      </div>
-    )}
         {pendingCount > 0 && (
       <button
         type="button"

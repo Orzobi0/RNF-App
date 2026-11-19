@@ -24,9 +24,37 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   open ? 'scale-105 ring-2 ' : 'scale-100'
 } ${listening ? 'text-emerald-700' : 'text-slate-500'}`}
     >
-      {(searching || listening) && <svg aria-hidden="true" viewBox="0 0 32 32" className="pointer-events-none absolute inset-0 m-auto h-8 w-8 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-        <path d="M7 11 Q3 16 7 21 M25 11 Q29 16 25 21" />
-      </svg>}
+            {(searching || listening) && (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 32 32"
+          className="pointer-events-none absolute inset-0 m-auto h-8 w-8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        >
+          <path
+  d="M7 11 Q3 16 7 21"
+  className="ble-wave-left"
+/>
+<path
+  d="M25 11 Q29 16 25 21"
+  className="ble-wave-right"
+/>
+
+<g className="ble-wave-echo" strokeWidth="1.2">
+  <path
+    d="M8 12.5 Q5 16 8 19.5"
+    className="ble-wave-left"
+  />
+  <path
+    d="M24 12.5 Q27 16 24 19.5"
+    className="ble-wave-right"
+  />
+</g>
+        </svg>
+      )}
       <Icon aria-hidden="true" className="h-5 w-5" />
       {unlinked && <Plus aria-hidden="true" className="absolute bottom-2 right-1 h-3 w-3" />}
       {ble.pendingCount > 0 && <span aria-hidden="true" className="absolute right-0 top-0 min-w-4 rounded-full bg-rose-100 px-1 text-[10px] font-semibold text-rose-800">{ble.pendingCount > 99 ? '99+' : ble.pendingCount}</span>}

@@ -576,3 +576,80 @@ button.date-editor-toggle[aria-pressed="true"] svg {
 .chart-controls .text-fertiliapp:focus-visible {
   color: var(--color-fertiliapp) !important;
 }
+/* Ondas de actividad Bluetooth */
+.ble-wave-left {
+  --ble-wave-offset: -3px;
+}
+
+.ble-wave-right {
+  --ble-wave-offset: 3px;
+}
+
+.ble-wave-left,
+.ble-wave-right {
+  animation: bleSignalWave 1.3s ease-out infinite;
+}
+
+@keyframes bleSignalWave {
+  0% {
+    transform: translateX(0);
+    opacity: 0.95;
+  }
+
+  75% {
+    transform: translateX(var(--ble-wave-offset));
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: translateX(var(--ble-wave-offset));
+    opacity: 0.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ble-wave-left,
+  .ble-wave-right {
+    animation: none;
+  }
+}
+/* Segunda onda Bluetooth */
+.ble-wave-echo .ble-wave-left {
+  --ble-echo-offset: -1.5px;
+}
+
+.ble-wave-echo .ble-wave-right {
+  --ble-echo-offset: 1.5px;
+}
+
+.ble-wave-echo path {
+  animation: bleSignalEcho 2.6s linear infinite;
+  opacity: 0;
+}
+
+@keyframes bleSignalEcho {
+  0%, 30% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+
+  45% {
+    opacity: 0.5;
+  }
+
+  75% {
+    transform: translateX(var(--ble-echo-offset));
+    opacity: 0.35;
+  }
+
+  90%, 100% {
+    transform: translateX(var(--ble-echo-offset));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ble-wave-echo {
+    display: none;
+  }
+}
