@@ -3202,7 +3202,8 @@ test('capture wrappers exclude PWA, production and Experiment and export only ex
     else { assert.throws(() => bluetoothCapture('start')); assert.equal(calls.length, 0); }
     const output = formatVinca2Capture({ active: true, truncated: true, accountId: 'secret', events: [{ order: 1, receivedAt: 0, elapsedMs: 0, channel: '2a1c', direction: 'reception', status: 'received', hex: '86 E2', originalBytes: 200, mac: 'AA:BB:CC:DD:EE:FF', token: 'secret', serial: 'private' }] });
     assert.match(output, /1970-01-01T00:00:00.000Z/); assert.match(output, /TRUNCADO/);
-    assert.doesNotMatch(output, /secret|private|AA:BB/);
+    assert.doesNotMatch(output, /secret|private|AA:BB|\uFFFD/);
+    assert.match(formatVinca2Capture({ active: true, prepared: true, observeClock: true, events: [{ order: 1, receivedAt: 0, elapsedMs: 0, channel: 'search', direction: 'control', status: 'scan_started', hex: '', originalBytes: 0, connection: 0 }] }), /HEX: \(sin bytes\)/);
   }
 });
 
@@ -3223,8 +3224,14 @@ test('capture UI is manual, supports selectable text and clears on stop and unmo
   let snapshot = empty;
   const { BluetoothCapture } = await loadFrontend('src/components/Vinca2Diagnostics.jsx', {
     ...harness.bindings, Button: 'button', navigator: {},
-    bluetoothCapture: async action => {
+    useAuth: () => ({ user: { uid: 'a' } }),
+    useFemometer: () => ({ sessionState: { status: 'stopped', deviceKey: 'bound-a', bindings: [{ deviceKey: 'bound-a', model: 'BM-Vinca2', protocol: 'vinca2' }] } }),
+    bluetoothCapture: async (action, options) => {
       calls.push(action);
+      if (action === 'prepare') {
+        assert.deepEqual(options, { userId: 'a', deviceKey: 'bound-a', observeClock: true });
+        snapshot = { active: true, prepared: true, observeClock: true, truncated: false, events: [] };
+      }
       if (action === 'start') snapshot = { active: true, truncated: false, events: [{ order: 1 }] };
       if (action === 'stop' || action === 'clear') snapshot = empty;
       return snapshot;
@@ -3236,6 +3243,11 @@ test('capture UI is manual, supports selectable text and clears on stop and unmo
   const render = () => harness.render(() => ({ props: { value: BluetoothCapture() } }));
   const button = label => treeNodes(render()).find(node => node.type === 'button' && node.props.children.includes(label));
   render(); assert.deepEqual(calls, []);
+  assert.equal(button('Preparar captura para la próxima conexión').props.disabled, false);
+  treeNodes(render()).find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+  await button('Preparar captura para la próxima conexión').props.onClick();
+  assert.deepEqual(calls, ['prepare']); assert.equal(snapshot.prepared, true);
+  await button('Limpiar captura').props.onClick(); calls.length = 0;
   await button('Iniciar captura').props.onClick(); assert.deepEqual(calls, ['start']);
   await button('Copiar registro').props.onClick();
   const tree = render(); assert.match(JSON.stringify(tree), /Selecciona el texto/);
@@ -3247,4 +3259,37 @@ test('capture UI is manual, supports selectable text and clears on stop and unmo
   await button('Iniciar captura').props.onClick();
   await button('Limpiar captura').props.onClick(); assert.equal(snapshot.active, false);
   harness.cleanup(); assert.equal(calls.at(-1), 'clear');
+});
+
+
+test('prepared observation keeps automatic reads but suppresses only Vinca automatic clock correction', async () => {
+  for (const observe of [true, false]) {
+    const h = integratedSession();
+    const start = h.api.startFemometerTemperatureListener;
+    h.api.startFemometerTemperatureListener = async (...args) => ({ ...await start(...args), captureObserveClock: observe });
+    h.api.readFemometerClock = async () => ({ deviceKey: 'bound-a', deviceLocalTime: '2020-01-01T08:00:00' });
+    h.api.syncFemometerClock = async () => { h.calls.sync++; return { deviceLocalTime: localText(h.flags.now), verified: true }; };
+    h.flags.now = new Date(2026, 10, 20, 12).getTime();
+    await h.session.start();
+    assert.equal(h.calls.sync, observe ? 0 : 1);
+    assert.equal(h.state().status, 'listening');
+    assert.ok(h.state().clockResult);
+    await h.session.stop(); await h.session.start();
+    assert.equal(h.calls.sync, observe ? 0 : 2);
+    await h.session.dispose();
+  }
+});
+
+test('preparation native guard uses saved identity and preserves the transport sequence', async () => {
+  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerBle.java', import.meta.url), 'utf8');
+  const prepare = source.slice(source.indexOf('} else if ("prepare".equals(action))'), source.indexOf('} else if ("start".equals(action))'));
+  assert.match(prepare, /identities\(\).get\(user\)/);
+  assert.match(prepare, /bound.compatibility/); assert.match(prepare, /bound.protocol/); assert.match(prepare, /bound.key.equals/);
+  assert.doesNotMatch(prepare, /connectGatt|startReception|writeCharacteristic/);
+  assert.match(source, /capture.connectionStarted\(\)/);
+  assert.match(source, /capture.observingClock\(\)/);
+  for (const status of ['scan_started', 'scan_finished', 'bound_device_found', 'bound_device_not_found', 'window_started', 'window_ended']) assert.ok(source.includes(status));
+  const clockSource = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/BleClockOperation.java', import.meta.url), 'utf8');
+  assert.ok(clockSource.indexOf('capture.record(channel.toString()') < clockSource.indexOf('if (DATE_TIME.equals(channel))'));
+  assert.match(clockSource, /CLOCK_INVALID_DATE/); assert.match(clockSource, /CLOCK_DIAGNOSTIC_READ_ONLY/);
 });

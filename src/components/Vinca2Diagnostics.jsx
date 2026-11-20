@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useFemometer } from '@/contexts/FemometerContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 import { bluetoothCapture, clearVinca2Capture, isVinca2CaptureAvailable, formatVinca2Capture } from '@/lib/femometerBle';
@@ -9,6 +10,12 @@ const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
 // Poll only bounded session memory; opening this section never connects BLE.
 const BluetoothCapture = () => {
+  const { user } = useAuth();
+  const { sessionState } = useFemometer();
+  const binding = sessionState.bindings?.find(item => item.deviceKey === sessionState.deviceKey);
+  const canPrepare = binding?.model === 'BM-Vinca2' && binding?.protocol === 'vinca2'
+    && !sessionState.busy && !['connecting', 'listening', 'stopping'].includes(sessionState.status);
+  const [observeClock, setObserveClock] = useState(false);
   const [snapshot, setSnapshot] = useState({ active: false, truncated: false, events: [] });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,8 +23,10 @@ const BluetoothCapture = () => {
   const revision = useRef(0);
   useEffect(() => {
     alive.current = true;
+    setSnapshot({ active: false, truncated: false, events: [] });
+    setObserveClock(false); setBusy(false); setMessage('');
     return () => { alive.current = false; revision.current++; void clearVinca2Capture().catch(() => {}); };
-  }, []);
+  }, [user?.uid, sessionState.deviceKey]);
   useEffect(() => {
     if (!snapshot.active) return undefined;
     let cancelled = false;
@@ -34,32 +43,43 @@ const BluetoothCapture = () => {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [snapshot.active]);
   const act = async action => {
-    revision.current++;
+    const request = ++revision.current;
+    const current = () => alive.current && request === revision.current;
     setBusy(true); setMessage('');
     try {
-      const next = await bluetoothCapture(action);
-      if (alive.current) setSnapshot(next);
-    } catch { if (alive.current) setMessage('Captura no disponible. Se necesita la APK Staging y un BM-Vinca2 conectado y validado.'); }
-    finally { if (alive.current) setBusy(false); }
+      const result = await bluetoothCapture(action, action === 'prepare'
+        ? { userId: user?.uid, deviceKey: sessionState.deviceKey, observeClock } : {});
+      const next = action === 'dateTime' ? await bluetoothCapture('status') : result;
+      if (current()) setSnapshot(next);
+    } catch { if (current()) setMessage('Captura no disponible. Se necesita la APK Staging y un BM-Vinca2 vinculado y validado. Para 0x2A08 debe anunciar lectura y estar conectado; una fecha inválida queda registrada.'); }
+    finally { if (current()) setBusy(false); }
   };
   const copy = async () => {
+    const request = revision.current;
+    const current = () => alive.current && request === revision.current;
     setBusy(true);
     try {
       const next = await bluetoothCapture('status');
-      if (!alive.current) return;
+      if (!current()) return;
       setSnapshot(next);
-      try { await navigator.clipboard.writeText(formatVinca2Capture(next)); if (alive.current) setMessage('Registro copiado.'); }
-      catch { if (alive.current) setMessage('Selecciona el texto del registro y usa Copiar.'); }
-    } catch { if (alive.current) setMessage('No se pudo obtener el registro.'); }
-    finally { if (alive.current) setBusy(false); }
+      try { await navigator.clipboard.writeText(formatVinca2Capture(next)); if (current()) setMessage('Registro copiado.'); }
+      catch { if (current()) setMessage('Selecciona el texto del registro y usa Copiar.'); }
+    } catch { if (current()) setMessage('No se pudo obtener el registro.'); }
+    finally { if (current()) setBusy(false); }
   };
   return <details className="rounded-lg border border-slate-200 p-3">
-    <summary className="cursor-pointer font-medium">Captura Bluetooth � Solo Staging</summary>
+    <summary className="cursor-pointer font-medium">Captura Bluetooth — Solo Staging</summary>
     <div className="mt-3 space-y-3">
-      <p>Conecta primero el BM-Vinca2. Inicia la captura y pulsa �Reiniciar escucha� para observar la preparaci�n completa.</p>
-      <p>Solo en memoria. Copia antes de detener: detener, limpiar, salir del diagn�stico o cerrar sesi�n borra la captura. El portapapeles queda bajo tu control y puede contener datos de salud y fechas.</p>
-      <p role="status">{snapshot.active ? 'Captura activa' : 'Captura inactiva'} � {snapshot.events.length} eventos{snapshot.truncated ? ' � CAPTURA TRUNCADA' : ''}</p>
+      <p>Con la escucha detenida, prepara la captura y usa los controles existentes para conectar. No se conecta al preparar. Si ya está conectado, inicia la captura y pulsa «Reiniciar escucha».</p>
+      <p>Solo en memoria. Copia antes de detener: detener, limpiar, salir del diagnóstico o cerrar sesión borra la captura. El portapapeles queda bajo tu control y puede contener datos de salud y fechas.</p>
+      <p role="status">{snapshot.prepared ? 'Captura preparada' : snapshot.active ? 'Captura activa' : 'Captura inactiva'} · {snapshot.events.length} eventos{snapshot.truncated ? ' · CAPTURA TRUNCADA' : ''}</p>
+      <label className="flex items-start gap-2"><input type="checkbox" checked={observeClock} disabled={busy || snapshot.active}
+        onChange={event => setObserveClock(event.target.checked)} />No sincronizar automáticamente el reloj durante esta captura</label>
+      <p>Esta opción se aplica al preparar la próxima conexión. También bloquea la sincronización manual mientras esté activa. Exporta y detén la captura para volver a sincronizar explícitamente.</p>
+      <p>Reloj: {snapshot.observeClock ? 'solo lectura' : 'comportamiento normal'}. El estado refleja callbacks BLE; no confirma que el termómetro siga encendido.</p>
       <div className="flex flex-wrap gap-2">
+        <Button disabled={busy || snapshot.active || !canPrepare} onClick={() => act('prepare')}>Preparar captura para la próxima conexión</Button>
+        <Button disabled={busy || !snapshot.active || snapshot.prepared || sessionState.status !== 'listening'} onClick={() => act('dateTime')}>Leer 0x2A08 si está disponible</Button>
         <Button disabled={busy || snapshot.active} onClick={() => act('start')}>Iniciar captura</Button>
         <Button disabled={busy || !snapshot.active} onClick={() => act('stop')}>Detener captura</Button>
         <Button disabled={busy || !snapshot.events.length} onClick={copy}>Copiar registro</Button>

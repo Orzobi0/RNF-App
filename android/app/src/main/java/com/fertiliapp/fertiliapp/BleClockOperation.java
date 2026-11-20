@@ -13,6 +13,7 @@ import java.util.TimeZone;
 
 /** A single optional CTS transaction on the existing GATT. Never closes the temperature transport. */
 final class BleClockOperation {
+    static final java.util.UUID DATE_TIME = java.util.UUID.fromString("00002a08-0000-1000-8000-00805f9b34fb");
     private final Handler handler;
     private PluginCall pending;
     private BluetoothGatt transport;
@@ -31,7 +32,7 @@ final class BleClockOperation {
     BleClockOperation(Handler handler) { this(handler, null); }
     BleClockOperation(Handler handler, Vinca2Capture capture) { this.handler = handler; this.capture = capture; }
     private void observe(String direction, String status, byte[] bytes) {
-        if (capture != null) capture.record(Vinca2Profile.CURRENT_TIME.toString(), direction, status, bytes);
+        if (capture != null) capture.record(characteristic == null ? Vinca2Profile.CURRENT_TIME.toString() : characteristic.getUuid().toString(), direction, status, bytes);
     }
 
     // Shared transport exclusion only; the existing clock transaction is unchanged.
@@ -39,14 +40,30 @@ final class BleClockOperation {
     synchronized boolean uncertain(BluetoothGatt gatt) { return gatt != null && gatt == uncertainTransport; }
 
     synchronized void start(BluetoothGatt gatt, PluginCall call, boolean sync, String boundDeviceKey) {
+        start(gatt, call, sync, boundDeviceKey, false);
+    }
+    synchronized void start(BluetoothGatt gatt, PluginCall call, boolean sync, String boundDeviceKey, boolean dateTime) {
+        if (sync && (dateTime || (capture != null && capture.observingClock()))) {
+            call.reject("Captura de reloj en solo lectura.", "CLOCK_DIAGNOSTIC_READ_ONLY"); return;
+        }
         if (pending != null) { call.reject("Ya hay una operacion de reloj.", "CLOCK_BUSY"); return; }
         if (gatt == null) { call.reject("Inicia la escucha antes de consultar el reloj.", "CLOCK_NOT_CONNECTED"); return; }
         if (gatt == uncertainTransport) {
             call.reject("La operacion anterior no respondio. Deten y vuelve a conectar antes de usar el reloj.", "CLOCK_RECONNECT_REQUIRED"); return;
         }
         BluetoothGattCharacteristic target = Vinca2Profile.clock(gatt);
+        if (dateTime) {
+            target = null;
+            for (android.bluetooth.BluetoothGattService service : gatt.getServices()) {
+                BluetoothGattCharacteristic candidate = service.getCharacteristic(DATE_TIME);
+                if (candidate != null && (candidate.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
+                    target = candidate; break;
+                }
+            }
+        }
         int required = sync ? BluetoothGattCharacteristic.PROPERTY_WRITE : BluetoothGattCharacteristic.PROPERTY_READ;
         if (target == null || (target.getProperties() & required) == 0) {
+            if (dateTime && capture != null) capture.record(DATE_TIME.toString(), "read", "CLOCK_UNSUPPORTED", null);
             call.reject("El dispositivo no anuncia esta operacion de reloj.", "CLOCK_UNSUPPORTED"); return;
         }
         pending = call;
@@ -110,11 +127,20 @@ final class BleClockOperation {
     }
 
     synchronized void onRead(BluetoothGatt gatt, byte[] value, int status) {
-        boolean expected = pending != null && transport == gatt && !writing;
-        observe("read", "received;gatt=" + status + ";expected=" + expected, value);
+        onRead(gatt, Vinca2Profile.CURRENT_TIME, value, status);
+    }
+    synchronized void onRead(BluetoothGatt gatt, java.util.UUID channel, byte[] value, int status) {
+        boolean expected = pending != null && transport == gatt && !writing
+            && characteristic != null && channel.equals(characteristic.getUuid());
+        if (capture != null) capture.record(channel.toString(), "read", "received;gatt=" + status + ";expected=" + expected, value);
         if (!expected) return;
         if (status != BluetoothGatt.GATT_SUCCESS) { fail("CLOCK_READ_FAILED", "No se pudo verificar el reloj mediante lectura."); return; }
-        try { complete(BleClockCodec.decodeCurrentTime(value)); }
+        try {
+            if (DATE_TIME.equals(channel)) {
+                if (value == null || value.length != 7) throw new IllegalArgumentException("Invalid Date Time length");
+                complete(BleClockCodec.decodeCurrentTime(java.util.Arrays.copyOf(value, 10)));
+            } else complete(BleClockCodec.decodeCurrentTime(value));
+        }
         catch (IllegalArgumentException error) { fail("CLOCK_INVALID_DATE", "El reloj contiene una fecha desconocida o invalida."); }
     }
 

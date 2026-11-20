@@ -396,9 +396,9 @@ export const createFemometerPanelSession = createFemometerSessionManager({
 export const isVinca2CaptureAvailable = () =>
   import.meta.env.VITE_APP_ENV === 'staging' && isFemometerBleAndroidNative();
 
-export const bluetoothCapture = action => {
+export const bluetoothCapture = (action, options = {}) => {
   if (!isVinca2CaptureAvailable()) throw createFemometerBleError('UNAVAILABLE_PLATFORM');
-  return callFemometerBle('bluetoothCapture', { action, stagingFrontend: true });
+  return callFemometerBle('bluetoothCapture', { ...options, action, stagingFrontend: true });
 };
 
 export const clearVinca2Capture = async () => {
@@ -406,9 +406,10 @@ export const clearVinca2Capture = async () => {
 };
 
 export const formatVinca2Capture = snapshot => [
-  'Captura Bluetooth Vinca 2 — Solo Staging',
+  'Captura Bluetooth Vinca 2 â€” Solo Staging',
   'Contiene datos de salud y fechas. Revisa el texto antes de compartirlo.',
-  `Estado: ${snapshot.active ? 'activa' : 'inactiva'}; eventos: ${snapshot.events.length}; truncada: ${snapshot.truncated ? 'SÍ (límites o contención)' : 'no'}`,
-  'Límites: 1000 eventos, 128 bytes por paquete. Sin asociaciones entre canales.',
-  ...snapshot.events.map(event => `${event.order} | ${new Date(event.receivedAt).toISOString()} | +${event.elapsedMs} ms | ${event.channel} | ${event.direction} | ${event.status} | HEX: ${event.hex || '—'} | bytes: ${event.originalBytes}${event.originalBytes > 128 ? ' (TRUNCADO)' : ''}${event.decoded ? ` | decodificador actual: ${event.decoded}` : ''}`),
+  `Estado: ${snapshot.prepared ? 'preparada' : snapshot.active ? 'activa' : 'inactiva'}; eventos: ${snapshot.events.length}; truncada: ${snapshot.truncated ? 'SÃ (lÃ­mites o contenciÃ³n)' : 'no'}`,
+  `Reloj en solo lectura: ${snapshot.observeClock ? 'si' : 'no'}`,
+  'LÃ­mites: 1000 eventos, 128 bytes por paquete. Sin asociaciones entre canales.',
+  ...snapshot.events.map(event => `${event.order} | conexion ${event.connection ?? 0} | ${new Date(event.receivedAt).toISOString()} | +${event.elapsedMs} ms | ${event.channel} | ${event.direction} | ${event.status} | HEX: ${event.hex || '(sin bytes)'} | bytes: ${event.originalBytes}${event.originalBytes > 128 ? ' (TRUNCADO)' : ''}${event.decoded ? ` | decodificador actual: ${event.decoded}` : ''}`),
 ].join('\n');

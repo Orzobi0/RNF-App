@@ -204,6 +204,8 @@ export const createFemometerSessionManager = (api) => {
       } else publish({ status: (!found.length || (saved.remembered && !match)) ? 'missing' : 'idle' });
     };
     const clock = (sync, automatic = false) => {
+      if (sync && automatic && state.listenerResult?.captureObserveClock === true
+          && state.listenerResult?.capabilities?.protocol === 'vinca2') return Promise.resolve();
       if (bindingJob || state.gattReconnectRequired || (!automatic && state.configurationBusy) || !connectionPrepared()) return Promise.resolve();
       if (state.volumeReconnectRequired || state.measurementModeReconnectRequired) return Promise.resolve();
       if (disposed || suspended || job || clockJob || deviceInfoJob || volumeJob || measurementModeJob || stopping || state.status !== 'listening') return Promise.resolve();
@@ -371,7 +373,7 @@ export const createFemometerSessionManager = (api) => {
         if (!safe()) return;
         if (state.capabilities.clockRead) {
           await clock(false, true);
-          if (safe() && !state.clockError && Math.abs(state.clockResult?.driftSeconds ?? 0) > FEMOMETER_AUTO_CLOCK_SYNC_SECONDS && state.capabilities.clockSync) {
+          if (safe() && state.listenerResult?.captureObserveClock !== true && !state.clockError && Math.abs(state.clockResult?.driftSeconds ?? 0) > FEMOMETER_AUTO_CLOCK_SYNC_SECONDS && state.capabilities.clockSync) {
             // Exactly one attempt per connection. Native sync includes a read-back.
             await clock(true, true);
             if (current() && !state.clockError && state.clockResult?.verified !== true) {

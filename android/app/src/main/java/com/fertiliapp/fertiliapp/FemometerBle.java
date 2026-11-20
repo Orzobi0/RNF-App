@@ -74,7 +74,8 @@ public class FemometerBle extends Plugin {
         public long wall() { return System.currentTimeMillis(); }
         public long monotonic() { return android.os.SystemClock.elapsedRealtime(); }
     });
-    private volatile String captureDeviceKey;
+    private volatile String captureDeviceKey, captureUser;
+    private volatile String currentUser;
     private final BleClockOperation clockOperation = new BleClockOperation(mainHandler, capture);
     private final BleDeviceInfoOperation identityOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
@@ -212,6 +213,8 @@ public class FemometerBle extends Plugin {
         return "com.fertiliapp.fertiliapp.staging".equals(getContext().getPackageName());
     }
 
+    private void clearCapture() { capture.clear(); captureDeviceKey = null; captureUser = null; }
+
     // All exports are allowlisted: no device/account identity or arbitrary error text.
     @PluginMethod
     public void bluetoothCapture(PluginCall call) {
@@ -221,15 +224,36 @@ public class FemometerBle extends Plugin {
         }
         String action = call.getString("action", "status");
         if ("clear".equals(action) || "stop".equals(action)) {
-            capture.clear(); captureDeviceKey = null;
+            clearCapture();
+        } else if ("prepare".equals(action)) {
+            String user = requireUser(call);
+            if (user == null) return;
+            if (temperatureGatt != null || connectCall != null || scanCall != null || temperatureListenerCall != null) {
+                call.reject("Deten la escucha antes de preparar la captura.", "CONNECTION_ACTIVE"); return;
+            }
+            try {
+                FemometerIdentityStore.Binding bound = identities().get(user);
+                if (bound.address == null || bound.key == null || !Vinca2Profile.MODEL.equals(bound.model)
+                        || !Vinca2Profile.PROTOCOL.equals(bound.protocol) || !"compatible".equals(bound.compatibility)
+                        || !bound.key.equals(call.getString("deviceKey"))) {
+                    call.reject("Se necesita una vinculacion Vinca 2 validada.", "DEVICE_NOT_VERIFIED"); return;
+                }
+                captureDeviceKey = bound.key; captureUser = user;
+                capture.prepare(Boolean.TRUE.equals(call.getBoolean("observeClock", false)));
+            } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
         } else if ("start".equals(action)) {
             if (!Vinca2Capture.allowed(getContext().getPackageName(), true,
                     temperatureProfileValidated && receptionValidated && !experimentalReception,
                     temperatureDeviceModel) || temperatureGatt == null) {
                 call.reject("Conecta y valida primero un BM-Vinca2.", "DEVICE_NOT_VERIFIED"); return;
             }
-            captureDeviceKey = temperatureDeviceKey;
-            capture.start();
+            captureDeviceKey = temperatureDeviceKey; captureUser = currentUser;
+            capture.start(); capture.connectionStarted();
+        } else if ("dateTime".equals(action)) {
+            if (!capture.snapshot().active || capture.snapshot().prepared) {
+                call.reject("Inicia una captura conectada.", "DEVICE_NOT_VERIFIED"); return;
+            }
+            operateClock(call, false); return;
         } else if (!"status".equals(action)) {
             call.reject("Accion no valida.", "CAPTURE_INVALID_ACTION"); return;
         }
@@ -237,13 +261,14 @@ public class FemometerBle extends Plugin {
         JSObject result = new JSObject(); JSArray events = new JSArray();
         for (Vinca2Capture.Event item : snapshot.events) {
             JSObject event = new JSObject();
-            event.put("order", item.order); event.put("receivedAt", item.receivedAt);
+            event.put("connection", item.connection); event.put("order", item.order); event.put("receivedAt", item.receivedAt);
             event.put("elapsedMs", item.elapsedMs); event.put("channel", item.channel);
             event.put("direction", item.direction); event.put("status", item.status);
             event.put("hex", item.hex); event.put("originalBytes", item.originalBytes);
             event.put("decoded", item.decoded);
             events.put(event);
         }
+        result.put("prepared", snapshot.prepared); result.put("observeClock", snapshot.observeClock);
         result.put("active", snapshot.active); result.put("truncated", snapshot.truncated);
         result.put("events", events); call.resolve(result);
     }
@@ -258,6 +283,8 @@ public class FemometerBle extends Plugin {
             call.reject("Se requiere una sesion autenticada.", "USER_REQUIRED");
             return null;
         }
+        if (captureUser != null && !captureUser.equals(userId)) clearCapture();
+        currentUser = userId;
         return userId;
     }
 
@@ -284,6 +311,7 @@ public class FemometerBle extends Plugin {
             return;
         }
         try {
+            clearCapture();
             saveInspected(userId, device, device.inspection.optString("protocol", null), device.inspection.optString("compatibility", "pending"));
             call.resolve(publicBinding(userId));
         } catch (IllegalStateException error) {
@@ -297,6 +325,7 @@ public class FemometerBle extends Plugin {
         if (userId == null) return;
         if (scanCall != null || connectCall != null || temperatureGatt != null || temperatureListenerCall != null || activeGatt != null || !gattCleanup.complete()) { call.reject("Deten la escucha antes de olvidar.", "CONNECTION_ACTIVE"); return; }
         try {
+            clearCapture();
             identities().forget(userId, call.getString("deviceKey", identities().get(userId).key));
             call.resolve(publicBinding(userId));
         } catch (IllegalStateException error) {
@@ -343,7 +372,7 @@ public class FemometerBle extends Plugin {
         if (temperatureGatt != null || activeGatt != null || scanCall != null || !gattCleanup.complete()) {
             call.reject("Deten la conexion antes de seleccionar otro dispositivo.", "CONNECTION_ACTIVE"); return;
         }
-        try { identities().select(user, call.getString("deviceKey")); call.resolve(publicBinding(user)); }
+        try { if (!java.util.Objects.equals(captureDeviceKey, call.getString("deviceKey"))) clearCapture(); identities().select(user, call.getString("deviceKey")); call.resolve(publicBinding(user)); }
         catch (IllegalStateException error) { call.reject("No se pudo seleccionar el dispositivo.", error.getMessage()); }
     }
 
@@ -393,6 +422,7 @@ public class FemometerBle extends Plugin {
     public void scan(PluginCall call) {
         // Scan callbacks, timeout and cancellation share one ordered queue.
         if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> scan(call)); return; }
+        if (captureUser != null && !captureUser.equals(call.getString("userId"))) clearCapture();
         Log.d(TAG, "scan called");
         String blockedCode = getBlockedOperationCode();
         if (blockedCode != null) {
@@ -436,6 +466,7 @@ public class FemometerBle extends Plugin {
             @Override
             public void onScanFailed(int errorCode) {
                 if (scanCall != call) return;
+                capture.record("search", "reception", "scan_failed;code=" + errorCode, null);
                 Log.e(TAG, "BLE scan failed with errorCode=" + errorCode);
                 PluginCall pending = scanCall;
                 stopScanInternal();
@@ -446,7 +477,9 @@ public class FemometerBle extends Plugin {
         };
 
         try {
+            capture.record("search", "control", "scan_requested", null);
             scanner.startScan(scanCallback);
+            capture.record("search", "control", "scan_started", null);
             Log.d(TAG, "BLE scan started");
         } catch (SecurityException error) {
             Log.e(TAG, "SecurityException starting BLE scan");
@@ -634,8 +667,9 @@ public class FemometerBle extends Plugin {
         if (!trial && (bound == null || !bound.key.equals(identities().get(userId).key))) { call.reject("Vincula primero el dispositivo.", "DEVICE_NOT_VERIFIED"); return; }
         if (captureDeviceKey != null && (trial || !captureDeviceKey.equals(temperatureDeviceKey)
                 || bound == null || !Vinca2Profile.MODEL.equals(bound.model))) {
-            capture.clear(); captureDeviceKey = null;
+            clearCapture();
         }
+        capture.connectionStarted();
         capture.record("connection", "control", "connect_requested", null);
         experimentalReception = trial;
         if (trial) { trialDeviceId = deviceId; verification.begin(userId, scannedDevice.address); }
@@ -706,9 +740,12 @@ public class FemometerBle extends Plugin {
                             || ("health-thermometer".equals(detected) && "experimental".equals(bound.compatibility));
                         if (!allowed || !bound.matches(result.optString("model", null), result.optString("manufacturer", null),
                                 result.optString("firmware", null), detected)) {
+                            clearCapture();
                             rejectTemperatureStart("La identidad o perfil del dispositivo ha cambiado.", "DEVICE_NOT_VERIFIED"); return;
                         }
                     }
+                    if (captureDeviceKey != null && !temperatureProfileValidated) clearCapture();
+                    capture.record("connection", "control", "identity_validated", null);
                     temperatureProtocol = detected;
                     receptionValidated = true;
                     temperatureDeviceModel = result.optString("model", null);
@@ -842,8 +879,8 @@ public class FemometerBle extends Plugin {
                     identityOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
                     deviceInfoOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
                 }
-                if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
-                    clockOperation.onRead(gatt, characteristic.getValue(), status);
+                if (Build.VERSION.SDK_INT < 33 && gatt == temperatureGatt && (Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()) || BleClockOperation.DATE_TIME.equals(characteristic.getUuid())))
+                    clockOperation.onRead(gatt, characteristic.getUuid(), characteristic.getValue(), status);
             }
 
             @Override
@@ -852,8 +889,8 @@ public class FemometerBle extends Plugin {
                     identityOperation.onRead(gatt, characteristic, value, status);
                     deviceInfoOperation.onRead(gatt, characteristic, value, status);
                 }
-                if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
-                    clockOperation.onRead(gatt, value, status);
+                if (gatt == temperatureGatt && (Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()) || BleClockOperation.DATE_TIME.equals(characteristic.getUuid())))
+                    clockOperation.onRead(gatt, characteristic.getUuid(), value, status);
             }
 
             @Override
@@ -915,6 +952,10 @@ public class FemometerBle extends Plugin {
     }
 
     private synchronized void operateClock(PluginCall call, boolean write) {
+        if (write && capture.observingClock()) {
+            capture.record(Vinca2Profile.CURRENT_TIME.toString(), "write", "blocked;diagnostic_read_only", null);
+            call.reject("Exporta y detén la captura antes de sincronizar el reloj.", "CLOCK_DIAGNOSTIC_READ_ONLY"); return;
+        }
         String blocked = getBlockedOperationCode();
         if (blocked != null) { rejectWithCode(call, blocked); return; }
         if (!temperatureProfileValidated || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
@@ -926,7 +967,11 @@ public class FemometerBle extends Plugin {
         if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
         if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
         if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
-        clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey);
+        boolean dateTime = !write && "dateTime".equals(call.getString("action"));
+        if (dateTime && !capture.snapshot().active) {
+            call.reject("La lectura adicional requiere una captura activa.", "DEVICE_NOT_VERIFIED"); return;
+        }
+        clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey, dateTime);
     }
 
     @PluginMethod
@@ -1017,7 +1062,7 @@ public class FemometerBle extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
-        capture.clear(); captureDeviceKey = null;
+        clearCapture();
         cancelScan();
         rejectPendingConnect("Conexion cancelada al cerrar la app.", "CONNECTION_CANCELLED");
         rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
@@ -1243,11 +1288,13 @@ public class FemometerBle extends Plugin {
     }
 
     private void finishTemperatureSetup() {
+        capture.record("listener", "control", "window_started;duration_seconds=360", null);
         clearTemperatureSetupTimeout();
         PluginCall pending = temperatureListenerCall;
         temperatureListenerCall = null;
         scheduleTemperatureListenerTimeout();
         JSObject result = new JSObject();
+        result.put("captureObserveClock", capture.observingClock());
         result.put("connectionReady", true);
         result.put("indicationsActive", true);
         result.put("timeoutSeconds", (experimentalReception ? TRIAL_TIMEOUT_MS : TEMPERATURE_LISTENER_TIMEOUT_MS) / 1000);
@@ -1573,7 +1620,10 @@ public class FemometerBle extends Plugin {
     }
 
     private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
-        if (temperatureGatt != null) capture.record("connection", "control", "disconnect_requested", null);
+        if (temperatureGatt != null) {
+            capture.record("listener", "control", temperatureReady ? "window_ended" : "setup_ended", null);
+            capture.record("connection", "control", "disconnect_requested", null);
+        }
         verification.clear(); trialDeviceId = null; trialReviewGranted = false;
         receptionValidated = false; temperatureProtocol = null; temperatureDeviceName = null; easyUnitConfigured = false;
         temperatureReady = false;
@@ -1651,6 +1701,14 @@ public class FemometerBle extends Plugin {
     }
 
     private void stopScanInternal() {
+        if (scanCall != null && captureUser != null) {
+            capture.record("search", "control", "scan_finished", null);
+            try {
+                String address = identities().get(captureUser).address;
+                boolean found = devicesById.values().stream().anyMatch(device -> device.address.equals(address));
+                capture.record("search", "control", found ? "bound_device_found" : "bound_device_not_found", null);
+            } catch (IllegalStateException error) { capture.record("search", "control", "binding_unavailable", null); }
+        }
         if (scanCallback != null) {
             try {
                 BluetoothLeScanner scanner = getScanner();

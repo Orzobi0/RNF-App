@@ -61,4 +61,32 @@ public class Vinca2CaptureTest {
         capture.start(); assertEquals(1, capture.snapshot().events.size()); assertFalse(capture.snapshot().truncated);
         assertTrue(new Vinca2Capture(new Clock()).snapshot().events.isEmpty());
     }
+    @Test public void preparedCaptureKeepsFirstPacketAndConnectionNumbersUntilClear() {
+        Vinca2Capture capture = new Vinca2Capture(new Clock());
+        capture.prepare(true);
+        assertTrue(capture.snapshot().prepared); assertTrue(capture.observingClock());
+        capture.record("search", "control", "scan_started", null);
+        capture.connectionStarted();
+        Vinca2Capture.Event first = capture.record(TEMPERATURE, "reception", "received", bytes(RAW_T));
+        assertEquals(1, first.connection); assertEquals(RAW_T, first.hex);
+        assertFalse(capture.snapshot().prepared);
+        capture.connectionStarted();
+        Vinca2Capture.Event next = capture.record(PROPRIETARY, "reception", "received", bytes(RAW_P));
+        assertEquals(2, next.connection); assertTrue(next.order > first.order);
+        assertTrue(capture.snapshot().events.contains(first)); assertTrue(capture.observingClock());
+        capture.clear(); assertFalse(capture.observingClock()); assertTrue(capture.snapshot().events.isEmpty());
+        capture.prepare(false); assertFalse(capture.observingClock());
+    }
+    @Test public void invalidClockAndUndatedTemperatureKeepOriginalBytes() {
+        Vinca2Capture capture = new Vinca2Capture(new Clock()); capture.prepare(true); capture.connectionStarted();
+        byte[] invalid = bytes("4B 08 11 11 0E 26 38 05 00 00");
+        Vinca2Capture.Event event = capture.record("00002a2b-0000-1000-8000-00805f9b34fb", "read", "received", invalid);
+        try { BleClockCodec.decodeCurrentTime(invalid); fail("Month 17 must be rejected"); }
+        catch (IllegalArgumentException expected) { capture.decoded(event, "CLOCK_INVALID_DATE"); }
+        assertEquals("4B 08 11 11 0E 26 38 05 00 00", event.hex);
+        assertEquals("CLOCK_INVALID_DATE", event.decoded);
+        Vinca2Capture.Event undated = capture.record(TEMPERATURE, "reception", "received", bytes("00 E2 0D 00 FE"));
+        assertEquals("00 E2 0D 00 FE", undated.hex);
+        assertEquals(0, bytes(undated.hex)[0] & 2); // Timestamp flag absent; do not invent a date.
+    }
 }
