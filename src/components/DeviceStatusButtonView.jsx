@@ -98,7 +98,7 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
             ? reconnect
               ? 'Recuperar conexión'
               : 'Reiniciar escucha'
-            : 'Buscar nuevas'
+            : remembered ? 'Conectar' : 'Añadir termómetro'
       }
       aria-label={
         state.restarting
@@ -107,12 +107,11 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
             ? reconnect
               ? 'Recuperar conexión'
               : 'Reiniciar escucha'
-            : 'Buscar nuevas'
+            : remembered ? 'Conectar' : 'Añadir termómetro'
       }
       disabled={
         state.configurationBusy ||
         state.bindingBusy ||
-        state.changingDevice ||
         state.volumeBusy ||
         state.measurementModeBusy ||
         state.deviceInfoBusy ||
@@ -130,8 +129,8 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
           listening
             ? ble.sessionRef.current?.restart()
             : remembered
-              ? ble.sessionRef.current?.start()
-              : ble.sessionRef.current?.scan()
+              ? (state.changingDevice ? ble.sessionRef.current?.cancelChange() : ble.sessionRef.current?.start())
+              : navigate('/settings/devices')
         );
       }}
     >

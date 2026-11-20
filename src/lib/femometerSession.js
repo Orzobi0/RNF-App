@@ -29,7 +29,12 @@ export const femometerClockDriftSeconds = (value, now = Date.now()) => {
 
 // Local wall-clock thresholds; never reinterpret a thermometer timestamp as UTC.
 export const FEMOMETER_CLOCK_TOLERANCE_SECONDS = 120;
-export const FEMOMETER_AUTO_CLOCK_SYNC_SECONDS = 24 * 60 * 60;
+export const FEMOMETER_AUTO_CLOCK_SYNC_SECONDS = 120;
+export const VINCA2_RECOVERY_CHECK_MS = 60_000;
+// 2A21 is Measurement Interval, not a documented history command. Until repeat
+// writes are physically verified, renew the established six-minute session only.
+export const VINCA2_RECOVERY_RECONNECT_MS = 6 * 60_000;
+const MAX_RECOVERY_FAILURES = 3;
 const requiresReconnect = code => /(?:TIMEOUT|RECONNECT_REQUIRED|INVALID_RESPONSE|FIRST_WRITE_FAILED|CONFIRM_WRITE_FAILED)$/.test(code || '')
   || ['CLOCK_OPERATION_FAILED', 'DEVICE_INFO_READ_FAILED', 'NATIVE_BRIDGE_UNAVAILABLE', 'UNKNOWN'].includes(code);
 
@@ -67,6 +72,20 @@ export const createFemometerSessionManager = (api) => {
     let suspended = false;
     let lifecycleVersion = 0;
     let disconnectJob;
+    let recoveryTimer, recoveryJob, recoveryEnabled = false, recoveryFailures = 0, recoveryBlocked = false;
+    let lastRecoveryAt = -Infinity, connectedAt = 0, connectionClockSample = null;
+    let automaticMode = false, foregroundRecoveryPending = false, recoveryWakeQueued = false;
+    const schedule = api.setTimeout ?? globalThis.setTimeout;
+    const unschedule = api.clearTimeout ?? globalThis.clearTimeout;
+    const clearRecovery = () => { if (recoveryTimer != null) unschedule(recoveryTimer); recoveryTimer = null; };
+    const armRecovery = () => {
+      if (recoveryTimer != null || disposed || suspended || !recoveryEnabled || recoveryFailures >= MAX_RECOVERY_FAILURES) return;
+      recoveryTimer = schedule(() => {
+        recoveryTimer = null;
+        void session.recoverReadings('periodic').finally(armRecovery);
+      }, VINCA2_RECOVERY_CHECK_MS * Math.max(1, 2 ** recoveryFailures));
+      recoveryTimer?.unref?.();
+    };
     const disconnect = () => {
       if (disconnectJob) return disconnectJob;
       if (!acquired) return Promise.resolve();
@@ -86,6 +105,14 @@ export const createFemometerSessionManager = (api) => {
     const publish = (patch) => {
       state = { ...state, ...patch };
       if (!disposed) onState(state);
+      armRecovery();
+      if (foregroundRecoveryPending && !recoveryWakeQueued && !disposed && !suspended) {
+        recoveryWakeQueued = true;
+        void Promise.resolve().then(() => {
+          recoveryWakeQueued = false;
+          if (foregroundRecoveryPending) return session.recoverReadings('foreground');
+        });
+      }
     };
     const applyBindings = saved => {
       const bindings = Array.isArray(saved.bindings) ? saved.bindings : saved.remembered && saved.deviceKey
@@ -165,7 +192,7 @@ export const createFemometerSessionManager = (api) => {
         onTemperature({ ...event, deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
         if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
           void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
-            ['timeout', 'stopped'].includes(event.status) ? null : { code: event.status === 'disconnected' ? 'CONNECTION_LOST' : 'LISTENER_ERROR', message: event.message || 'El termómetro se desconectó.' });
+            ['timeout', 'stopped'].includes(event.status) ? null : { code: event.status === 'disconnected' ? 'CONNECTION_LOST' : 'LISTENER_ERROR', message: event.message || 'El termómetro se desconectó.' }, true);
         }
       });
       const result = await call(() => api.startFemometerTemperatureListener(deviceId, userId));
@@ -176,6 +203,8 @@ export const createFemometerSessionManager = (api) => {
         throw { code: 'CONNECTION_IDENTITY_MISMATCH', message: 'La conexión no corresponde a la vinculación activa.' };
       }
       if (!thermometerCapabilities(result?.capabilities).temperatureReceive) throw { code: 'DEVICE_NOT_VERIFIED', message: 'El perfil de este termómetro no está validado.' };
+      recoveryEnabled = true; foregroundRecoveryPending = false;
+      connectedAt = now(); lastRecoveryAt = connectedAt; connectionClockSample = null; recoveryFailures = 0;
       listeningExpiresAt = now() + (Number(result?.timeoutSeconds) || 360) * 1000;
       const configure = result.capabilities?.protocol === 'vinca2';
       publish({ status: 'listening', configurationBusy: configure, listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
@@ -226,7 +255,16 @@ export const createFemometerSessionManager = (api) => {
         return sync ? api.syncFemometerClock() : api.readFemometerClock();
       }).then(result => {
         if (current()) {
+          // Some Vinca firmware returns a connection-time snapshot. Do not turn
+          // its age into a clock incident or rewrite a correct clock.
+          if (!sync && connectionClockSample && connectionClockSample.deviceLocalTime === result?.deviceLocalTime
+            && now() - connectionClockSample.checkedAt > 5000) {
+            publish({ clockResult: null, clockError: { code: 'CLOCK_SNAPSHOT_STALE', operation: 'read',
+              deviceKey: state.deviceKey, checkedAt: now(), message: 'El termómetro conserva la hora de esta conexión. Se comprobará al reconectar.' } });
+            return;
+          }
           const driftSeconds = femometerClockDriftSeconds(result?.deviceLocalTime, now());
+          if (sync || connectionClockSample?.deviceLocalTime !== result?.deviceLocalTime) connectionClockSample = { deviceLocalTime: result?.deviceLocalTime, checkedAt: now() };
           const phone = new Date(now());
           const pad = value => String(value).padStart(2, '0');
           const phoneLocalTime = `${phone.getFullYear()}-${pad(phone.getMonth() + 1)}-${pad(phone.getDate())}T${pad(phone.getHours())}:${pad(phone.getMinutes())}:${pad(phone.getSeconds())}`;
@@ -365,7 +403,7 @@ export const createFemometerSessionManager = (api) => {
       });
       return measurementModeJob;
     };
-    const configureConnection = () => {
+    const configureConnection = (clockOnly = false) => {
       if (configurationJob || disposed || !connectionPrepared()) return configurationJob ?? Promise.resolve();
       const token = version;
       const current = () => !disposed && !suspended && token === version && connectionPrepared() && !bindingJob;
@@ -375,7 +413,15 @@ export const createFemometerSessionManager = (api) => {
         if (!safe()) return;
         if (state.capabilities.clockRead) {
           await clock(false, true);
-          if (safe() && state.listenerResult?.captureObserveClock !== true && !state.clockError && Math.abs(state.clockResult?.driftSeconds ?? 0) > FEMOMETER_AUTO_CLOCK_SYNC_SECONDS && state.capabilities.clockSync) {
+          const history = localState?.clock?.(state.deviceKey);
+          const sync = history?.lastVerifiedSync;
+          const needsReference = automaticMode && (sync?.continuityTracked !== true || sync?.verified !== true || !Number.isFinite(sync?.checkedAt)
+            || history?.invalidatedAt || history?.lastIncidentAt > sync.checkedAt);
+          const invalidDate = state.clockError?.code === 'CLOCK_INVALID_DATE'
+            || (!state.clockError && state.clockResult?.driftSeconds === null);
+          if (safe() && state.listenerResult?.captureObserveClock !== true && state.capabilities.clockSync
+            && (invalidDate || (!state.clockError && (needsReference || Math.abs(state.clockResult?.driftSeconds ?? 0) > FEMOMETER_AUTO_CLOCK_SYNC_SECONDS)))) {
+            publish({ automationClockMessage: 'Preparando el reloj automáticamente. Esta referencia servirá para las próximas mediciones.' });
             // Exactly one attempt per connection. Native sync includes a read-back.
             await clock(true, true);
             if (current() && !state.clockError && state.clockResult?.verified !== true) {
@@ -384,8 +430,8 @@ export const createFemometerSessionManager = (api) => {
             }
           }
         }
-        if (safe() && state.capabilities.volumeWrite && state.preferences.volume) await setVolume(state.preferences.volume, true);
-        if (safe() && state.capabilities.modeConfiguration && state.preferences.measurementMode) await setMeasurementMode(state.preferences.measurementMode, true);
+        if (!clockOnly && safe() && state.capabilities.volumeWrite && state.preferences.volume) await setVolume(state.preferences.volume, true);
+        if (!clockOnly && safe() && state.capabilities.modeConfiguration && state.preferences.measurementMode) await setMeasurementMode(state.preferences.measurementMode, true);
       }).finally(() => {
         configurationJob = null;
         if (current()) publish({ configurationBusy: false, configurationIssue: Boolean(state.clockError || state.volumeError || state.measurementModeError || state.preferenceError) });
@@ -470,28 +516,77 @@ export const createFemometerSessionManager = (api) => {
       beginChange: () => changeBinding(false),
       cancelChange: () => {
         if (cancelChangeJob) return cancelChangeJob;
-        if (disposed || bindingJob) return Promise.resolve();
-        cancelChangeJob = (async () => {
+        if (disposed) return Promise.resolve();
+        cancelChangeJob = Promise.resolve(bindingJob).then(async () => {
+          if (!state.changingDevice) return;
           await session.stop();
-          if (disposed || suspended || state.error) return;
-          publish({ changingDevice: false });
-          await session.start();
-        })().finally(() => { cancelChangeJob = null; });
+          publish({ changingDevice: false, devices: [], selectedDeviceId: '', inspectionResult: null, trial: null });
+          if (!disposed && !suspended && !state.error) await session.start();
+        }).finally(() => { cancelChangeJob = null; });
         return cancelChangeJob;
       },
       setMeasurementMode,
       setVolume,
       readDeviceInfo, setTemperatureUnit,
+      setAutomaticMode: enabled => {
+        const changed = automaticMode !== (enabled === true);
+        automaticMode = enabled === true;
+        if (changed && automaticMode && connectionPrepared()) return configureConnection(true).then(() => {
+          if (state.clockError?.code === 'CLOCK_SNAPSHOT_STALE') return session.recoverReadings('clock');
+        });
+        return Promise.resolve();
+      },
+      setRecoveryBlocked: value => {
+        recoveryBlocked = value === true;
+        if (!recoveryBlocked && foregroundRecoveryPending) void session.recoverReadings('foreground');
+      },
+      checkAutomaticClock: async () => {
+        await clock(false);
+        if (state.clockError?.code === 'CLOCK_SNAPSHOT_STALE') await session.recoverReadings('clock');
+      },
       readClock: () => clock(false),
       syncClock: () => clock(true),
-      start: () => state.changingDevice || bindingJob ? Promise.resolve() : run((call, current) => search(true, call, current)),
+      start: () => {
+        if (state.changingDevice || bindingJob) return Promise.resolve();
+        recoveryEnabled = true; recoveryFailures = 0; armRecovery();
+        return run((call, current) => search(true, call, current));
+      },
+      recoverReadings: (reason = 'periodic') => {
+        if (recoveryJob) return recoveryJob;
+        if (disposed || suspended || state.remembered !== true || !recoveryEnabled || recoveryBlocked
+          || state.changingDevice || bindingJob || job || clockJob || configurationJob || deviceInfoJob
+          || volumeJob || measurementModeJob || stopping || restartJob || resumeJob) return Promise.resolve();
+        const vinca = state.boundProtocol === 'vinca2' || state.boundModel === 'BM-Vinca2';
+        if (!vinca || state.listenerResult?.captureObserveClock === true) return Promise.resolve();
+        if (reason === 'periodic' && (recoveryFailures >= MAX_RECOVERY_FAILURES
+          || (state.status === 'listening' && now() - connectedAt < VINCA2_RECOVERY_RECONNECT_MS && now() < listeningExpiresAt))) return Promise.resolve();
+        if (now() - lastRecoveryAt < 5000) { foregroundRecoveryPending = false; return Promise.resolve(); }
+        foregroundRecoveryPending = false;
+        lastRecoveryAt = now(); lastForegroundAttempt = lastRecoveryAt;
+        const lifecycle = lifecycleVersion;
+        clearRecovery();
+        recoveryJob = Promise.resolve().then(async () => {
+          publish({ recovering: true, recoveryReason: reason });
+          await session.stop('stopped', null, true);
+          if (!disposed && !suspended && lifecycle === lifecycleVersion && !state.error) {
+            await run((call, current) => search(true, call, current));
+          }
+          if (!disposed && !suspended && lifecycle === lifecycleVersion && state.status !== 'listening') recoveryFailures++;
+        }).finally(() => {
+          recoveryJob = null; clearRecovery();
+          publish({ recovering: false, recoveryExhausted: recoveryFailures >= MAX_RECOVERY_FAILURES });
+          armRecovery();
+        });
+        return recoveryJob;
+      },
       suspend: () => {
         if (disposed || suspended) return stopping ?? Promise.resolve();
-        suspended = true;
+        suspended = true; foregroundRecoveryPending = false;
         ++lifecycleVersion;
         // Android handleOnStop closes GATT without a terminal event once ready.
         // Invalidate JS immediately and share the normal ordered cleanup.
-        return session.stop();
+        clearRecovery();
+        return session.stop('stopped', null, true);
       },
       restart: () => {
         if (restartJob) return restartJob;
@@ -499,7 +594,8 @@ export const createFemometerSessionManager = (api) => {
         const lifecycle = lifecycleVersion;
         publish({ restarting: true });
         restartJob = Promise.resolve().then(async () => {
-          await session.stop();
+          recoveryEnabled = true; recoveryFailures = 0;
+          await session.stop('stopped', null, true);
           if (!disposed && !suspended && lifecycle === lifecycleVersion && state.status !== 'error') {
             await run((call, current) => search(true, call, current), true);
           }
@@ -508,7 +604,7 @@ export const createFemometerSessionManager = (api) => {
       },
       resume: () => {
         if (disposed) return Promise.resolve();
-        suspended = false;
+        suspended = false; foregroundRecoveryPending = true;
         if (bindingJob || state.changingDevice) return Promise.resolve();
         const lifecycle = lifecycleVersion;
         const decision = reason => publish({ foreground: { detectedAt: now(), reason } });
@@ -520,7 +616,10 @@ export const createFemometerSessionManager = (api) => {
         }
         if (!stopping && (job || restartJob)) { decision('operation_in_progress'); return job ?? restartJob; }
         if (state.remembered === false) { decision('no_remembered_device'); return Promise.resolve(); }
-        if (state.status === 'listening' && now() < listeningExpiresAt) { decision('listening_active'); return Promise.resolve(); }
+        recoveryEnabled = true; recoveryFailures = 0; armRecovery();
+        if (state.status === 'listening' && now() < listeningExpiresAt) {
+          decision('checking_new_readings'); return session.recoverReadings('foreground');
+        }
         // Mount/manual searches do not consume the first foreground attempt.
         if (now() - lastForegroundAttempt < 5_000) { decision('brief_cooldown'); return Promise.resolve(); }
         decision('reconnecting');
@@ -647,7 +746,9 @@ export const createFemometerSessionManager = (api) => {
           ...device, isRemembered: !forget && device.id === state.selectedDeviceId,
         })) });
       }),
-      stop: (status = 'stopped', error = null) => {
+      stop: (status = 'stopped', error = null, automatic = false) => {
+        clearRecovery();
+        if (!automatic) { recoveryEnabled = false; foregroundRecoveryPending = false; }
         if (stopping) return stopping;
         listeningExpiresAt = 0;
         automaticConfigurationPending = false;

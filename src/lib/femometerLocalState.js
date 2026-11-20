@@ -70,6 +70,7 @@ export const createFemometerLocalState = (storage, userId, metadata = null) => {
 };
 
 export const updateFemometerClockHistory = (previous, observation) => {
+  if (observation.errorCode === 'CLOCK_SNAPSHOT_STALE') return { ...previous, pendingCheck: null, staleCheck: observation };
   if (observation.errorCode === 'CLOCK_PENDING') return { ...previous, pendingCheck: observation,
     lastIncidentAt: previous?.pendingCheck?.checkedAt ?? previous?.lastIncidentAt ?? null };
   const valid = !observation.errorCode && !observation.phoneZoneChanged && Number.isFinite(observation.driftSeconds);
@@ -81,9 +82,9 @@ export const updateFemometerClockHistory = (previous, observation) => {
     || last.phoneUtcOffsetMinutes !== observation.phoneUtcOffsetMinutes
     || (valid && Number.isFinite(last.driftSeconds) && Math.abs(last.driftSeconds - observation.driftSeconds) > 120));
   const incident = !valid || (observation.operation === 'sync' && !syncVerified) || Math.abs(observation.driftSeconds) > 120 || changed;
-  return { ...previous, state, historyVersion: 2, pendingCheck: null, lastCheck: observation,
+  return { ...previous, state, historyVersion: 2, pendingCheck: null, staleCheck: null, lastCheck: observation,
     invalidatedAt: syncVerified ? null : previous?.invalidatedAt ?? null,
-    lastIncidentAt: incident ? observation.checkedAt : previous?.lastIncidentAt ?? null,
+    lastIncidentAt: incident ? Math.max(observation.checkedAt, previous?.lastIncidentAt ?? 0) : previous?.lastIncidentAt ?? null,
     lastValidCheck: valid ? observation : previous?.lastValidCheck ?? null,
     lastVerifiedSync: syncVerified ? { ...observation, continuityTracked: true } : previous?.lastVerifiedSync ?? null,
     lastSignificantChange: changed ? observation : previous?.lastSignificantChange ?? null };

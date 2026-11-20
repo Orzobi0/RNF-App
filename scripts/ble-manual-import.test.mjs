@@ -372,3 +372,13 @@ test('automatic transaction appends, preserves selection and checks historical d
   await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB(second, context), error => error.code === 'ble-import-conflict');
   assert.equal(h.commits(), 3);
 });
+
+test('the first validated manual Vinca save durably queues its unanswered mode question', async () => {
+  const h = await fixture();
+  h.draft.measurements[0] = { ...h.draft.measurements[0], device_key: 'v', device_protocol: 'vinca2', reception_validated: true };
+  await h.save();
+  const preference = h.store.get('users/u/preferences/thermometer_v');
+  assert.equal(preference.fields.automationPrompt.value, 'pending');
+  assert.equal(preference.fields.incorporationMode, undefined);
+  assert.equal(preference.fields.automaticConsent, undefined);
+});

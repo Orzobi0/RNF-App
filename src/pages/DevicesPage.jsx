@@ -33,6 +33,8 @@ export function DevicesPage() {
   const [linkedNotice, setLinkedNotice] = useState(false);
   const [actionError, setActionError] = useState(null);
   const operationLock = useRef(false);
+  const assistantOpen = useRef(false);
+  useEffect(() => () => { const wasOpen = assistantOpen.current; assistantOpen.current = false; if (wasOpen) void ble.sessionRef.current?.cancelChange?.(); }, [ble.sessionRef]);
   useEffect(() => {
     if (!linkedNotice) return undefined;
     const timer = setTimeout(() => setLinkedNotice(false), 8000);
@@ -51,15 +53,22 @@ export function DevicesPage() {
   const busy = trialActive || ble.sessionState.configurationBusy || ble.sessionState.bindingBusy || ble.sessionState.deviceInfoBusy || ble.sessionState.volumeBusy || ble.sessionState.measurementModeBusy || working || ble.sessionState.busy || ble.sessionState.clockBusy || ble.sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'binding', 'stopping'].includes(status);
   const run = async (operation, id) => {
-    if ((operationLock.current && !['stopTrial', 'cancelChange'].includes(operation)) || (['stopTrial', 'cancelChange'].includes(operation) ? false : operation === 'beginChange' ? ble.sessionState.bindingBusy : operation === 'confirmTrial' ? working || ble.sessionState.bindingBusy : busy || listening)) return;
+    if (operation === 'beginChange') { assistantOpen.current = true; setChanging(true); setSearched(false); setNormalSearched(false); setAttemptedId(null); setActionError(null); return; }
+    if ((operationLock.current && !['stopTrial', 'cancelChange'].includes(operation)) || (['stopTrial', 'cancelChange'].includes(operation) ? false : operation === 'beginChange' ? ble.sessionState.bindingBusy : operation === 'confirmTrial' ? working || ble.sessionState.bindingBusy : busy || (listening && operation !== 'scan'))) return;
     operationLock.current = true;
     setWorking(true); setActionError(null); setLinkedNotice(false);
-    if (operation === 'scan') { setSearched(true); if (id !== true) setNormalSearched(true); setAttemptedId(null); }
+    if (operation === 'scan') { assistantOpen.current = true; setSearched(true); if (id !== true) setNormalSearched(true); setAttemptedId(null); }
     else setAttemptedId(id);
     try {
+      if (operation === 'scan' && !ble.sessionState.changingDevice) {
+        const prepared = await ble.sessionRef.current?.beginChange?.();
+        if (!assistantOpen.current) return;
+        if (prepared === false) throw new Error('No se pudo detener la conexión anterior.');
+      }
       const confirmed = operation === 'confirmTrial' ? await ble.completeVerification(id) : await ble.sessionRef.current?.[operation](id);
       if (operation === 'beginChange' && confirmed === true) { setChanging(true); setSearched(false); setNormalSearched(false); setAttemptedId(null); }
       if (operation === 'cancelChange') {
+  assistantOpen.current = false;
   setChanging(false);
   setSearched(false);
   setNormalSearched(false);
@@ -67,6 +76,7 @@ export function DevicesPage() {
 }
       if (operation === 'connectSaved' && confirmed === true) { setChanging(false); setSearched(false); setAttemptedId(null); }
       if (['selectAndRemember', 'confirmTrial'].includes(operation) && confirmed === true) {
+        assistantOpen.current = false;
         setLinkedNotice(operation === 'confirmTrial' ? 'incorporated' : true); setChanging(false); setSearched(false); setAttemptedId(null);
       }
     } catch (failure) {
@@ -121,7 +131,7 @@ export function DevicesPage() {
 </div>
           <span className="flex items-center gap-1 text-xs text-slate-500"><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</span>
           <span className="block text-xs text-slate-500">{device.compatibility === 'experimental' ? 'Experimental' : ''}</span>
-          <span className="block text-sm text-slate-600">{!changing && device.deviceKey === ble.sessionState.deviceKey ? vinca2StatusText(status, ble.sessionState) : 'Desconectado'}</span>
+          <span className="block text-sm text-slate-600">{device.deviceKey === ble.sessionState.deviceKey ? vinca2StatusText(status, ble.sessionState) : 'Desconectado'}</span>
                 </div>
 
         <ChevronRight
@@ -134,7 +144,7 @@ export function DevicesPage() {
     {((linked === false && !bindings.length) || changing) && (
       <section aria-label="Vincular termómetro" className="relative space-y-4 rounded-2xl border border-slate-200/70 bg-white p-4">
         <h2 className="pr-10 font-semibold text-titulo">Añadir termómetro</h2>
-        {!searched && status !== 'searching' && devices.length === 0 && (
+        {!searched && status !== 'searching' && (
           changing ? (
             <button type="button" aria-label="Cerrar adición" className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500" onClick={() => run('cancelChange')}>
               <X className="h-4 w-4" aria-hidden="true" />
@@ -149,8 +159,8 @@ export function DevicesPage() {
         {/* Etapas del asistente, no porcentaje de progreso de Bluetooth. */}
         <div aria-hidden="true" className="flex gap-1.5">
           <span className="h-1 flex-1 rounded-full bg-fertiliapp-fuerte" />
-          <span className={`h-1 flex-1 rounded-full ${searched || status === 'searching' || devices.length > 0 ? 'bg-fertiliapp-fuerte' : 'bg-rose-100'}`} />
-          <span className={`h-1 flex-1 rounded-full ${(searched || devices.length > 0) && !busy && status !== 'searching' ? 'bg-fertiliapp-fuerte' : 'bg-rose-100'}`} />
+          <span className={`h-1 flex-1 rounded-full ${searched || status === 'searching' ? 'bg-fertiliapp-fuerte' : 'bg-rose-100'}`} />
+          <span className={`h-1 flex-1 rounded-full ${searched && !busy && status !== 'searching' ? 'bg-fertiliapp-fuerte' : 'bg-rose-100'}`} />
         </div>
 
         {!searched && status !== 'searching' && (
@@ -227,7 +237,7 @@ export function DevicesPage() {
               </li>
             </ol>
             <div className="flex justify-center pt-1">
-              <Button className={`${compactButton} bg-fertiliapp-fuerte text-white`} disabled={busy || listening} onClick={() => run('scan')}>Buscar termómetros</Button>
+              <Button className={`${compactButton} bg-fertiliapp-fuerte text-white`} disabled={busy} onClick={() => run('scan')}>Buscar termómetros</Button>
             </div>
           </div>
         )}
@@ -279,7 +289,7 @@ export function DevicesPage() {
             const preliminaryVinca = device.model ? device.model === 'BM-Vinca2' : device.preliminaryModel === 'BM-Vinca2' || /(?:^|[^a-z0-9])bm-vinca2(?:$|[^a-z0-9])/i.test(device.name || '');
             const preliminaryEasy = device.model === 'EBT-300' || device.preliminaryModel === 'EBT-300';
             const attempted = attemptedId === device.id && selectedDeviceId === device.id;
-            return <button key={device.id} type="button" disabled={busy || listening}
+            return <button key={device.id} type="button" disabled={busy}
               onClick={() => run(stored ? 'connectSaved' : 'selectAndRemember', stored ? device.deviceKey : device.id)}
               className="flex min-h-14 w-full items-center gap-3 py-3 text-left text-sm hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-50">
                           {preliminaryVinca || preliminaryEasy ? (
@@ -315,12 +325,12 @@ export function DevicesPage() {
           </div>
         )}
 
-        {(searched || devices.length > 0) && status !== 'searching' && (
+        {(searched || (!changing && devices.length > 0)) && status !== 'searching' && (
           <div className="flex justify-center">
             <Button
               variant={devices.length > 0 ? 'ghost' : 'default'}
               className={`${compactButton} gap-2 ${devices.length > 0 ? 'text-fertiliapp-fuerte' : 'bg-fertiliapp-fuerte text-white'}`}
-              disabled={busy || listening}
+              disabled={busy}
               onClick={() => run('scan')}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0">
@@ -332,7 +342,7 @@ export function DevicesPage() {
         )}
         {normalSearched && !busy && (
           <div className="flex justify-center border-t border-slate-100 pt-2">
-            <Button variant="ghost" className={`${compactButton} text-slate-600`} disabled={listening} onClick={() => run('scan', true)}>¿No encuentras tu termómetro?</Button>
+            <Button variant="ghost" className={`${compactButton} text-slate-600`} disabled={busy} onClick={() => run('scan', true)}>¿No encuentras tu termómetro?</Button>
           </div>
         )}
         {changing && (searched || status === 'searching') && (

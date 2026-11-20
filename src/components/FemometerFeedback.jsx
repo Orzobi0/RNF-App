@@ -71,7 +71,8 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
         {issue && <p className="text-amber-800">{clockResult?.significantDrift || clockHistory?.state === 'misaligned'
           ? 'Se ha detectado una desviación en el reloj.'
           : 'Hay una incidencia pendiente al comprobar o ajustar el reloj.'}</p>}
-        {!connected && <p>{easyClock ? 'Conecta el termómetro para enviar la hora local del móvil.' : 'Conecta el termómetro primero. Los desfases superiores a 24 horas se intentan corregir al conectar.'}</p>}
+        {!connected && <p>{easyClock ? 'Conecta el termómetro para enviar la hora local del móvil.' : 'Conecta el termómetro primero. Los desfases superiores a 120 segundos se intentan corregir al conectar.'}</p>}
+        {sessionState.automationClockMessage && <p role="status">{sessionState.automationClockMessage}</p>}
         {busy && <p role="status">{sessionState.configurationBusy ? 'Preparando ajustes…' : clockBusy || (working && connected) ? 'Sincronizando / comprobando el reloj…' : 'Conectando con el termómetro…'}</p>}
         {(clockError || actionError) && <p role="alert" className="text-amber-800">{actionError || clockError.message || 'No se pudo comprobar o ajustar el reloj. Puedes reintentarlo.'}</p>}
         {!connected && sessionState.error && <p role="alert">{sessionState.error.code === 'CONNECTION_CANCELLED' ? 'Conexión cancelada.' : sessionState.error.message || 'No se pudo conectar.'}</p>}

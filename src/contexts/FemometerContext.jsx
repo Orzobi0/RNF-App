@@ -67,6 +67,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [automationCandidate, setAutomationCandidate] = useState(null);
   const [automationPromptDevice, setAutomationPromptDevice] = useState(null);
   const promptClaim = useRef(false);
+  const dismissedPrompts = useRef(new Set());
   const automaticBusy = useRef(false);
   const updateReadings = (next, requireDurable = false) => {
     try {
@@ -198,7 +199,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       return result;
     } catch (error) {
       status(error?.code?.startsWith('ble-') ? row.importStatus : 'uncertain', { ...(error?.code?.startsWith('ble-') ? { attempt: row.attempt } : {}), reviewError: { code: error?.code,
-        message: error?.title ? error.message : 'No se pudo confirmar la incorporación. Revisa la fecha y la conexión.' } });
+        message: error?.title ? error.message : 'No se ha podido confirmar el guardado en el servidor. Comprueba el resultado antes de volver a incorporarla.' } });
       throw error;
     }
   };
@@ -227,9 +228,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       if (sessionState.deviceKey !== row.deviceKey || reviewPresentation.current.expanded
         || readingsRef.current.some(item => item.uiId !== row.uiId && item.importStatus !== 'discarded'
           && isPossibleBleDuplicate(item.normalized, row.normalized))) {
-        throw Object.assign(new Error('Comprueba esta lectura y los posibles intentos anteriores.'), { code: 'ble-auto-review' });
+        throw Object.assign(new Error('Posible temperatura duplicada. Comprueba esta lectura y los intentos anteriores.'), { code: 'ble-possible-duplicate' });
       }
-      await owner.readClock();
+      await (owner.checkAutomaticClock?.() ?? owner.readClock());
       valid();
       const latest = sessionStateRef.current;
       if (latest.clockBusy || latest.clockError || latest.clockResult?.checkedAt !== localRef.current?.clock(row.deviceKey)?.lastValidCheck?.checkedAt) {
@@ -253,13 +254,21 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     }).finally(() => { automaticBusy.current = false; if (sessionRef.current === owner) setReadings([...readingsRef.current]); });
   }, [readings, sessionState, cycle.isLoading, cycle.currentCycle?.id]);
 
-  // Legacy automatic preferences need fresh consent, once, before any real save.
+  // Recover an unanswered question after updates, navigation or a new session.
+  useEffect(() => { dismissedPrompts.current.clear(); }, [location.key]);
   useEffect(() => {
     const key = sessionState.deviceKey;
     const preference = metadata.devices[key];
-    if (key && preference?.incorporationMode === 'automatic' && preference.automaticConsent !== 'v2'
-      && preference.automationPromptVersion !== 'v2') setAutomationCandidate(key);
-  }, [sessionState.deviceKey, metadata.devices]);
+    const chosen = preference?.incorporationMode === 'manual'
+      || (preference?.incorporationMode === 'automatic' && preference.automaticConsent === 'v2');
+    void sessionRef.current?.setAutomaticMode?.(preference?.incorporationMode === 'automatic' && preference.automaticConsent === 'v2');
+    if (chosen && automationPromptDevice === key) setAutomationPromptDevice(null);
+    if (key && !chosen && !dismissedPrompts.current.has(key)
+      && (['pending', 'shown'].includes(preference?.automationPrompt) || preference?.incorporationMode === 'automatic')) setAutomationCandidate(key);
+  }, [sessionState.deviceKey, metadata.devices, location.key]);
+  useEffect(() => {
+    sessionRef.current?.setRecoveryBlocked?.(readings.some(row => row.importStatus === 'saving'));
+  }, [readings]);
 
   // A local removal only: commit first, then publish. Never calls a save adapter.
   const discardReading = (uiId, expectedSession, reviewedAttemptId) => {
@@ -315,11 +324,11 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const reviewInProgress = Boolean(reviewReading && reviewVisibleOn === location.key && reviewExpanded)
     || readings.some(row => row.importStatus === 'saving') || clockDialogOpen;
   useEffect(() => {
-    if (!automationCandidate || reviewInProgress || promptClaim.current) return;
+    if (!automationCandidate || automationPromptDevice || dismissedPrompts.current.has(automationCandidate) || reviewInProgress || promptClaim.current) return;
     const owner = sessionRef.current;
     promptClaim.current = true;
-    // Server transaction claims the once-per-account/device question. A close
-    // records no automatic choice. Offline/unavailable preferences never enable it.
+    // The server rechecks the decision. Shown/pending questions remain recoverable;
+    // only an explicit mode choice completes them.
     Promise.resolve(metadataRef.current.claimAutomationPrompt?.(automationCandidate)).then(claimed => {
       if (sessionRef.current === owner && claimed) setAutomationPromptDevice(automationCandidate);
     }).catch(() => {}).finally(() => {
@@ -335,7 +344,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
     {automationPromptDevice && <Vinca2AutomationPrompt key={automationPromptDevice} deviceKey={automationPromptDevice}
-      open={!reviewInProgress} onClose={() => setAutomationPromptDevice(null)} />}
+      open={!reviewInProgress} onClose={() => { dismissedPrompts.current.add(automationPromptDevice); setAutomationPromptDevice(null); setAutomationCandidate(null); }} />}
     <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
       onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}
       storageError={storageError} deviceKey={sessionState.deviceKey}>

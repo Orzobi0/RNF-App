@@ -15,6 +15,7 @@ export function BleReadingReview({ userId, reading, onClose, onSaved, active = t
   const [draft, setDraft] = useState(() => ({ isoDate: measurement?.time ? measurement.device_timestamp.slice(0, 10) : '',
     time: measurement?.time || '', temperatureC: measurement?.temperature ?? '', ...reading.draft, confirmed: false }));
   const [error, setError] = useState(reading.reviewError ?? null);
+  useEffect(() => { if (reading.reviewError) setError(reading.reviewError); }, [reading.reviewError]);
   const [busy, setBusy] = useState(false);
   const [duplicateApproval, setDuplicateApproval] = useState(null);
   const [discardConfirm, setDiscardConfirm] = useState(false);

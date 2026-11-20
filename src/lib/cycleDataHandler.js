@@ -1586,7 +1586,13 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     }
     return snapshot;
   };
-  const readCollection = async ref => requireServer(await getDocsFromServer(ref)).docs;
+  const readCollection = async ref => {
+    try { return requireServer(await getDocsFromServer(ref)).docs; }
+    catch (error) {
+      if (automaticContext && !error?.code?.startsWith('ble-')) throw review('No se han podido comprobar los datos del servidor. La lectura queda pendiente.', 'server-read');
+      throw error;
+    }
+  };
   const cycles = await readCollection(collection(db, `users/${userId}/cycles`));
   const ranges = cycles.map(item => ({ ...item.data(), id: item.id }));
   const candidates = ranges.filter(item => item.start_date <= isoDate && (!item.end_date || isoDate <= item.end_date));
@@ -1626,7 +1632,13 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     if (!automaticContext && incoming.device_key && incoming.device_model === 'BM-Vinca2') {
       const preferenceRef = doc(db, `users/${userId}/preferences/thermometer_${encodeURIComponent(incoming.device_key)}`);
       const preference = await transaction.get(preferenceRef);
+      const fields = preference.data()?.fields ?? {};
+      // Eligibility for the question commits with the first manual save. Merely
+      // displaying it never counts as consent, including after a reload/update.
+      const promptFields = !fields.incorporationMode && incoming.reception_validated === true
+        ? { fields: { ...fields, automationPrompt: { value: 'pending', updatedAt: Date.now(), revision: crypto.randomUUID() } } } : {};
       automaticPreferenceWrite = { ref: preferenceRef, data: { kind: 'thermometer', deviceKey: incoming.device_key,
+        ...promptFields,
         automaticImportRevision: (preference.data()?.automaticImportRevision ?? 0) + 1 } };
     }
     if (automaticContext) {

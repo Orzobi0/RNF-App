@@ -1,7 +1,7 @@
 // Public descriptive data only. Native bindings remain the sole BLE authority.
 const textFields = new Set(['customName', 'commercialName', 'name', 'model', 'manufacturer', 'protocol', 'compatibility', 'firmware', 'software']);
 const preferences = { volume: ['low', 'medium', 'high'], measurementMode: ['quick', 'normal', 'precise'], temperatureUnit: ['C', 'F'],
-  automaticConsent: ['v2'], automationPromptVersion: ['v2'], incorporationMode: ['manual', 'automatic'], automationPrompt: ['shown', 'chosen'] };
+  automaticConsent: ['v2'], automationPromptVersion: ['v2'], incorporationMode: ['manual', 'automatic'], automationPrompt: ['pending', 'shown', 'chosen'] };
 export const sanitizeThermometerMetadata = values => Object.fromEntries(Object.entries(values ?? {}).filter(([field, value]) => {
   if (field === 'customName' && value === null) return true; // explicit removal, not unloaded
   if (textFields.has(field)) return typeof value === 'string' && value.trim().length > 0 && value.length <= (field === 'customName' ? 40 : 100)
@@ -67,8 +67,8 @@ export function createThermometerMetadataStore({ userId, storage, remote, change
     claimAutomationPrompt: async id => {
       if (disposed || !id) return false;
       const fields = state.devices[id];
-      const legacy = fields?.incorporationMode?.value === 'automatic' && fields?.automaticConsent?.value !== 'v2' && fields?.automationPromptVersion?.value !== 'v2';
-      if (!legacy && (fields?.automationPrompt || fields?.incorporationMode)) return false;
+      if (fields?.incorporationMode?.value === 'manual'
+        || (fields?.incorporationMode?.value === 'automatic' && fields?.automaticConsent?.value === 'v2')) return false;
       const result = await remote.claimAutomationPrompt(id, { value: 'shown', updatedAt: now(), revision: uuid() });
       if (disposed) return false;
       commit({ ...state, devices: { ...state.devices, [id]: mergeThermometerFields(state.devices[id], result.fields) } });

@@ -312,6 +312,7 @@ maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-saf
     </li>
   ))}
 </ul>
+        {selected?.reviewError?.message && selected.importStatus !== 'saving' && <p role="status" className="text-sm text-amber-900">{selected.reviewError.message}</p>}
         {children}
       </div>
     </section>

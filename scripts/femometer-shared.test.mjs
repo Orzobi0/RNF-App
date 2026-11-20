@@ -158,7 +158,7 @@ const bridge = () => {
       calls.clock++;
       if (flags.clockWait) return flags.clockWait.promise;
       if (flags.clockFails) throw Error('clock failed');
-      return { deviceKey, deviceLocalTime: localText(flags.now - 600_000) };
+      return { deviceKey, deviceLocalTime: localText(flags.now - 60_000) };
     },
     syncFemometerClock: async () => { calls.sync++; if (flags.syncWait) return flags.syncWait.promise; if (flags.syncFails) throw Error('sync failed'); return {}; },
     setFemometerMeasurementMode: async level => {
@@ -216,28 +216,28 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
     changeAccount: async next => { userId = next; render(); await flush(); } };
 }
 
-test('foreground keeps live listening, restarts an expired listener once and retains pending readings', async () => {
+test('foreground refreshes active listening once and retains pending readings', async () => {
   const native = bridge();
   const owner = await mountedOwner(native);
   native.emit({ temperatureC: 36.4 });
   native.flags.now = 120_000;
   await owner.foreground();
-  assert.equal(native.calls.connections, 1);
-  assert.equal(native.calls.disconnects, 0);
+  assert.equal(native.calls.connections, 2);
+  assert.equal(native.calls.disconnects, 1);
   // No native timeout event arrived while suspended.
   native.flags.now = 361_000;
   await Promise.all([owner.foreground(), owner.foreground()]);
-  assert.equal(native.calls.connections, 2);
-  assert.equal(native.calls.disconnects, 1);
+  assert.equal(native.calls.connections, 3);
+  assert.equal(native.calls.disconnects, 2);
   assert.equal(native.calls.peakListeners, 1);
   assert.equal(owner.render().pendingCount, 1);
   native.emit({ status: 'timeout' }); // Queued terminal event, cleanup in flight.
   await owner.foreground();
-  assert.equal(native.calls.connections, 2); // Cooldown.
+  assert.equal(native.calls.connections, 3); // Cooldown.
   assert.equal(owner.render().sessionState.foreground.reason, 'brief_cooldown');
   native.flags.now += 5_001;
   await owner.foreground();
-  assert.equal(native.calls.connections, 3);
+  assert.equal(native.calls.connections, 4);
   assert.equal(native.calls.permissions, 0);
   await owner.changeAccount('b');
   assert.equal(owner.lifecycle.size, 1);
@@ -247,7 +247,7 @@ test('foreground keeps live listening, restarts an expired listener once and ret
   assert.equal(owner.timers.size, 0);
   assert.equal(native.calls.listeners, 0);
   await owner.foreground();
-  assert.equal(native.calls.connections, 4);
+  assert.equal(native.calls.connections, 5);
 });
 
 test('foreground after unsuccessful scan is bounded and requires a remembered device', async () => {
@@ -277,7 +277,7 @@ test('shared owner survives page consumers and retains consecutive identical rea
   try {
     assert.equal(native.calls.connections, 1);
     assert.equal(native.calls.clock, 1);
-    assert.equal(owner.render().sessionState.clockResult.significantDrift, true);
+    assert.equal(owner.render().sessionState.clockResult.significantDrift, false);
     assert.equal(native.calls.permissions, 0);
     // Route consumers re-render against the same owner, without owning cleanup.
     const session = owner.render().sessionRef.current;
@@ -469,7 +469,7 @@ Clock3: 'clock',
   }
   assert.ok(destinations.every(path => path === '/settings/devices'));
   ble.sessionState = { status: 'stopped', remembered: true };
-  treeNodes(render()).find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar nuevas').props.onClick();
+  treeNodes(render()).find(node => node.type === 'action' && node.props['aria-label'] === 'Conectar').props.onClick();
   assert.equal(starts, 1); assert.equal(scans, 0);
   ble.sessionState = { status: 'listening', listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
   let nodes = treeNodes(render());
@@ -2455,15 +2455,15 @@ test('lifecycle: uncertain configuration stops the sequence without stopping tem
   assert.equal(h.calls.peakListeners, 1); await next.dispose();
 });
 
-test('clock: local thresholds of 120 seconds and 24 hours, one automatic correction with read-back verification', async () => {
+test('clock: 120-second threshold, one automatic correction with read-back verification', async () => {
   for (const seconds of [0, 120, 121, 86400, 86401, -86401]) {
     const h = integratedSession(); h.flags.now = new Date(2026, 10, 10, 12, 0, 0).getTime();
     h.api.readFemometerClock = async () => ({ deviceKey: 'bound-a', deviceLocalTime: localText(h.flags.now + seconds * 1000) });
     h.api.syncFemometerClock = async () => { h.calls.sync++; return { deviceKey: 'bound-a', deviceLocalTime: localText(h.flags.now), verified: true }; };
     await h.session.start();
-    assert.equal(h.calls.sync, Math.abs(seconds) > 86400 ? 1 : 0);
-    assert.equal(h.state().clockResult.verified, Math.abs(seconds) > 86400);
-    assert.equal(h.state().clockResult.significantDrift, Math.abs(seconds) > 120 && Math.abs(seconds) <= 86400);
+    assert.equal(h.calls.sync, Math.abs(seconds) > 120 ? 1 : 0);
+    assert.equal(h.state().clockResult.verified, Math.abs(seconds) > 120);
+    assert.equal(h.state().clockResult.significantDrift, false);
     await h.session.resume(); assert.ok(h.calls.sync <= 1); await h.session.dispose();
   }
 });
@@ -2837,7 +2837,8 @@ test('search presentation replaces instructions with progress/results and recogn
   assert.equal(h.button('¿No encuentras tu termómetro?'), undefined);
   const scan = h.button('Buscar termómetros').props.onClick();
   assert.doesNotMatch(JSON.stringify(h.render()), /Cierra la aplicación del termómetro/);
-  assert.match(JSON.stringify(h.render()), /Buscando termómetros/);
+  assert.match(JSON.stringify(h.render()), /Preparando búsqueda/);
+  await flush(); assert.match(JSON.stringify(h.render()), /Buscando termómetros/);
   wait.resolve(); await scan;
   assert.equal(inspected, 0);
   assert.ok(h.button('¿No encuentras tu termómetro?'));
@@ -3337,16 +3338,16 @@ test('B: mode choices require server success; prompt and choices persist per acc
     merge: async (id, fields) => { if (offline) throw Error('offline'); return data[id] = mergeThermometerFields(data[id], fields); },
     claimAutomationPrompt: async (id, field) => {
       if (offline) throw Error('offline');
-      const legacy = data[id]?.incorporationMode?.value === 'automatic' && data[id]?.automaticConsent?.value !== 'v2' && data[id]?.automationPromptVersion?.value !== 'v2';
-      if (!legacy && (data[id]?.automationPrompt || data[id]?.incorporationMode)) return { fields: data[id], claimed: false };
+      const chosen = data[id]?.incorporationMode?.value === 'manual' || (data[id]?.incorporationMode?.value === 'automatic' && data[id]?.automaticConsent?.value === 'v2');
+      if (chosen) return { fields: data[id], claimed: false };
       return { fields: data[id] = { ...data[id], automationPrompt: field, automationPromptVersion: { ...field, value: 'v2' } }, claimed: true };
     },
   };
   const create = (userId = 'a', backend = remote) => createThermometerMetadataStore({ userId, storage, remote: backend, changed: () => {} });
   let first = create(), otherSession = create();
-  assert.deepEqual(await Promise.all([first.claimAutomationPrompt('v'), otherSession.claimAutomationPrompt('v')]), [true, false]);
+  assert.deepEqual(await Promise.all([first.claimAutomationPrompt('v'), otherSession.claimAutomationPrompt('v')]), [true, true]);
   assert.equal(first.get('v').incorporationMode, undefined); // Closing chooses nothing.
-  first.dispose(); first = create(); assert.equal(await first.claimAutomationPrompt('v'), false);
+  first.dispose(); first = create(); assert.equal(await first.claimAutomationPrompt('v'), true);
   offline = true; await assert.rejects(first.chooseIncorporationMode('v', 'automatic'));
   assert.equal(first.get('v').incorporationMode, undefined);
   offline = false; await first.chooseIncorporationMode('v', 'automatic');
@@ -3359,7 +3360,7 @@ test('B: mode choices require server success; prompt and choices persist per acc
   data.legacy = { incorporationMode: { value: 'automatic', updatedAt: 1, revision: 'old' }, automationPrompt: { value: 'chosen', updatedAt: 1, revision: 'old' } };
   assert.equal(await first.claimAutomationPrompt('legacy'), true);
   assert.equal(first.get('legacy').automaticConsent, undefined);
-  assert.equal(await first.claimAutomationPrompt('legacy'), false);
+  assert.equal(await first.claimAutomationPrompt('legacy'), true);
   await first.chooseIncorporationMode('legacy', 'automatic');
   assert.equal(first.get('legacy').automaticConsent, 'v2');
   first.dispose(); otherSession.dispose(); accountB.dispose();
@@ -3473,4 +3474,112 @@ test('remembered supported profiles request bounded extended search and propagat
       assert.equal(state.error.code, 'CONNECTION_LOST'); assert.equal(searches, 1);
     } finally { await session.dispose(); }
   }
+});
+
+test('Vinca recovery has one foreground timer, serializes reconnects and stops after three failures', async () => {
+  const native = bridge(); const timers = new Map(); let state;
+  native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
+  native.api.clearTimeout = fn => timers.delete(fn);
+  const session = native.factory('a', next => { state = next; }, () => {});
+  const tick = async () => { const [fn, delay] = [...timers][0]; timers.delete(fn); native.flags.now += delay; fn(); await flush(); };
+  try {
+    await session.start(); assert.equal(timers.size, 1); assert.equal([...timers.values()][0], 60000);
+    await tick(); assert.equal(native.calls.connections, 1); // No undocumented 2A21 polling or minute reconnects.
+    native.flags.now = 360001;
+    native.flags.disconnectWait = deferred();
+    const a = session.recoverReadings(); const b = session.recoverReadings('foreground');
+    assert.equal(a, b); await flush(); assert.equal(native.calls.disconnects, 1);
+    native.flags.disconnectWait.resolve(); await a; native.flags.disconnectWait = null;
+    assert.equal(native.calls.connections, 2); assert.equal(timers.size, 1);
+    await session.suspend(); assert.equal(timers.size, 0);
+    await session.recoverReadings('foreground'); assert.equal(native.calls.connections, 2);
+    native.flags.now += 10000; await session.resume(); assert.equal(native.calls.connections, 3);
+    native.flags.found = false;
+    native.emit({ status: 'disconnected' }); await flush();
+    for (let i = 0; i < 3; i++) await tick();
+    assert.equal(state.recoveryExhausted, true); assert.equal(timers.size, 0);
+    assert.equal(native.calls.peakListeners, 1);
+  } finally { await session.dispose(); assert.equal(timers.size, 0); }
+});
+
+test('automatic consent prepares a verified clock reference and preserves it on later connections', async () => {
+  const native = bridge(); native.flags.now = Date.now() - 120000;
+  const sample = () => ({ deviceKey: 'bound-a', checkedAt: native.flags.now, deviceLocalTime: localText(native.flags.now),
+    phoneTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, phoneUtcOffsetMinutes: -new Date(native.flags.now).getTimezoneOffset() });
+  native.api.readFemometerClock = async () => sample();
+  native.api.syncFemometerClock = async () => { native.calls.sync++; return { ...sample(), verified: true }; };
+  const preference = { incorporationMode: 'automatic', automaticConsent: 'v2' };
+  const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch: () => {} };
+  const owner = await mountedOwner(native, 'a', undefined, metadata);
+  try {
+    for (let i = 0; i < 3; i++) { owner.render(); await flush(); }
+    assert.equal(native.calls.sync, 1);
+    const syncAt = owner.render().clockHistory.lastVerifiedSync.checkedAt;
+    native.flags.now += 60000;
+    await owner.foreground(); owner.render();
+    assert.equal(native.calls.sync, 1);
+    assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, syncAt);
+    assert.ok(owner.render().clockHistory.lastValidCheck.checkedAt > syncAt);
+    native.api.readFemometerClock = async () => { throw { code: 'CLOCK_INVALID_DATE' }; };
+    native.flags.now += 60000;
+    await owner.foreground(); owner.render();
+    assert.equal(native.calls.sync, 2);
+    assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, native.flags.now);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('a fixed connection clock is rechecked after reconnect without diagnosing drift or writing time', async () => {
+  const native = bridge(); native.flags.now = Date.now();
+  let snapshot = native.flags.now;
+  const listen = native.api.startFemometerTemperatureListener;
+  native.api.startFemometerTemperatureListener = async (...args) => { snapshot = native.flags.now; return listen(...args); };
+  native.api.readFemometerClock = async () => ({ deviceKey: 'bound-a', deviceLocalTime: localText(snapshot), checkedAt: native.flags.now,
+    phoneTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, phoneUtcOffsetMinutes: -new Date(native.flags.now).getTimezoneOffset() });
+  const owner = await mountedOwner(native);
+  try {
+    native.flags.now += 180000;
+    const session = owner.render().sessionRef.current;
+    await session.readClock();
+    assert.equal(owner.render().sessionState.clockError.code, 'CLOCK_SNAPSHOT_STALE');
+    assert.equal(owner.render().clockHistory.lastIncidentAt, null);
+    await session.checkAutomaticClock();
+    assert.equal(native.calls.connections, 2); assert.equal(native.calls.sync, 0);
+    assert.equal(owner.render().sessionState.clockError, null);
+    assert.equal(owner.render().clockHistory.staleCheck, null);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('an interrupted unanswered automation question is recovered, but v2 consent is respected', async () => {
+  const native = bridge(); let claims = 0;
+  const preference = { automationPrompt: 'shown', automationPromptVersion: 'v2' };
+  const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch: () => {}, claimAutomationPrompt: async () => { claims++; return true; } };
+  let owner = await mountedOwner(native, 'a', undefined, metadata);
+  for (let i = 0; i < 3; i++) { owner.render(); await flush(); } assert.ok(owner.prompt());
+  owner.cleanup(); await flush(); owner = await mountedOwner(native, 'a', undefined, metadata);
+  for (let i = 0; i < 3; i++) { owner.render(); await flush(); } assert.ok(owner.prompt());
+  owner.prompt().onClose(); assert.equal(owner.prompt(), undefined);
+  owner.navigate('records'); for (let i = 0; i < 3; i++) { owner.render(); await flush(); } assert.ok(owner.prompt());
+  owner.cleanup(); await flush();
+  metadata.devices = { 'bound-a': { incorporationMode: 'automatic', automaticConsent: 'v2' } };
+  metadata.get = () => metadata.devices['bound-a'];
+  const before = claims; owner = await mountedOwner(native, 'a', undefined, metadata);
+  owner.render(); await flush(); assert.equal(owner.prompt(), undefined); assert.equal(claims, before);
+  owner.cleanup(); await flush();
+});
+
+test('Add opens without stopping reception; search interrupts it and leaving closes the assistant', async () => {
+  const h = await devicesFixture({ remembered: true, status: 'listening', deviceKey: 'v', devices: [{ id: 'stale' }], bindings: [{ deviceKey: 'v', model: 'BM-Vinca2' }] });
+  let stopped = 0, searches = 0, cancelled = 0;
+  h.ble.sessionRef.current = {
+    beginChange: async () => { stopped++; h.ble.sessionState = { ...h.ble.sessionState, status: 'stopped', changingDevice: true, devices: [] }; return true; },
+    scan: async () => { searches++; },
+    cancelChange: async () => { cancelled++; h.ble.sessionState = { ...h.ble.sessionState, status: 'listening', changingDevice: false }; },
+  };
+  await h.button('+ Añadir').props.onClick();
+  assert.equal(stopped, 0); assert.match(JSON.stringify(h.render()), /Escuchando temperaturas/);
+  assert.ok(treeNodes(h.render()).find(node => node.props['aria-label'] === 'Cerrar adición'));
+  assert.equal(h.button('Buscar termómetros').props.disabled, false);
+  await h.button('Buscar termómetros').props.onClick();
+  assert.equal(stopped, 1); assert.equal(searches, 1);
+  h.cleanup(); await flush(); assert.equal(cancelled, 1); assert.equal(h.ble.sessionState.changingDevice, false);
 });

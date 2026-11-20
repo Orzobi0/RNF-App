@@ -1,39 +1,32 @@
-# Fase 2: escucha al abrir Ajustes (Android Staging)
+# Recepción automática Vinca 2 — Android Staging
 
-La asociación de la fase 1 se conserva sin cambios. El panel consulta el UID de la sesión autenticada y, solo si tiene termómetro recordado, realiza un intento automático. Utiliza `scan(userId)`, que comprueba permisos existentes y Bluetooth antes de iniciar la búsqueda y nunca solicita permisos. La búsqueda conserva el límite nativo de 8 segundos.
+La sesión pertenece a la cuenta autenticada y se comparte entre páginas. La búsqueda de dispositivos vinculados admite hasta 25 segundos y termina al encontrar la identidad correcta. No se amplía la compatibilidad ni se solicitan permisos automáticamente.
 
-Solo una coincidencia explícita y única `isRemembered === true` permite iniciar la escucha. En este flujo no se muestran otros dispositivos, no se inspecciona de nuevo manualmente la compatibilidad y no se elige por nombre ni intensidad de señal. Se utiliza la misma suscripción y el mismo método de escucha de temperaturas del diagnóstico manual. No hay escritura de temperaturas ni reconexiones/búsquedas periódicas.
+## Recuperación de lecturas
 
-Los estados del panel son consultando, buscando, conectando, escuchando, no encontrado, error y detenido. Reintentar repite un único intento sin pedir permisos. Buscar termómetro conserva la alternativa manual y puede solicitar permisos mediante el flujo existente. Los errores y Bluetooth apagado no eliminan la asociación. Olvidar sigue disponible cuando la operación está detenida.
+- Al abrir la aplicación se conecta al termómetro vinculado mediante el flujo existente.
+- Al volver a primer plano se renueva ordenadamente la conexión Vinca 2, aunque figurase escuchando. Un margen de cinco segundos evita ráfagas por eventos duplicados; una operación GATT en curso conserva la exclusión.
+- `VINCA2_RECOVERY_CHECK_MS` define una comprobación interna cada 60 segundos. No hay nueva preferencia visible.
+- La alternativa actual es **reconectar**, no repetir escrituras en una conexión activa. `0x2A21` es Measurement Interval: el código y la observación física solo acreditan la escritura `01 00` durante la preparación. No acreditan que sea un comando de históricos repetible.
+- Mientras la conexión sigue activa, se espera la ventana original de seis minutos (`VINCA2_RECOVERY_RECONNECT_MS`) antes de renovarla. Por ello una medición nueva puede tardar aproximadamente seis o siete minutos en recuperarse si la aplicación permanece abierta. Volver a primer plano permite recuperarla antes. No se promete recuperación de datos cada minuto.
+- Una desconexión real permite recuperación en la siguiente comprobación. Tras fallos consecutivos, las esperas aumentan; se detiene tras tres intentos fallidos. Volver a primer plano o usar Conectar permite un nuevo intento. Los temporizadores desaparecen al suspender, detener expresamente o cerrar la sesión.
+- Reloj, configuración, búsqueda, cierre e incorporación al servidor excluyen la recuperación simultánea. La captura de observación del reloj no se interrumpe con renovaciones periódicas.
+- Cada reconexión utiliza la suscripción, normalización y ruta de pendientes/guardado existentes. Las posibles retransmisiones permanecen sujetas a comprobación local y del historial del servidor; nunca se consideran nuevos registros solo por haberse recibido otra vez.
 
-`femometerSession.js` concentra la exclusión de operaciones, la propiedad del BLE entre montajes y la invalidación de continuaciones/eventos. Un montaje nuevo espera a la limpieza del anterior. La cancelación también recoge suscripciones que terminan de registrarse después de salir de la pantalla. Las lecturas y callbacks tardíos no actualizan React tras el desmontaje. El replay de efectos de StrictMode no inicia una segunda búsqueda.
+## Reloj y automatización
 
-Se modifica el código nativo únicamente para que cancelar resuelva las llamadas pendientes de búsqueda y preparación de escucha como `CONNECTION_CANCELLED`, y para ignorar callbacks/plazos de operaciones anteriores. Esto evita que una búsqueda cancelada deje una promesa pendiente o que su plazo de 8 segundos interrumpa un reintento posterior. No se cambian permisos ni preferencias persistentes.
+Automática requiere consentimiento `v2`. Al activarla se lee el reloj y, si falta una referencia válida del historial nuevo, se sincroniza una vez y se verifica. La referencia solo sirve para mediciones posteriores. Al conectar de nuevo se lee: un reloj correcto conserva la referencia; un desfase superior a 120 segundos o una fecha imposible permite una corrección verificada. No se escribe el reloj a intervalos fijos. La captura de diagnóstico mantiene la prohibición nativa de sincronizar.
 
-## Pruebas automáticas
+Una lectura idéntica del reloj tras más de cinco segundos en la misma conexión se trata como una posible instantánea fija, no como evidencia de desfase. No habilita confianza nueva: se vuelve a comprobar en una conexión distinta. Las incidencias reales se conservan; una sincronización correctiva establece el inicio de un intervalo nuevo.
 
-Las pruebas en `android-ui.test.mjs` ejercitan el controlador que utiliza el panel con un puente simulado: coincidencia, falta de coincidencia, ausencia de asociación, permisos denegados, Bluetooth apagado, cierre durante búsqueda, suscripción tardía, cancelación durante conexión, montajes duplicados, cambio de cuenta, reintento y finalización sin reconexión automática. `femometer-bridge.test.mjs` comprueba también el recorrido por los wrappers reales y los payloads de UID/identificador temporal. No sustituyen una prueba BLE física ni montan una WebView Android real.
+Las lecturas automáticas siguen requiriendo fecha original de hoy/ayer, comprobaciones anteriores y posteriores, ausencia de incidencias relevantes, ciclo inequívoco, comprobación de duplicados y confirmación de Firebase. Los errores indican si falta sincronización, la medición es anterior a ella, la fecha es dudosa, existe una coincidencia o no se pudo consultar el servidor. Un resultado de guardado incierto no se reintenta automáticamente.
 
-## Comprobaciones con APK y BM-Vinca2
+## Elección de modo y navegación
 
-1. Con termómetro recordado y permisos concedidos, abrir Ajustes: buscar → conectar → escuchar sin pulsar botones. Confirmar que solo aparece el recordado, incluso con otro BM-Vinca2 cerca.
-2. Sin asociación: abrir Ajustes y verificar que no empieza ninguna búsqueda ni diálogo. Validar búsqueda, selección, inspección, recordar y escuchar manualmente.
-3. Con asociación y Bluetooth apagado o permisos revocados: abrir Ajustes. Debe mostrarse error sin diálogo automático y conservarse la asociación. Restablecer Bluetooth/permisos mediante la acción manual y reintentar.
-4. Mantener el termómetro apagado: después de unos 8 segundos mostrar no encontrado, sin más intentos hasta pulsar Reintentar o volver a abrir Ajustes.
-5. Salir durante búsqueda, conexión y escucha; volver rápidamente. Confirmar una sola conexión y suscripción, sin lecturas de la sesión anterior ni interrupciones por el plazo de una búsqueda previa.
-6. Pulsar Detener durante búsqueda/conexión/escucha y luego Reintentar. Cambiar de cuenta y comprobar que no se escucha el termómetro de la cuenta anterior.
-7. Recibir varias mediciones, dejar expirar la escucha y desconectar el dispositivo. No debe reconectar automáticamente. Los datos siguen siendo diagnósticos, incluidas lecturas antiguas y fechas incorrectas.
+El primer guardado manual validado registra `automationPrompt: pending` en la misma transacción. `shown` significa pregunta sin resolver, no consentimiento. Tras recarga o navegación se puede recuperar; solo Manual o Automática con consentimiento `v2` completan la elección. Las preferencias anteriores se respetan.
 
-Se necesita un APK con la corrección nativa y esta versión del frontend. La configuración existente carga el Hosting de Staging: sincronizar el APK no publica el frontend remoto. No se modifica ese empaquetado ni se despliega. Sigue vigente la limitación de identidad por dirección BLE de la fase 1: una dirección distinta no se reconoce automáticamente.
+Añadir abre solo el asistente visual. Buscar detiene la recepción antes de usar BLE. Cancelar o salir limpia el cambio de dispositivo y recupera la sesión vinculada cuando puede hacerlo. El dashboard ofrece Conectar cuando está desconectado y mantiene los bloqueos de operaciones reales.
 
-## Validación ejecutada el 30 de octubre de 2026
+## Pendiente de comprobar físicamente
 
-- `npm run check:staging`: correcto.
-- `npm run test:staging`: 4 pruebas correctas.
-- `node --test scripts/femometer-bridge.test.mjs scripts/android-ui.test.mjs`: 14 pruebas correctas; aviso no fatal de puerto WebSocket 24678 ocupado.
-- `npm run build:staging`: correcto.
-- `npm run sync:staging:android`: correcto.
-- `CAPACITOR_ENV=staging` y `gradlew.bat assembleDebug`, con el JDK de Android Studio2 y el wrapper actual 9.2.0: BUILD SUCCESSFUL. Fue necesario permitir escritura fuera del sandbox para la caché de Gradle. No se cambiaron wrapper ni configuración de compilación.
-- `git diff --check`: correcto.
-
-No se ha instalado el APK ni ejecutado la validación física de esta fase; tampoco se ha desplegado ni hecho commit.
+Confirmar recuperación tras desbloquear y a lo largo de varias ventanas de seis minutos, corrección y lectura del reloj, ausencia de incorporaciones repetidas, fallos/offline y restauración del asistente. La repetición de `0x2A21` queda sin habilitar hasta disponer de evidencia física suficiente. Las pruebas automatizadas usan transportes y Firebase simulados; no acreditan comportamiento del firmware.

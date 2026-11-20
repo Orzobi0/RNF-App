@@ -38,8 +38,8 @@ function MetadataOwner({ userId, children }) {
           const current = await transaction.get(target);
           if (!alive) throw new Error('Cuenta cerrada');
           const fields = current.data()?.fields ?? {};
-          const legacy = fields.incorporationMode?.value === 'automatic' && fields.automaticConsent?.value !== 'v2' && fields.automationPromptVersion?.value !== 'v2';
-          if (!legacy && (fields.automationPrompt || fields.incorporationMode)) return { claimed: false, fields };
+          if (fields.incorporationMode?.value === 'manual'
+            || (fields.incorporationMode?.value === 'automatic' && fields.automaticConsent?.value === 'v2')) return { claimed: false, fields };
           const next = { ...fields, automationPrompt: field, automationPromptVersion: { ...field, value: 'v2' } };
           transaction.set(target, { kind: 'thermometer', deviceKey, fields: next });
           return { claimed: true, fields: next };

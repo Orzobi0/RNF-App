@@ -122,10 +122,20 @@ export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZ
     && Number.isFinite(value.phoneUtcOffsetMinutes) && Number.isFinite(value.driftSeconds) && Math.abs(value.driftSeconds) <= 120)) return review('clock-misaligned');
   if (sync.phoneTimeZone !== timeZone || check.phoneTimeZone !== timeZone
     || sync.phoneUtcOffsetMinutes !== check.phoneUtcOffsetMinutes) return review('clock-time-zone-changed');
-  if (clockHistory.pendingCheck || clockHistory.invalidatedAt || clockHistory.lastIncidentAt > sync.checkedAt || clockHistory.lastSignificantChange?.checkedAt > sync.checkedAt
+  if (clockHistory.staleCheck || clockHistory.pendingCheck || clockHistory.invalidatedAt || clockHistory.lastIncidentAt > sync.checkedAt || clockHistory.lastSignificantChange?.checkedAt > sync.checkedAt
     || !['read_correct', 'synchronized_verified'].includes(clockHistory.state)) return review('clock-trust-interrupted');
   return { status: 'ready', reason: 'operational-clock-confidence', epochMs: age.epochMs };
 };
+
+export const automaticBleReviewMessage = reason => ({
+  'clock-history-insufficient': 'Es necesario sincronizar el reloj. La nueva referencia servirá para las próximas mediciones.',
+  'measurement-before-clock-sync': 'La temperatura es anterior a la última sincronización. Revisa su fecha original.',
+  'clock-check-not-after-measurement': 'Falta una comprobación posterior del reloj. La temperatura necesita revisión.',
+  'clock-misaligned': 'El reloj supera la tolerancia de 120 segundos. La temperatura necesita revisión.',
+  'clock-trust-interrupted': 'Hay una incidencia del reloj. La temperatura necesita revisión.',
+  'clock-time-zone-changed': 'Ha cambiado la zona horaria. Revisa la fecha de la temperatura.',
+  'device-identity-unavailable': 'No se ha podido validar el termómetro vinculado.',
+})[reason] ?? 'La fecha necesita revisión. Solo se incorporan automáticamente temperaturas de hoy o ayer con fecha válida.';
 
 // Draft authorization only: the transaction rechecks server preferences and history.
 export const prepareAutomaticBleDraft = (measurement, context = {}) => {
@@ -135,7 +145,7 @@ export const prepareAutomaticBleDraft = (measurement, context = {}) => {
     || measurement?.source !== 'bluetooth' || temperatureNumber(measurement.temperature) === null
     || measurement.temperature < 32 || measurement.temperature > 43
     || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(measurement.device_timestamp)) {
-    throw Object.assign(new Error('La lectura necesita revisión de fecha, reloj o autorización.'), {
+    throw Object.assign(new Error(automaticBleReviewMessage(decision.reason)), {
       code: 'ble-auto-review', title: 'Temperatura pendiente de revisión', reason: decision.reason,
     });
   }

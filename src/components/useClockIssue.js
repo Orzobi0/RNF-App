@@ -8,7 +8,7 @@ export function useClockIssue(sessionState, history) {
     && Math.abs(result.driftSeconds) <= 120 && !result.phoneZoneChanged
     && (result.operation === 'read' || result.verified === true);
   const historyError = history?.lastCheck?.errorCode;
-  const known = Boolean(error || result?.significantDrift || history?.state === 'misaligned'
+  const known = Boolean((error && error.code !== 'CLOCK_SNAPSHOT_STALE') || result?.significantDrift || history?.state === 'misaligned'
     || (historyError && historyError !== 'CLOCK_PENDING')
     || (history?.state === 'unknown' && Math.abs(history?.lastValidCheck?.driftSeconds) > 120));
   const [retained, setRetained] = useState({ deviceKey, issue: false });

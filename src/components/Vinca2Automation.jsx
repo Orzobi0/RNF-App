@@ -37,7 +37,7 @@ export function Vinca2IncorporationSettings({ deviceKey }) {
     </label>)}
     {mode === 'automatic' && <div className="space-y-2 text-xs text-slate-600">
       <p>Las lecturas dudosas seguirán apareciendo en Temperaturas pendientes.</p>
-      <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">Modo Automático confirmado. Solo se incorporan lecturas de hoy o ayer con reloj comprobado y sin posibles duplicados.</p>
+      <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">Modo Automático confirmado. Prepararemos y verificaremos el reloj para las próximas mediciones. Solo se incorporan lecturas de hoy o ayer con reloj comprobado y sin posibles duplicados.</p>
     </div>}
     <p className="text-xs text-slate-500">Esta opción actúa cuando FertiliApp recibe una temperatura por Bluetooth. No permite recibirla con la aplicación completamente cerrada.</p>
     {busy && <p role="status" className="text-xs">Guardando preferencia…</p>}
@@ -62,7 +62,7 @@ export function Vinca2AutomationPrompt({ deviceKey, open, onClose }) {
       </svg>
       <p className="text-sm text-slate-700">FertiliApp puede incorporar automáticamente las temperaturas recientes de tu Vinca 2 cuando sea seguro hacerlo.</p>
       <p className="text-sm text-slate-600">Si alguna necesita revisión, seguirá apareciendo en Temperaturas pendientes.</p>
-      <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">Al confirmar activas guardados reales. Se exige una sincronización verificada anterior a la medición y una comprobación posterior del reloj.</p>
+      <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">Al confirmar prepararemos y verificaremos el reloj automáticamente. La nueva referencia servirá para las próximas mediciones; las anteriores seguirán pendientes de revisión.</p>
       <div className="flex flex-col gap-2">
         <Button disabled={busy} onClick={() => choose('automatic')}>Sí, automatizar</Button>
         <Button disabled={busy} variant="outline" onClick={() => choose('manual')}>Prefiero hacerlo manualmente</Button>
