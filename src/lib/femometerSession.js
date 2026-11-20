@@ -157,7 +157,8 @@ export const createFemometerSessionManager = (api) => {
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
         if (!current() || event?.experimental === true) return;
-        if (event?.deviceProtocol && (event.receptionValidated !== true || event.deviceKey !== state.deviceKey)) return;
+        if (event?.deviceKey && event.deviceKey !== state.deviceKey) return;
+        if (!['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status) && event?.deviceProtocol && (event.receptionValidated !== true || event.deviceKey !== state.deviceKey)) return;
         if (promotedReplay && now() < promotedReplay.until && sameReading(promotedReplay.reading, event)) {
           return; // Suppress exact replays of the promoted take during the initial five-minute window.
         }
@@ -194,7 +195,7 @@ export const createFemometerSessionManager = (api) => {
       // Native scan checks existing permissions and Bluetooth before starting;
       // unlike requestBluetoothPermissions, it never opens a permission dialog.
       const found = await call(() => api.scanForFemometer(userId, expanded, automatic && saved.remembered === true
-        && (saved.protocol === 'vinca2' || (!saved.protocol && (!saved.model || saved.model === 'BM-Vinca2')))));
+        && (['vinca2', 'easyhome-ebt300', 'health-thermometer'].includes(saved.protocol) || (!saved.protocol && (!saved.model || saved.model === 'BM-Vinca2')))));
       const matches = found.filter(device => device.isRemembered === true);
       const match = matches.length === 1 ? matches[0] : null;
       const devices = automatic ? (match ? [match] : []) : found;

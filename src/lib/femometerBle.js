@@ -86,7 +86,7 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
         code: 'NATIVE_BRIDGE_UNAVAILABLE',
         message: `Timeout esperando respuesta nativa de ${pluginName}.${methodName}`,
       });
-    }, 20000);
+    }, methodName === 'scan' ? 35000 : 20000);
 
     androidBridgePendingCalls.set(callbackId, { resolve, reject, timeout });
     androidBridge.postMessage(
@@ -257,8 +257,9 @@ export const requestBluetoothPermissions = async () => {
   return result;
 };
 
-export const scanForFemometer = async (userId, expanded = false, rememberedVinca = false) => {
-  const result = await callFemometerBle('scan', { userId, ...(expanded ? { expanded: true } : {}), ...(rememberedVinca ? { rememberedVinca: true } : {}) });
+// Keep the legacy flag while installed Android versions receive the native update.
+export const scanForFemometer = async (userId, expanded = false, rememberedDevice = false) => {
+  const result = await callFemometerBle('scan', { userId, ...(expanded ? { expanded: true } : {}), ...(rememberedDevice ? { rememberedDevice: true, rememberedVinca: true } : {}) });
   return Array.isArray(result?.devices) ? result.devices : [];
 };
 

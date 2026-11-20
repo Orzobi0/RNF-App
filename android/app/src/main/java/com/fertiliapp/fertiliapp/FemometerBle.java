@@ -57,7 +57,7 @@ public class FemometerBle extends Plugin {
     private static final String BLUETOOTH_CONNECT_ALIAS = "bluetoothConnect";
     private static final String LOCATION_ALIAS = "location";
     private static final long SCAN_TIMEOUT_MS = 8000L;
-    private static final long REMEMBERED_VINCA_SCAN_TIMEOUT_MS = 25000L;
+    private static final long REMEMBERED_SCAN_TIMEOUT_MS = 25000L;
     private String scanTargetAddress;
     private static final long CONNECT_TIMEOUT_MS = 15000L;
     private static final long DISCOVER_TIMEOUT_MS = 10000L;
@@ -447,13 +447,15 @@ public class FemometerBle extends Plugin {
         }
 
         scanTargetAddress = null;
-        if (Boolean.TRUE.equals(call.getBoolean("rememberedVinca", false)) && call.getString("userId") != null) {
+        if ((Boolean.TRUE.equals(call.getBoolean("rememberedDevice", false)) || Boolean.TRUE.equals(call.getBoolean("rememberedVinca", false))) && call.getString("userId") != null) {
             try {
                 FemometerIdentityStore.Binding binding = identities().get(call.getString("userId"));
-                if ("vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model)) scanTargetAddress = binding.address;
+                if (("vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model) && "compatible".equals(binding.compatibility))
+                    || ("experimental".equals(binding.compatibility) && (("easyhome-ebt300".equals(binding.protocol) && "EBT-300".equals(binding.model))
+                    || "health-thermometer".equals(binding.protocol)))) scanTargetAddress = binding.address;
             } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
         }
-        final long scanTimeout = scanTargetAddress == null ? SCAN_TIMEOUT_MS : REMEMBERED_VINCA_SCAN_TIMEOUT_MS;
+        final long scanTimeout = scanTargetAddress == null ? SCAN_TIMEOUT_MS : REMEMBERED_SCAN_TIMEOUT_MS;
         devicesById.clear();
         idsByAddress.clear();
         scanCall = call;
@@ -1104,7 +1106,6 @@ public class FemometerBle extends Plugin {
         List<android.os.ParcelUuid> services = result.getScanRecord() == null ? null : result.getScanRecord().getServiceUuids();
         boolean standard = services != null && services.contains(new android.os.ParcelUuid(HEALTH_THERMOMETER_UUID));
         boolean signature = services != null && services.contains(new android.os.ParcelUuid(VINCA_SERVICE_UUID));
-        if (!ThermometerDiscovery.candidate(advertisedName, standard, signature, Boolean.TRUE.equals(scanCall.getBoolean("expanded", false)))) return;
 
         String address;
         try {
@@ -1117,6 +1118,7 @@ public class FemometerBle extends Plugin {
             return;
         }
 
+        if (!address.equals(scanTargetAddress) && !ThermometerDiscovery.candidate(advertisedName, standard, signature, Boolean.TRUE.equals(scanCall.getBoolean("expanded", false)))) return;
         String id = idsByAddress.get(address);
         if (id == null) {
             id = UUID.randomUUID().toString();

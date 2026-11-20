@@ -9,7 +9,7 @@ Solo trabajo futuro no resuelto. Retirar las tareas al completarlas; no usar est
 - [ ] **BLE-06 — Activación de producción.** Solo tras superar revisión y pruebas reales. Definir expresamente el límite por plataforma/entorno, proteger PWA, verificar que datos de producción no se mezclan con Staging y que la app distribuida conserva las garantías de incorporación manual. Revisar antes de cambiar la barrera actual.
 - [ ] **BLE-07 — Investigar EBT-089, EBT-380 y BT-A31.** Exigir identificación exacta del modelo, servicios/características BLE y paquetes comprobados con hardware antes de habilitar compatibilidad. No inferirla por marca, nombre parecido ni UUID compartidos.
 
-- [ ] **BLE-08 � Investigar y valorar automatizaci�n Vinca 2.** Validar con capturas BLE reales el significado del canal propietario, fechas fiables de mediciones recientes y protecci�n frente a retransmisiones antes de decidir la viabilidad de incorporaci�n autom�tica. No asumir asociaciones entre canales. Posibles ampliaciones del diagn�stico: estudiar otras caracter�sticas con notificaciones sin suscribirlas ni a�adir comandos en esta primera captura. Mantener pendientes las futuras notificaciones y recordatorios.
+- [ ] **BLE-08 — Validación física de automatización Vinca 2 y ampliaciones.** Comprobar con hardware el flujo manual inicial, la nueva confirmación de preferencias antiguas, guardados automáticos de hoy/ayer, incidencias de reloj, retransmisiones y resultados inciertos. Valorar otras características con notificaciones solo tras capturas verificadas. Mantener pendientes futuras notificaciones y recordatorios.
 
 ## Android y Health Connect
 

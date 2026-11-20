@@ -1564,7 +1564,7 @@ const bleDayTemperatureState = data => Object.fromEntries(Object.entries(data ??
   key.startsWith('temperature_') || ['timestamp', 'iso_date', 'use_corrected', 'measurements_revision'].includes(key)));
 
 // Append only. Server queries discover document IDs; transaction reads supply
-// the values used for the write. No other day's measurements are read or locked.
+// the values used for the write. Automatic imports also check the full history.
 export const incorporateAutomaticBleMeasurementDB = (draft, context) =>
   incorporateBleMeasurementDB(draft, { automaticContext: context ?? {}, allowPossibleDuplicate: false });
 
@@ -1573,10 +1573,11 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     `${message} [${check}]`, { check });
   if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()) throw review('Disponible solo en Android Staging.');
   const confirmed = automaticContext ? prepareAutomaticBleDraft(draft?.measurements?.[0], {
-    ...automaticContext, nowMs: Date.now(),
+    ...automaticContext, userId: draft?.userId, cycleId: draft?.cycleId, nowMs: Date.now(),
   }) : prepareManualBleDraft(draft?.measurements?.[0], {
     ...draft, confirmed: draft?.manuallyConfirmed, time: draft?.measurements?.[0]?.time, nowMs: Date.now(),
   });
+  if (automaticContext) allowPossibleDuplicate = false;
   const { userId, cycleId, isoDate } = confirmed;
   const incoming = confirmed.measurements[0];
   const requireServer = snapshot => {
@@ -1589,7 +1590,9 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
   const cycles = await readCollection(collection(db, `users/${userId}/cycles`));
   const ranges = cycles.map(item => ({ ...item.data(), id: item.id }));
   const candidates = ranges.filter(item => item.start_date <= isoDate && (!item.end_date || isoDate <= item.end_date));
-  if (ranges.some(item => !item.start_date || !isValid(parseISO(item.start_date))
+  if (ranges.some(item => (automaticContext && (!/^\d{4}-\d{2}-\d{2}$/.test(item.start_date ?? '')
+    || (item.end_date && !/^\d{4}-\d{2}-\d{2}$/.test(item.end_date))))
+    || !item.start_date || !isValid(parseISO(item.start_date))
     || (item.end_date && (!isValid(parseISO(item.end_date)) || item.end_date < item.start_date)))
     || candidates.length !== 1 || candidates[0].id !== cycleId || candidates[0].end_date) {
     throw review('La fecha debe pertenecer inequívocamente al ciclo actual.', 'cycle-range');
@@ -1613,12 +1616,60 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     && measurementsFromRecord(item.data(), []).some(value => isPossibleBleDuplicate(value, incoming)));
 
   return runTransaction(db, async transaction => {
+    let automaticPreferenceWrite;
     // Read the parent BEFORE discovering measurement IDs. All app measurement
     // saves also write this parent. Firestore retries if it changes after this
     // read, including when the selected summary retains the same field values.
     const [currentCycle, currentIndex, currentEntry] = await Promise.all([
       transaction.get(cycleRef), transaction.get(indexRef), transaction.get(entryRef),
     ]);
+    if (!automaticContext && incoming.device_key && incoming.device_model === 'BM-Vinca2') {
+      const preferenceRef = doc(db, `users/${userId}/preferences/thermometer_${encodeURIComponent(incoming.device_key)}`);
+      const preference = await transaction.get(preferenceRef);
+      automaticPreferenceWrite = { ref: preferenceRef, data: { kind: 'thermometer', deviceKey: incoming.device_key,
+        automaticImportRevision: (preference.data()?.automaticImportRevision ?? 0) + 1 } };
+    }
+    if (automaticContext) {
+      automaticContext.assertCurrent?.();
+      prepareAutomaticBleDraft(incoming, { ...automaticContext, userId, cycleId, nowMs: Date.now() });
+      // This preference document also serializes automatic imports for this device
+      // across app instances; a retry repeats the complete server duplicate search.
+      const preferenceRef = doc(db, `users/${userId}/preferences/thermometer_${encodeURIComponent(incoming.device_key)}`);
+      const preference = await transaction.get(preferenceRef);
+      const fields = preference.data()?.fields;
+      if (fields?.incorporationMode?.value !== 'automatic' || fields?.automaticConsent?.value !== 'v2') {
+        throw review('Confirma el modo Automático en los ajustes.', 'automatic-consent');
+      }
+      const historyCycles = await readCollection(collection(db, `users/${userId}/cycles`));
+      if (!equalBleValue(historyCycles.map(item => item.id).sort(), cycles.map(item => item.id).sort())) {
+        throw review('Los ciclos han cambiado.', 'cycles-changed');
+      }
+      for (const historicCycle of historyCycles) {
+        const lockedCycle = await transaction.get(historicCycle.ref);
+        if (!equalBleValue(lockedCycle.data(), cycles.find(item => item.id === historicCycle.id)?.data())) {
+          throw review('Los ciclos han cambiado.', 'cycles-changed');
+        }
+        const historyEntries = await readCollection(collection(historicCycle.ref, 'entries'));
+        for (const historicEntry of historyEntries) {
+          const lockedEntry = await transaction.get(historicEntry.ref);
+          if (!lockedEntry.exists() || !equalBleValue(lockedEntry.data(), historicEntry.data())) {
+            throw review('El historial ha cambiado.', 'history-changed');
+          }
+          const historyMembers = await readCollection(collection(historicEntry.ref, 'measurements'));
+          const values = [];
+          for (const member of historyMembers) {
+            const locked = await transaction.get(member.ref);
+            if (!locked.exists() || !equalBleValue(locked.data(), member.data())) throw review('El historial ha cambiado.', 'history-changed');
+            values.push(locked.data());
+          }
+          if ([...values, ...measurementsFromRecord(lockedEntry.data(), [])].some(value => isPossibleBleDuplicate(value, incoming))) {
+            throw createAppError('ble-possible-duplicate', 'Posible duplicado', 'Hay una coincidencia en el historial del servidor. Revisa la lectura.');
+          }
+        }
+      }
+      // Defer this write until all transaction reads have completed.
+      automaticPreferenceWrite = { ref: preferenceRef, data: { automaticImportRevision: (preference.data()?.automaticImportRevision ?? 0) + 1 } };
+    }
     const range = currentCycle.data();
     if (!currentCycle.exists() || !range.start_date || range.end_date || isoDate < range.start_date) {
       throw review('El rango del ciclo ha cambiado. Revisa la fecha.', 'cycle-range-changed');
@@ -1644,7 +1695,7 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     const loaded = members.map(item => ({ ...item.data(), id: item.id })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const previous = measurementsFromRecord(currentEntry.data(), loaded);
     const selectedCount = loaded.filter(item => item.selected).length;
-    if (loaded.length && (previous.length !== loaded.length || selectedCount > 1)) {
+    if (loaded.length && (previous.length !== loaded.length || selectedCount > 1 || (automaticContext && selectedCount !== 1))) {
       throw review('Revisa las mediciones y la selección del día.', 'invalid-selection');
     }
     if (!allowPossibleDuplicate && (otherSummaryMatch || previous.some(item => isPossibleBleDuplicate(item, incoming)))) {
@@ -1678,6 +1729,11 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
       throw review('No se pudo verificar la revisión del día.', 'invalid-revision');
     }
     patch.measurements_revision = revision + 1;
+    if (automaticContext) {
+      automaticContext.assertCurrent?.();
+      prepareAutomaticBleDraft(incoming, { ...automaticContext, userId, cycleId, nowMs: Date.now() });
+    }
+    if (automaticPreferenceWrite) transaction.set(automaticPreferenceWrite.ref, automaticPreferenceWrite.data, { merge: true });
     transaction.set(entryRef, patch, { merge: true });
     transaction.set(indexRef, { entryId: entryRef.id }, { merge: true });
     writes.forEach(({ ref, data }) => transaction.set(ref, data));

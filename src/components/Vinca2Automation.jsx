@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
-import { VINCA2_AUTOMATIC_IMPORT_BLOCKER } from '@/lib/bleMeasurements';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import Vinca2ThermometerDrawing from '@/components/Vinca2ThermometerDrawing';
@@ -20,7 +19,8 @@ function useModeChoice(deviceKey, onChosen) {
     } catch { setError('No se pudo confirmar la preferencia en el servidor. El modo efectivo sigue siendo Manual.'); }
     finally { lock.current = false; setBusy(false); }
   };
-  return { mode: metadata.devices[deviceKey]?.incorporationMode ?? 'manual', busy, error, choose };
+  const values = metadata.devices[deviceKey];
+  return { mode: values?.incorporationMode === 'automatic' && values?.automaticConsent === 'v2' ? 'automatic' : 'manual', busy, error, choose };
 }
 
 export function Vinca2IncorporationSettings({ deviceKey }) {
@@ -37,7 +37,7 @@ export function Vinca2IncorporationSettings({ deviceKey }) {
     </label>)}
     {mode === 'automatic' && <div className="space-y-2 text-xs text-slate-600">
       <p>Las lecturas dudosas seguirán apareciendo en Temperaturas pendientes.</p>
-      <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">Preferencia guardada. Modo efectivo: Manual. {VINCA2_AUTOMATIC_IMPORT_BLOCKER}</p>
+      <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">Modo Automático confirmado. Solo se incorporan lecturas de hoy o ayer con reloj comprobado y sin posibles duplicados.</p>
     </div>}
     <p className="text-xs text-slate-500">Esta opción actúa cuando FertiliApp recibe una temperatura por Bluetooth. No permite recibirla con la aplicación completamente cerrada.</p>
     {busy && <p role="status" className="text-xs">Guardando preferencia…</p>}
@@ -62,7 +62,7 @@ export function Vinca2AutomationPrompt({ deviceKey, open, onClose }) {
       </svg>
       <p className="text-sm text-slate-700">FertiliApp puede incorporar automáticamente las temperaturas recientes de tu Vinca 2 cuando sea seguro hacerlo.</p>
       <p className="text-sm text-slate-600">Si alguna necesita revisión, seguirá apareciendo en Temperaturas pendientes.</p>
-      <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{VINCA2_AUTOMATIC_IMPORT_BLOCKER}</p>
+      <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">Al confirmar activas guardados reales. Se exige una sincronización verificada anterior a la medición y una comprobación posterior del reloj.</p>
       <div className="flex flex-col gap-2">
         <Button disabled={busy} onClick={() => choose('automatic')}>Sí, automatizar</Button>
         <Button disabled={busy} variant="outline" onClick={() => choose('manual')}>Prefiero hacerlo manualmente</Button>

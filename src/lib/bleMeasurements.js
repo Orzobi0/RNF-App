@@ -105,12 +105,7 @@ export const classifyBleMeasurementAge = (measurement, { nowMs, timeZone, calend
   return { status: 'candidate', candidate: true, reason: 'within-24-hours-not-verified', epochMs: epochs[0], ageMs };
 };
 
-export const VINCA2_AUTOMATIC_IMPORT_BLOCKER = 'La incorporación automática aún no está disponible: falta acreditar la continuidad del reloj y comprobar posibles duplicados en todo el historial del servidor. Mientras tanto, revisa y confirma las temperaturas pendientes.';
-
-// Operational confidence is not a packet identity or proof of clock accuracy.
-// Existing persisted history keeps the last observation, but can overwrite a
-// failed read with a good one. It cannot certify the absence of intervening
-// incidents. Never promote a plausible date or a current sync to `ready`.
+// Operational confidence requires a history that retains clock incidents.
 export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZone, clockHistory } = {}) => {
   const review = reason => ({ status: 'review', reason });
   if (measurement?.device_protocol !== 'vinca2' || measurement.device_model !== 'BM-Vinca2'
@@ -119,26 +114,36 @@ export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZ
   const age = classifyBleMeasurementAge(measurement, { nowMs, timeZone, calendarDays: true });
   if (!age.candidate) return age;
   const sync = clockHistory?.lastVerifiedSync, check = clockHistory?.lastValidCheck;
-  if (sync?.operation !== 'sync' || sync.verified !== true || !Number.isFinite(sync.checkedAt)
+  if (clockHistory?.historyVersion !== 2 || sync?.continuityTracked !== true || sync?.operation !== 'sync' || sync.verified !== true || !Number.isFinite(sync.checkedAt)
     || !Number.isFinite(check?.checkedAt)) return review('clock-history-insufficient');
   if (sync.checkedAt >= age.epochMs) return review('measurement-before-clock-sync');
   if (check.checkedAt < age.epochMs || check.checkedAt > nowMs) return review('clock-check-not-after-measurement');
   if (![sync, check].every(value => !value.errorCode && !value.phoneZoneChanged
-    && Number.isFinite(value.driftSeconds) && Math.abs(value.driftSeconds) <= 120)) return review('clock-misaligned');
+    && Number.isFinite(value.phoneUtcOffsetMinutes) && Number.isFinite(value.driftSeconds) && Math.abs(value.driftSeconds) <= 120)) return review('clock-misaligned');
   if (sync.phoneTimeZone !== timeZone || check.phoneTimeZone !== timeZone
     || sync.phoneUtcOffsetMinutes !== check.phoneUtcOffsetMinutes) return review('clock-time-zone-changed');
-  if (clockHistory.invalidatedAt || clockHistory.lastSignificantChange?.checkedAt >= sync.checkedAt
+  if (clockHistory.pendingCheck || clockHistory.invalidatedAt || clockHistory.lastIncidentAt > sync.checkedAt || clockHistory.lastSignificantChange?.checkedAt > sync.checkedAt
     || !['read_correct', 'synchronized_verified'].includes(clockHistory.state)) return review('clock-trust-interrupted');
-  return review('clock-continuity-unproven');
+  return { status: 'ready', reason: 'operational-clock-confidence', epochMs: age.epochMs };
 };
 
-// Separate authorization boundary. No manuallyConfirmed flag is fabricated,
-// and no automatic write is enabled until both outstanding evidence gaps close.
+// Draft authorization only: the transaction rechecks server preferences and history.
 export const prepareAutomaticBleDraft = (measurement, context = {}) => {
   const decision = assessVinca2AutomaticDate(measurement, context);
-  throw Object.assign(new Error(VINCA2_AUTOMATIC_IMPORT_BLOCKER), {
-    code: 'ble-auto-review', title: 'Temperatura pendiente de revisión', reason: decision.reason,
-  });
+  if (decision.status !== 'ready' || context.incorporationMode !== 'automatic'
+    || context.automaticConsent !== 'v2' || !context.userId || !context.cycleId
+    || measurement?.source !== 'bluetooth' || temperatureNumber(measurement.temperature) === null
+    || measurement.temperature < 32 || measurement.temperature > 43
+    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(measurement.device_timestamp)) {
+    throw Object.assign(new Error('La lectura necesita revisión de fecha, reloj o autorización.'), {
+      code: 'ble-auto-review', title: 'Temperatura pendiente de revisión', reason: decision.reason,
+    });
+  }
+  const isoDate = measurement.device_timestamp.slice(0, 10);
+  return { userId: context.userId, cycleId: context.cycleId, isoDate, automaticallyConfirmed: true,
+    measurements: [{ ...measurement, selected: false, time: measurement.device_timestamp.slice(11, 16),
+      confirmed_timestamp: measurement.device_timestamp, confirmed_timezone: context.timeZone,
+      automatic_date_confidence: 'operational-v2' }] };
 };
 
 // Processing receipts must come from a confirmed app write, never BLE fields or

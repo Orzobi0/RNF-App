@@ -330,3 +330,45 @@ test('B: automatic authorization never borrows manual confirmation or duplicate 
   assert.equal(h.commits(), 0); assert.deepEqual([...h.store], before);
   await h.save(); assert.equal(h.commits(), 1); // Manual route remains operational.
 });
+
+test('automatic transaction appends, preserves selection and checks historical duplicates and consent', async () => {
+  const h = await fixture();
+  const nowMs = Date.now();
+  const date = new Date(nowMs - 3600000);
+  const timestamp = dates.format(date, "yyyy-MM-dd'T'HH:mm:ss");
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const sync = { operation: 'sync', verified: true, continuityTracked: true, checkedAt: nowMs - 7200000,
+    driftSeconds: 0, phoneTimeZone: timeZone, phoneUtcOffsetMinutes: -date.getTimezoneOffset() };
+  const context = { userId: 'u', cycleId: 'c', deviceKey: 'v', incorporationMode: 'automatic', automaticConsent: 'v2', nowMs, timeZone,
+    clockHistory: { historyVersion: 2, state: 'read_correct', lastVerifiedSync: sync, lastValidCheck: { ...sync, operation: 'read', checkedAt: nowMs } } };
+  const reading = normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: timestamp,
+    deviceKey: 'v', deviceModel: 'BM-Vinca2', deviceProtocol: 'vinca2', receptionValidated: true });
+  const draft = prepareAutomaticBleDraft(reading, context);
+  h.store.set(h.root, { start_date: '2020-01-01', end_date: null });
+  const preference = 'users/u/preferences/thermometer_v';
+  const fields = { incorporationMode: { value: 'automatic' }, automaticConsent: { value: 'v2' } };
+  h.store.set(preference, { fields });
+  const saved = await h.api.incorporateAutomaticBleMeasurementDB(draft, context);
+  assert.equal(saved.measurements.length, 1);
+  assert.equal(saved.isoDate, timestamp.slice(0, 10));
+  await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB(draft, context), error => error.code === 'ble-possible-duplicate');
+  const second = { ...draft, measurements: [{ ...reading, temperature: 36.44, temperature_original: 36.44 }] };
+  const appended = await h.api.incorporateAutomaticBleMeasurementDB(second, context);
+  assert.equal(appended.measurements.length, 2);
+  assert.equal(appended.measurements[0].selected, true);
+  assert.equal(appended.measurements[1].selected, false);
+  assert.equal(h.store.get(`${h.root}/entries/${saved.isoDate}`).temperature_raw, 36.42);
+  // A non-selected reading in an archived cycle must also prevent a write.
+  h.store.set('users/u/cycles/old', { start_date: '2018-01-01', end_date: '2019-12-31' });
+  h.store.set('users/u/cycles/old/entries/2019-01-01', { iso_date: '2019-01-01' });
+  const third = { ...reading, temperature: 36.46, temperature_original: 36.46 };
+  h.store.set('users/u/cycles/old/entries/2019-01-01/measurements/t', third);
+  await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB({ ...draft, measurements: [third] }, context), error => error.code === 'ble-possible-duplicate');
+  const concurrent = { ...draft, measurements: [{ ...reading, temperature: 36.48, temperature_original: 36.48 }] };
+  const outcomes = await Promise.allSettled([h.api.incorporateAutomaticBleMeasurementDB(concurrent, context), h.api.incorporateAutomaticBleMeasurementDB(concurrent, context)]);
+  assert.equal(outcomes.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(outcomes.filter(result => result.status === 'rejected').length, 1);
+  h.store.set(preference, { fields: { ...fields, automaticConsent: undefined } });
+  await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB(second, context), error => error.code === 'ble-import-conflict');
+  assert.equal(h.commits(), 3);
+});

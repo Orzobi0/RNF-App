@@ -1,6 +1,6 @@
 import { thermometerName } from '@/lib/thermometerCatalog';
 import { useCycleData } from '@/hooks/useCycleData';
-import { prepareManualBleDraft } from '@/lib/bleMeasurements';
+import { prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate } from '@/lib/bleMeasurements';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { createContext, useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -53,6 +53,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [readings, setReadings] = useState([]);
   const [sessionState, setSessionState] = useState({ status: 'checking', busy: true, remembered: null,
     devices: [], selectedDeviceId: '', inspectionResult: null, listenerResult: null });
+  const sessionStateRef = useRef(sessionState); sessionStateRef.current = sessionState;
   const [listeningStartedAt, setListeningStartedAt] = useState(null);
   const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
@@ -66,6 +67,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [automationCandidate, setAutomationCandidate] = useState(null);
   const [automationPromptDevice, setAutomationPromptDevice] = useState(null);
   const promptClaim = useRef(false);
+  const automaticBusy = useRef(false);
   const updateReadings = (next, requireDurable = false) => {
     try {
       if (requireDurable && !localRef.current) throw new Error('Almacenamiento local no disponible.');
@@ -93,6 +95,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     let receivedOrder = Math.max(0, ...recovered.map(row => row.receivedOrder));
     const session = createFemometerPanelSession(userId, next => {
       if (!alive) return;
+      sessionStateRef.current = next;
       setSessionState(next);
       for (const device of next.bindings ?? []) {
         try { metadataRef.current.patch(device.deviceKey, { ...device, commercialName: thermometerName(device), ...next.preferencesByDevice?.[device.deviceKey], ...(device.protocol === 'easyhome-ebt300' ? { temperatureUnit: 'C' } : {}) }, true); } catch { setStorageError("No se pudieron conservar los metadatos del termómetro."); }
@@ -127,7 +130,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       if (normalized?.device_protocol && !authorizedBleMeasurement(normalized)) return;
       if (normalized) {
         // UI-only sequence, never passed as a device identity or measurement key.
-        const row = { ...event, normalized, deviceKey: normalized.device_key,
+        const preference = metadataRef.current.get(normalized.device_key);
+        const automaticEligible = normalized.device_protocol === 'vinca2' && preference.incorporationMode === 'automatic' && preference.automaticConsent === 'v2';
+        const row = { ...event, normalized, automaticEligible, deviceKey: normalized.device_key,
           localId: globalThis.crypto.randomUUID(), receivedOrder: receivedOrder = Math.max(Date.now(), receivedOrder + 1),
           dateReview: decideVinca2Reading(normalized, { deviceKey: normalized.device_key,
               nowMs: Date.now(), timeZone: localRef.current?.clock(normalized.device_key)?.lastValidCheck?.phoneTimeZone,
@@ -135,7 +140,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
             uiId: ++sequence, importStatus: 'pending' };
         try { updateReadings([...readingsRef.current, row], event.promotedVerification === true); }
         catch (error) { readingsRef.current = [...readingsRef.current, row]; setReadings(readingsRef.current); setReviewVisibleOn(locationKey.current); throw error; }
-        if (!event.promotedVerification) setReviewVisibleOn(locationKey.current);
+        if (!event.promotedVerification && !automaticEligible) setReviewVisibleOn(locationKey.current);
         if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) {
           setReviewExpanded(false); setReviewReadingId(sequence);
         }
@@ -197,6 +202,65 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       throw error;
     }
   };
+  // Each newly received row gets one bounded automatic attempt. Recovered attempts
+  // and repeated packets with an uncertain result always require human review.
+  useEffect(() => {
+    if (automaticBusy.current || sessionState.status !== 'listening' || sessionState.busy
+      || sessionState.configurationBusy || sessionState.clockBusy || sessionState.deviceInfoBusy
+      || sessionState.volumeBusy || sessionState.measurementModeBusy || cycle.isLoading
+      || !cycle.currentCycle?.id || readings.some(row => row.importStatus === 'saving')) return;
+    const row = readings.find(item => item.automaticEligible && !item.automaticChecked && item.importStatus === 'pending');
+    if (!row) return;
+    const owner = sessionRef.current;
+    automaticBusy.current = true;
+    const valid = () => {
+      const preference = metadataRef.current.get(row.deviceKey);
+      if (sessionRef.current !== owner || sessionStateRef.current.deviceKey !== row.deviceKey
+        || sessionStateRef.current.status !== 'listening' || cycleRef.current.currentCycle?.id !== cycle.currentCycle.id
+        || preference.incorporationMode !== 'automatic' || preference.automaticConsent !== 'v2') {
+        throw Object.assign(new Error('La cuenta, el ciclo o el modo han cambiado.'), { code: 'ble-auto-review' });
+      }
+    };
+    (async () => {
+      updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true } : item), true);
+      valid();
+      if (sessionState.deviceKey !== row.deviceKey || reviewPresentation.current.expanded
+        || readingsRef.current.some(item => item.uiId !== row.uiId && item.importStatus !== 'discarded'
+          && isPossibleBleDuplicate(item.normalized, row.normalized))) {
+        throw Object.assign(new Error('Comprueba esta lectura y los posibles intentos anteriores.'), { code: 'ble-auto-review' });
+      }
+      await owner.readClock();
+      valid();
+      const latest = sessionStateRef.current;
+      if (latest.clockBusy || latest.clockError || latest.clockResult?.checkedAt !== localRef.current?.clock(row.deviceKey)?.lastValidCheck?.checkedAt) {
+        throw Object.assign(new Error('No se pudo confirmar la comprobación posterior del reloj.'), { code: 'ble-auto-review' });
+      }
+      const context = { userId, cycleId: cycle.currentCycle.id, deviceKey: row.deviceKey,
+        incorporationMode: 'automatic', automaticConsent: 'v2', nowMs: Date.now(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, clockHistory: localRef.current?.clock(row.deviceKey),
+        assertCurrent: () => {
+          valid();
+          prepareAutomaticBleDraft(row.normalized, { ...context, nowMs: Date.now(), clockHistory: localRef.current?.clock(row.deviceKey) });
+        } };
+      const draft = prepareAutomaticBleDraft(row.normalized, context);
+      const attempt = { id: crypto.randomUUID(), userId, cycleId: draft.cycleId, isoDate: draft.isoDate, time: draft.measurements[0].time };
+      await incorporateReading(row.uiId, () => cycleRef.current.incorporateBleMeasurement(draft, { automaticContext: context }), { attempt });
+    })().catch(error => {
+      if (sessionRef.current !== owner) return;
+      updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true,
+        reviewError: item.reviewError ?? { code: error.code, message: error.message } } : item));
+      setReviewVisibleOn(locationKey.current);
+    }).finally(() => { automaticBusy.current = false; if (sessionRef.current === owner) setReadings([...readingsRef.current]); });
+  }, [readings, sessionState, cycle.isLoading, cycle.currentCycle?.id]);
+
+  // Legacy automatic preferences need fresh consent, once, before any real save.
+  useEffect(() => {
+    const key = sessionState.deviceKey;
+    const preference = metadata.devices[key];
+    if (key && preference?.incorporationMode === 'automatic' && preference.automaticConsent !== 'v2'
+      && preference.automationPromptVersion !== 'v2') setAutomationCandidate(key);
+  }, [sessionState.deviceKey, metadata.devices]);
+
   // A local removal only: commit first, then publish. Never calls a save adapter.
   const discardReading = (uiId, expectedSession, reviewedAttemptId) => {
     const row = readingsRef.current.find(item => item.uiId === uiId);

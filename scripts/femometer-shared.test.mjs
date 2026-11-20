@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { thermometerName } from '../src/lib/thermometerCatalog.js';
 import { createThermometerMetadataStore, mergeThermometerFields, sanitizeThermometerMetadata } from '../src/lib/thermometerMetadata.js';
-import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, isPossibleBleDuplicate, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
 import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks as baseHooks, deferred, flush } from './helpers/load-frontend.mjs';
 
-const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft }); return harness; };
+const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate }); return harness; };
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -3299,7 +3299,7 @@ test('preparation native guard uses saved identity and preserves the transport s
 });
 
 
-test('B: calendar policy accepts yesterday beyond 24 hours but never invents clock continuity', async () => {
+test('B: calendar policy accepts yesterday with tracked operational clock confidence', async () => {
   const { assessVinca2AutomaticDate, prepareAutomaticBleDraft } = await import('../src/lib/bleMeasurements.js');
   const nowMs = Date.parse('2026-11-20T22:00:00Z');
   const reading = date => normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: date,
@@ -3312,11 +3312,11 @@ test('B: calendar policy accepts yesterday beyond 24 hours but never invents clo
   assert.equal(reason(null), 'missing-date'); assert.equal(reason('2000-00-00T00:00:00'), 'invalid-date');
   assert.equal(reason('2026-10-25T02:30:00', { nowMs: Date.parse('2026-10-25T12:00:00Z') }), 'ambiguous-local-date');
   assert.equal(reason('2026-03-29T02:30:00', { nowMs: Date.parse('2026-03-29T12:00:00Z') }), 'nonexistent-local-date');
-  const sync = { operation: 'sync', verified: true, checkedAt: Date.parse('2026-11-19T08:00:00Z'), driftSeconds: 0,
+  const sync = { operation: 'sync', verified: true, continuityTracked: true, checkedAt: Date.parse('2026-11-19T08:00:00Z'), driftSeconds: 0,
     phoneTimeZone: 'Europe/Madrid', phoneUtcOffsetMinutes: 60 };
   const check = { ...sync, operation: 'read', checkedAt: nowMs };
-  const clockHistory = { state: 'read_correct', lastVerifiedSync: sync, lastValidCheck: check };
-  assert.equal(reason('2026-11-20T08:00:00', { clockHistory }), 'clock-continuity-unproven');
+  const clockHistory = { historyVersion: 2, state: 'read_correct', lastVerifiedSync: sync, lastValidCheck: check };
+  assert.equal(reason('2026-11-20T08:00:00', { clockHistory }), 'operational-clock-confidence');
   assert.equal(reason('2026-11-19T08:00:00', { clockHistory }), 'measurement-before-clock-sync');
   for (const patch of [{ phoneTimeZone: 'UTC' }, { phoneUtcOffsetMinutes: 120 }])
     assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: { ...check, ...patch } } }), 'clock-time-zone-changed');
@@ -3324,6 +3324,10 @@ test('B: calendar policy accepts yesterday beyond 24 hours but never invents clo
   assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: sync } }), 'clock-check-not-after-measurement');
   assert.equal(reason('2026-11-20T08:00:00', { deviceKey: 'other' }), 'device-identity-unavailable');
   assert.throws(() => prepareAutomaticBleDraft(reading('2026-11-20T08:00:00'), { ...context, clockHistory }), error => error.code === 'ble-auto-review');
+  const draft = prepareAutomaticBleDraft(reading('2026-11-20T08:00:00'), { ...context, clockHistory, userId: 'u', cycleId: 'c', incorporationMode: 'automatic', automaticConsent: 'v2' });
+  assert.equal(draft.isoDate, '2026-11-20');
+  assert.equal(draft.manuallyConfirmed, undefined);
+  assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastIncidentAt: nowMs - 1 } }), 'clock-trust-interrupted');
 });
 
 test('B: mode choices require server success; prompt and choices persist per account/device, including close', async () => {
@@ -3333,8 +3337,9 @@ test('B: mode choices require server success; prompt and choices persist per acc
     merge: async (id, fields) => { if (offline) throw Error('offline'); return data[id] = mergeThermometerFields(data[id], fields); },
     claimAutomationPrompt: async (id, field) => {
       if (offline) throw Error('offline');
-      if (data[id]?.automationPrompt || data[id]?.incorporationMode) return { fields: data[id], claimed: false };
-      return { fields: data[id] = { ...data[id], automationPrompt: field }, claimed: true };
+      const legacy = data[id]?.incorporationMode?.value === 'automatic' && data[id]?.automaticConsent?.value !== 'v2' && data[id]?.automationPromptVersion?.value !== 'v2';
+      if (!legacy && (data[id]?.automationPrompt || data[id]?.incorporationMode)) return { fields: data[id], claimed: false };
+      return { fields: data[id] = { ...data[id], automationPrompt: field, automationPromptVersion: { ...field, value: 'v2' } }, claimed: true };
     },
   };
   const create = (userId = 'a', backend = remote) => createThermometerMetadataStore({ userId, storage, remote: backend, changed: () => {} });
@@ -3351,6 +3356,12 @@ test('B: mode choices require server success; prompt and choices persist per acc
   await first.chooseIncorporationMode('v', 'manual'); assert.equal(first.get('v').incorporationMode, 'manual');
   const accountB = create('b', { subscribe: () => () => {}, merge: async (_, fields) => fields });
   assert.deepEqual(accountB.get('v'), {});
+  data.legacy = { incorporationMode: { value: 'automatic', updatedAt: 1, revision: 'old' }, automationPrompt: { value: 'chosen', updatedAt: 1, revision: 'old' } };
+  assert.equal(await first.claimAutomationPrompt('legacy'), true);
+  assert.equal(first.get('legacy').automaticConsent, undefined);
+  assert.equal(await first.claimAutomationPrompt('legacy'), false);
+  await first.chooseIncorporationMode('legacy', 'automatic');
+  assert.equal(first.get('legacy').automaticConsent, 'v2');
   first.dispose(); otherSession.dispose(); accountB.dispose();
 });
 
@@ -3391,4 +3402,75 @@ test('B: prompt close writes no mode, explicit buttons serialize and server erro
   wait.reject(Error('offline')); await saving; tree = render();
   assert.equal(closed, 1); assert.ok(treeNodes(tree).some(node => node.props.role === 'alert'));
   h.cleanup();
+});
+
+test('automatic reception saves once without opening pending review; unknown results never retry', async () => {
+  for (const uncertain of [false, true]) {
+    const native = bridge();
+    const now = Date.now(); native.flags.now = now;
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const clock = checkedAt => ({ deviceKey: 'bound-a', deviceLocalTime: localText(checkedAt), checkedAt,
+      phoneTimeZone: timeZone, phoneUtcOffsetMinutes: -new Date(checkedAt).getTimezoneOffset(), driftSeconds: 0 });
+    native.api.readFemometerClock = async () => clock(now);
+    const local = createFemometerLocalState(native.storage, 'a');
+    local.activate('bound-a');
+    local.saveClock('bound-a', { ...clock(now - 7200000), operation: 'sync', verified: true });
+    const preference = { incorporationMode: 'automatic', automaticConsent: 'v2' };
+    const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch: () => {} };
+    let saves = 0;
+    const cycle = { currentCycle: { id: 'c' }, isLoading: false, incorporateBleMeasurement: async (draft, options) => {
+      saves++; options.automaticContext.assertCurrent();
+      assert.equal(draft.manuallyConfirmed, undefined);
+      if (uncertain) throw Error('response lost');
+      return { isoDate: draft.isoDate, measurements: draft.measurements };
+    } };
+    const owner = await mountedOwner(native, 'a', cycle, metadata);
+    try {
+      const event = { temperatureC: 36.42, deviceTimestamp: localText(now - 3600000), deviceProtocol: 'vinca2', receptionValidated: true };
+      native.emit(event);
+      for (let i = 0; i < 6; i++) { owner.render(); await flush(); }
+      assert.equal(saves, 1);
+      assert.equal(owner.render().readings[0].importStatus, uncertain ? 'uncertain' : 'incorporated');
+      assert.equal(owner.card().visible, uncertain);
+      native.emit(event);
+      for (let i = 0; i < 6; i++) { owner.render(); await flush(); }
+      assert.equal(saves, 1);
+      assert.equal(owner.render().readings[1].importStatus, 'pending');
+    } finally { owner.cleanup(); await flush(); }
+  }
+});
+
+test('clock incidents survive good reads; only a new verified sync starts a usable interval', () => {
+  const local = createFemometerLocalState(memoryStorage(), 'a'); local.activate('v');
+  const good = { operation: 'sync', verified: true, checkedAt: 1000, driftSeconds: 0, phoneTimeZone: 'UTC', phoneUtcOffsetMinutes: 0 };
+  local.saveClock('v', good);
+  local.saveClock('v', { ...good, operation: 'read', checkedAt: 2000, errorCode: 'CLOCK_FAILED' });
+  local.saveClock('v', { ...good, operation: 'read', checkedAt: 3000 });
+  assert.equal(local.clock('v').lastIncidentAt, 2000);
+  assert.equal(local.clock('v').lastVerifiedSync.checkedAt, 1000);
+  local.saveClock('v', { ...good, checkedAt: 4000 });
+  assert.equal(local.clock('v').lastIncidentAt, 2000);
+  assert.equal(local.clock('v').lastVerifiedSync.checkedAt, 4000);
+  assert.equal(local.clock('v').lastVerifiedSync.continuityTracked, true);
+});
+
+test('remembered supported profiles request bounded extended search and propagate native disconnection', async () => {
+  for (const [protocol, model, compatibility] of [['vinca2', 'BM-Vinca2', 'compatible'], ['easyhome-ebt300', 'EBT-300', 'experimental'], ['health-thermometer', null, 'experimental']]) {
+    const native = bridge(); let searches = 0, state;
+    native.api.getRememberedFemometer = async () => ({ remembered: true, deviceKey: 'bound-a', protocol, model, compatibility });
+    native.api.scanForFemometer = async (user, expanded, remembered) => {
+      assert.equal(user, 'a'); assert.equal(expanded, false); assert.equal(remembered, true); searches++;
+      return [{ id: 'target', isRemembered: true }];
+    };
+    native.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'bound-a', connectionReady: true, indicationsActive: true,
+      capabilities: { protocol, model, compatibility } });
+    const session = native.factory('a', next => { state = next; }, () => {});
+    try {
+      await session.start(); assert.equal(state.status, 'listening');
+      native.emit({ status: 'disconnected', deviceKey: 'bound-a', deviceProtocol: protocol, receptionValidated: false });
+      assert.notEqual(state.status, 'listening');
+      await flush(); assert.equal(state.status, 'error');
+      assert.equal(state.error.code, 'CONNECTION_LOST'); assert.equal(searches, 1);
+    } finally { await session.dispose(); }
+  }
 });

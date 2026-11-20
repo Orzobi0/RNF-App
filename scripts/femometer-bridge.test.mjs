@@ -28,7 +28,7 @@ test('panel automatic session uses the real bridge wrappers without requesting p
     session = ble.createFemometerPanelSession('account', state => states.push(state), () => {});
     await session.start();
     assert.deepEqual(calls.map(call => call.method), ['getRememberedDevice', 'scan', 'addListener', 'startTemperatureListener']);
-    assert.deepEqual(calls[1].options, { userId: 'account', rememberedVinca: true });
+    assert.deepEqual(calls[1].options, { userId: 'account', rememberedDevice: true, rememberedVinca: true });
     assert.deepEqual(calls[3].options, { deviceId: 'right', userId: 'account' });
     assert.equal(states.at(-1).status, 'listening');
     await session.dispose();
@@ -64,7 +64,14 @@ test('Android message bridge receives multiple readings and releases the subscri
     }
     assert.deepEqual(readings.map(r => r.temperatureC), [36.42, 36.51]);
     // Interleave an ordinary request with the persistent listener.
-    const scan = ble.scanForFemometer();
+    const originalTimer = globalThis.setTimeout;
+    let scanTimeout;
+    let scan;
+    try {
+      globalThis.setTimeout = (callback, delay, ...args) => { scanTimeout = delay; return originalTimer(callback, delay, ...args); };
+      scan = ble.scanForFemometer();
+    } finally { globalThis.setTimeout = originalTimer; }
+    assert.equal(scanTimeout, 35000);
     const request = messages.at(-1);
     deliver({ callbackId: request.callbackId, success: true, data: { devices: [{ id: 'test' }] } });
     assert.equal((await scan)[0].id, 'test');
@@ -145,8 +152,8 @@ test('A: delayed remembered discovery keeps a single connection and terminal eve
     const api = {
       now: () => now,
       getRememberedFemometer: async () => ({ remembered: true, deviceKey: 'key', model: 'BM-Vinca2', protocol: 'vinca2' }),
-      scanForFemometer: async (user, expanded, rememberedVinca) => {
-        assert.equal(rememberedVinca, true); scans++;
+      scanForFemometer: async (user, expanded, rememberedDevice) => {
+        assert.equal(rememberedDevice, true); scans++;
         return new Promise(resolve => { resolveScan = resolve; });
       },
       addFemometerTemperatureListener: async callback => { event = callback; return { remove: async () => {} }; },

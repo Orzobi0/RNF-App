@@ -44,9 +44,9 @@ export const createFemometerLocalState = (storage, userId, metadata = null) => {
         devices[row.deviceKey] ??= { clock: null, pending: [] };
         // Do not retain raw packets or transport diagnostics in durable review work.
         const { uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC, deviceTimestamp, receivedAt,
-          normalized, importStatus, draft, reviewError, dateReview, attempt } = row;
+          normalized, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked } = row;
         devices[row.deviceKey].pending.push({ uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC,
-          deviceTimestamp, receivedAt, normalized, importStatus, draft, reviewError, dateReview, attempt });
+          deviceTimestamp, receivedAt, normalized, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked });
       }
       commit({ ...state, devices });
     },
@@ -62,23 +62,29 @@ export const createFemometerLocalState = (storage, userId, metadata = null) => {
       if (!deviceKey || deviceKey !== state.activeDeviceKey) return null;
       const device = state.devices[deviceKey] ?? { pending: [] };
       const clock = updateFemometerClockHistory(device.clock, observation);
-      commit({ ...state, devices: { ...state.devices, [deviceKey]: { ...device, clock } } });
+      const next = { ...state, devices: { ...state.devices, [deviceKey]: { ...device, clock } } };
+      try { commit(next); } catch (error) { state = next; throw error; } // Never forget an observed incident in this session.
       return clock;
     },
   };
 };
 
 export const updateFemometerClockHistory = (previous, observation) => {
+  if (observation.errorCode === 'CLOCK_PENDING') return { ...previous, pendingCheck: observation,
+    lastIncidentAt: previous?.pendingCheck?.checkedAt ?? previous?.lastIncidentAt ?? null };
   const valid = !observation.errorCode && !observation.phoneZoneChanged && Number.isFinite(observation.driftSeconds);
-  const syncVerified = valid && observation.operation === 'sync' && observation.verified === true;
+  const syncVerified = valid && Math.abs(observation.driftSeconds) <= 120 && observation.operation === 'sync' && observation.verified === true;
   const state = !valid ? 'unknown' : Math.abs(observation.driftSeconds) > 120 ? 'misaligned'
     : syncVerified ? 'synchronized_verified' : 'read_correct';
   const last = previous?.lastCheck;
   const changed = last && (last.phoneTimeZone !== observation.phoneTimeZone
     || last.phoneUtcOffsetMinutes !== observation.phoneUtcOffsetMinutes
     || (valid && Number.isFinite(last.driftSeconds) && Math.abs(last.driftSeconds - observation.driftSeconds) > 120));
-  return { ...previous, state, lastCheck: observation,
+  const incident = !valid || (observation.operation === 'sync' && !syncVerified) || Math.abs(observation.driftSeconds) > 120 || changed;
+  return { ...previous, state, historyVersion: 2, pendingCheck: null, lastCheck: observation,
+    invalidatedAt: syncVerified ? null : previous?.invalidatedAt ?? null,
+    lastIncidentAt: incident ? observation.checkedAt : previous?.lastIncidentAt ?? null,
     lastValidCheck: valid ? observation : previous?.lastValidCheck ?? null,
-    lastVerifiedSync: syncVerified ? observation : previous?.lastVerifiedSync ?? null,
+    lastVerifiedSync: syncVerified ? { ...observation, continuityTracked: true } : previous?.lastVerifiedSync ?? null,
     lastSignificantChange: changed ? observation : previous?.lastSignificantChange ?? null };
 };
