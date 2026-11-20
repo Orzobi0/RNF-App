@@ -70,7 +70,12 @@ public class FemometerBle extends Plugin {
     private static final String TEMPERATURE_EVENT = "femometerTemperatureIndication";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final BleClockOperation clockOperation = new BleClockOperation(mainHandler);
+    private final Vinca2Capture capture = new Vinca2Capture(new Vinca2Capture.Clock() {
+        public long wall() { return System.currentTimeMillis(); }
+        public long monotonic() { return android.os.SystemClock.elapsedRealtime(); }
+    });
+    private volatile String captureDeviceKey;
+    private final BleClockOperation clockOperation = new BleClockOperation(mainHandler, capture);
     private final BleDeviceInfoOperation identityOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleVolumeOperation volumeOperation = new BleVolumeOperation(mainHandler);
@@ -205,6 +210,42 @@ public class FemometerBle extends Plugin {
 
     private boolean isStaging() {
         return "com.fertiliapp.fertiliapp.staging".equals(getContext().getPackageName());
+    }
+
+    // All exports are allowlisted: no device/account identity or arbitrary error text.
+    @PluginMethod
+    public void bluetoothCapture(PluginCall call) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> bluetoothCapture(call)); return; }
+        if (!isStaging() || !Boolean.TRUE.equals(call.getBoolean("stagingFrontend", false))) {
+            call.reject("Solo Android Staging.", "UNAVAILABLE_PLATFORM"); return;
+        }
+        String action = call.getString("action", "status");
+        if ("clear".equals(action) || "stop".equals(action)) {
+            capture.clear(); captureDeviceKey = null;
+        } else if ("start".equals(action)) {
+            if (!Vinca2Capture.allowed(getContext().getPackageName(), true,
+                    temperatureProfileValidated && receptionValidated && !experimentalReception,
+                    temperatureDeviceModel) || temperatureGatt == null) {
+                call.reject("Conecta y valida primero un BM-Vinca2.", "DEVICE_NOT_VERIFIED"); return;
+            }
+            captureDeviceKey = temperatureDeviceKey;
+            capture.start();
+        } else if (!"status".equals(action)) {
+            call.reject("Accion no valida.", "CAPTURE_INVALID_ACTION"); return;
+        }
+        Vinca2Capture.Snapshot snapshot = capture.snapshot();
+        JSObject result = new JSObject(); JSArray events = new JSArray();
+        for (Vinca2Capture.Event item : snapshot.events) {
+            JSObject event = new JSObject();
+            event.put("order", item.order); event.put("receivedAt", item.receivedAt);
+            event.put("elapsedMs", item.elapsedMs); event.put("channel", item.channel);
+            event.put("direction", item.direction); event.put("status", item.status);
+            event.put("hex", item.hex); event.put("originalBytes", item.originalBytes);
+            event.put("decoded", item.decoded);
+            events.put(event);
+        }
+        result.put("active", snapshot.active); result.put("truncated", snapshot.truncated);
+        result.put("events", events); call.resolve(result);
     }
 
     private String requireUser(PluginCall call) {
@@ -591,6 +632,11 @@ public class FemometerBle extends Plugin {
         } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
         final FemometerIdentityStore.Binding bound = identities().forAddress(userId, scannedDevice.address);
         if (!trial && (bound == null || !bound.key.equals(identities().get(userId).key))) { call.reject("Vincula primero el dispositivo.", "DEVICE_NOT_VERIFIED"); return; }
+        if (captureDeviceKey != null && (trial || !captureDeviceKey.equals(temperatureDeviceKey)
+                || bound == null || !Vinca2Profile.MODEL.equals(bound.model))) {
+            capture.clear(); captureDeviceKey = null;
+        }
+        capture.record("connection", "control", "connect_requested", null);
         experimentalReception = trial;
         if (trial) { trialDeviceId = deviceId; verification.begin(userId, scannedDevice.address); }
         temperatureListenerCall = call;
@@ -600,6 +646,8 @@ public class FemometerBle extends Plugin {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                 if (gatt != temperatureGatt) return;
+                capture.record("connection", "reception", (newState == BluetoothProfile.STATE_CONNECTED ? "connected"
+                    : newState == BluetoothProfile.STATE_DISCONNECTED ? "disconnected" : "state=" + newState) + ";gatt=" + status, null);
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     if (temperatureListenerCall == null) notifyTemperatureListenerState("error", "La conexion se ha interrumpido.");
                     rejectTemperatureStart("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
@@ -731,6 +779,9 @@ public class FemometerBle extends Plugin {
             @Override
             public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
                 if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                capture.record(descriptor.getCharacteristic().getUuid().toString(), "write",
+                    (status == BluetoothGatt.GATT_SUCCESS ? "indications_enabled" : "indications_failed")
+                        + ";CCCD=" + descriptor.getUuid() + ";gatt=" + status, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                 if (!CLIENT_CHARACTERISTIC_CONFIG_UUID.equals(descriptor.getUuid())) {
                     return;
                 }
@@ -770,6 +821,7 @@ public class FemometerBle extends Plugin {
                 }
                 if (gatt != temperatureGatt || temperatureListenerCall == null) return;
                 if (!MEASUREMENT_INTERVAL_UUID.equals(characteristic.getUuid())) return;
+                capture.record(MEASUREMENT_INTERVAL_UUID.toString(), "write", "confirmed;gatt=" + status, new byte[] {1, 0});
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     rejectTemperatureStart("No se pudo configurar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
                     return;
@@ -965,6 +1017,7 @@ public class FemometerBle extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        capture.clear(); captureDeviceKey = null;
         cancelScan();
         rejectPendingConnect("Conexion cancelada al cerrar la app.", "CONNECTION_CANCELLED");
         rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
@@ -1172,6 +1225,7 @@ public class FemometerBle extends Plugin {
         }
         // Bluetooth 0x2A21: uint16 little-endian, seconds. Vinca 2 uses 1 second.
         byte[] intervalValue = new byte[] { 1, 0 };
+        capture.record(MEASUREMENT_INTERVAL_UUID.toString(), "write", "requested", intervalValue);
         try {
             boolean started;
             if (Build.VERSION.SDK_INT >= 33) {
@@ -1181,6 +1235,7 @@ public class FemometerBle extends Plugin {
                 interval.setValue(intervalValue);
                 started = gatt.writeCharacteristic(interval);
             }
+            capture.record(MEASUREMENT_INTERVAL_UUID.toString(), "write", started ? "queued" : "rejected", intervalValue);
             if (!started) rejectTemperatureStart("No se pudo solicitar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
         } catch (SecurityException error) {
             rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
@@ -1212,10 +1267,16 @@ public class FemometerBle extends Plugin {
             // Log transport metadata only, never temperatures or raw measurement bytes.
             Log.d(TAG, "BLE indication: " + characteristic.getUuid() + ", bytes=" + (value == null ? 0 : value.length));
         }
+        Vinca2Capture.Event captured = null;
+        if (temperatureProfileValidated && receptionValidated && characteristic != null
+                && (TEMPERATURE_MEASUREMENT_UUID.equals(characteristic.getUuid()) || VINCA_INDICATION_UUID.equals(characteristic.getUuid()))) {
+            captured = capture.record(characteristic.getUuid().toString(), "reception", "received", value);
+        }
         if (!receptionValidated || characteristic == null || !("easyhome-ebt300".equals(temperatureProtocol) ? EasyHomeProfile.NOTIFY : TEMPERATURE_MEASUREMENT_UUID).equals(characteristic.getUuid())) {
             return;
         }
         if (value == null || value.length < 5) {
+            capture.decoded(captured, "PAYLOAD_TOO_SHORT");
             Log.e(TAG, "Temperature indication payload too short");
             return;
         }
@@ -1234,6 +1295,13 @@ public class FemometerBle extends Plugin {
                 if (!temperatureProfileValidated) TemperatureMeasurementCodec.validateFinal(value);
                 decoded = decodeTemperatureMeasurement(value);
             }
+            if (captured != null) {
+                JSObject safe = new JSObject();
+                for (String key : new String[] {"temperatureC", "temperatureOriginal", "temperatureUnit", "deviceTimestamp",
+                        "deviceTimestampReliability", "deviceTimeZone", "measurementType", "measurementTypeCode", "flags"})
+                    safe.put(key, decoded.opt(key));
+                capture.decoded(captured, safe.toString());
+            }
             decoded.put("deviceKey", connectedDeviceKey);
             decoded.put("deviceModel", temperatureDeviceModel);
             decoded.put("deviceName", temperatureDeviceName);
@@ -1250,6 +1318,7 @@ public class FemometerBle extends Plugin {
             Log.d(TAG, "Temperature indication received");
             notifyListeners(experimentalReception ? TRIAL_EVENT : TEMPERATURE_EVENT, decoded);
         } catch (Exception error) {
+            capture.decoded(captured, "DECODE_FAILED");
             Log.e(TAG, "Error decoding temperature indication");
             JSObject event = new JSObject();
             event.put("error", "DECODE_FAILED");
@@ -1487,6 +1556,7 @@ public class FemometerBle extends Plugin {
     }
 
     private void rejectTemperatureStart(String message, String code) {
+        capture.record("connection", "control", code, null);
         PluginCall pending = temperatureListenerCall;
         stopTemperatureListenerInternal(false, null, null);
         if (pending != null) {
@@ -1495,6 +1565,7 @@ public class FemometerBle extends Plugin {
     }
 
     private void notifyTemperatureListenerState(String status, String message) {
+        capture.record("connection", "control", status, null);
         JSObject event = new JSObject();
         event.put("status", status);
         event.put("message", message);
@@ -1502,6 +1573,7 @@ public class FemometerBle extends Plugin {
     }
 
     private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+        if (temperatureGatt != null) capture.record("connection", "control", "disconnect_requested", null);
         verification.clear(); trialDeviceId = null; trialReviewGranted = false;
         receptionValidated = false; temperatureProtocol = null; temperatureDeviceName = null; easyUnitConfigured = false;
         temperatureReady = false;
@@ -1538,6 +1610,7 @@ public class FemometerBle extends Plugin {
                 Log.e(TAG, "Unexpected exception disabling local indication listener");
             }
             closeGatt(gatt);
+            capture.record("connection", "control", gattCleanup.complete() ? "closed" : "GATT_CLOSE_FAILED", null);
         }
 
         if (notifyStopped) {

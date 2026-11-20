@@ -1,4 +1,5 @@
 import test from 'node:test';
+import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { thermometerName } from '../src/lib/thermometerCatalog.js';
@@ -9,7 +10,7 @@ import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks as baseHooks, deferred, flush } from './helpers/load-frontend.mjs';
 
-const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft }); return harness; };
+const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft }); return harness; };
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -189,7 +190,7 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
   const lifecycle = new Set();
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-    ...harness.bindings, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
+    ...harness.bindings, clearVinca2Capture: async () => { native.calls.captureClears = (native.calls.captureClears ?? 0) + 1; }, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
@@ -3176,4 +3177,74 @@ test('EasyHome UI exposes only Celsius and the numeric editor belongs only to it
       }
     }
   } finally { harness.cleanup(); }
+});
+
+
+test('diagnostic capture is cleared on account change and logout without removing pending temperatures', async () => {
+  const native = bridge();
+  const owner = await mountedOwner(native);
+  const before = (native.calls.captureClears ?? 0);
+  await owner.changeAccount('other');
+  assert.equal((native.calls.captureClears ?? 0), before + 1);
+  owner.cleanup();
+  assert.equal((native.calls.captureClears ?? 0), before + 2);
+});
+
+test('capture wrappers exclude PWA, production and Experiment and export only explicit fields', async () => {
+  for (const [env, platform, allowed] of [['staging', 'android', true], ['staging', 'web', false], ['production', 'android', false], ['experiment', 'android', false]]) {
+    const calls = [];
+    const { bluetoothCapture, formatVinca2Capture } = await loadFrontend('src/lib/femometerBle.js', {
+      Capacitor: { isNativePlatform: () => platform !== 'web', getPlatform: () => platform,
+        nativePromise: async (...args) => { calls.push(args); return {}; } },
+      registerPlugin: () => ({}), isFemometerPrototypeEnabled: () => true, createFemometerSessionManager: () => () => {},
+    }, ['bluetoothCapture', 'formatVinca2Capture'], source => source.replaceAll("import.meta.env", "(" + JSON.stringify({ VITE_APP_ENV: env }) + ")"));
+    if (allowed) { await bluetoothCapture('start'); assert.deepEqual(calls[0], ['FemometerBle', 'bluetoothCapture', { action: 'start', stagingFrontend: true }]); }
+    else { assert.throws(() => bluetoothCapture('start')); assert.equal(calls.length, 0); }
+    const output = formatVinca2Capture({ active: true, truncated: true, accountId: 'secret', events: [{ order: 1, receivedAt: 0, elapsedMs: 0, channel: '2a1c', direction: 'reception', status: 'received', hex: '86 E2', originalBytes: 200, mac: 'AA:BB:CC:DD:EE:FF', token: 'secret', serial: 'private' }] });
+    assert.match(output, /1970-01-01T00:00:00.000Z/); assert.match(output, /TRUNCADO/);
+    assert.doesNotMatch(output, /secret|private|AA:BB/);
+  }
+});
+
+test('native hooks observe both Android callback signatures and proprietary bytes before the existing discard', async () => {
+  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerBle.java', import.meta.url), 'utf8');
+  const handler = source.slice(source.indexOf('private synchronized void handleTemperatureCharacteristicChanged'), source.indexOf('private JSObject decodeTemperatureMeasurement'));
+  assert.ok(handler.indexOf('captured = capture.record') < handler.indexOf('if (!receptionValidated'));
+  assert.match(handler, /VINCA_INDICATION_UUID.equals/);
+  assert.ok(handler.indexOf('capture.decoded(captured, safe.toString())') < handler.indexOf('decoded.put("deviceKey"'));
+  assert.match(source, /handleTemperatureCharacteristicChanged\(gatt, characteristic, characteristic.getValue\(\), connectedDeviceKey\)/);
+  assert.match(source, /handleTemperatureCharacteristicChanged\(gatt, characteristic, value, connectedDeviceKey\)/);
+});
+
+
+test('capture UI is manual, supports selectable text and clears on stop and unmount', async () => {
+  const harness = hooks(); const calls = [];
+  const empty = { active: false, truncated: false, events: [] };
+  let snapshot = empty;
+  const { BluetoothCapture } = await loadFrontend('src/components/Vinca2Diagnostics.jsx', {
+    ...harness.bindings, Button: 'button', navigator: {},
+    bluetoothCapture: async action => {
+      calls.push(action);
+      if (action === 'start') snapshot = { active: true, truncated: false, events: [{ order: 1 }] };
+      if (action === 'stop' || action === 'clear') snapshot = empty;
+      return snapshot;
+    },
+    clearVinca2Capture: async () => { calls.push('clear'); snapshot = empty; },
+    formatVinca2Capture: next => `Registro: ${next.events.length}`,
+    setTimeout: () => 1, clearTimeout: () => {},
+  }, ['BluetoothCapture']);
+  const render = () => harness.render(() => ({ props: { value: BluetoothCapture() } }));
+  const button = label => treeNodes(render()).find(node => node.type === 'button' && node.props.children.includes(label));
+  render(); assert.deepEqual(calls, []);
+  await button('Iniciar captura').props.onClick(); assert.deepEqual(calls, ['start']);
+  await button('Copiar registro').props.onClick();
+  const tree = render(); assert.match(JSON.stringify(tree), /Selecciona el texto/);
+  const textarea = treeNodes(tree).find(node => node.type === 'textarea');
+  assert.equal(textarea.props.readOnly, true); assert.equal(textarea.props.value, 'Registro: 1');
+  let selected = false; textarea.props.onFocus({ target: { select: () => { selected = true; } } }); assert.equal(selected, true);
+  await button('Detener captura').props.onClick();
+  assert.equal(treeNodes(render()).some(node => node.type === 'textarea'), false);
+  await button('Iniciar captura').props.onClick();
+  await button('Limpiar captura').props.onClick(); assert.equal(snapshot.active, false);
+  harness.cleanup(); assert.equal(calls.at(-1), 'clear');
 });

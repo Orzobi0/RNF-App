@@ -5,7 +5,7 @@ import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { createContext, useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
+import { clearVinca2Capture, createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { normalizeBleMeasurement, decideVinca2Reading, authorizedBleMeasurement } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
 import BleReadingReview from '@/components/BleReadingReview';
@@ -157,6 +157,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     }).catch(() => { if (alive) setLifecycleStatus('unavailable'); return null; });
     return () => {
       alive = false;
+      void clearVinca2Capture().catch(() => {});
       clearTimeout(foregroundTimer);
       void lifecycle.then(handle => handle?.remove()).catch(() => {});
       sessionRef.current = null;

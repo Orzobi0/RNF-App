@@ -1,9 +1,76 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useFemometer } from '@/contexts/FemometerContext';
 import { cn } from '@/lib/utils';
 
+import { bluetoothCapture, clearVinca2Capture, isVinca2CaptureAvailable, formatVinca2Capture } from '@/lib/femometerBle';
+
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
+
+// Poll only bounded session memory; opening this section never connects BLE.
+const BluetoothCapture = () => {
+  const [snapshot, setSnapshot] = useState({ active: false, truncated: false, events: [] });
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  const revision = useRef(0);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; revision.current++; void clearVinca2Capture().catch(() => {}); };
+  }, []);
+  useEffect(() => {
+    if (!snapshot.active) return undefined;
+    let cancelled = false;
+    let timer;
+    const poll = async () => {
+      const current = revision.current;
+      try {
+        const next = await bluetoothCapture('status');
+        if (!cancelled && alive.current && current === revision.current) setSnapshot(next);
+      } catch { if (!cancelled && alive.current) setMessage('No se pudo consultar la captura.'); }
+      if (!cancelled) timer = setTimeout(poll, 1000);
+    };
+    timer = setTimeout(poll, 1000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [snapshot.active]);
+  const act = async action => {
+    revision.current++;
+    setBusy(true); setMessage('');
+    try {
+      const next = await bluetoothCapture(action);
+      if (alive.current) setSnapshot(next);
+    } catch { if (alive.current) setMessage('Captura no disponible. Se necesita la APK Staging y un BM-Vinca2 conectado y validado.'); }
+    finally { if (alive.current) setBusy(false); }
+  };
+  const copy = async () => {
+    setBusy(true);
+    try {
+      const next = await bluetoothCapture('status');
+      if (!alive.current) return;
+      setSnapshot(next);
+      try { await navigator.clipboard.writeText(formatVinca2Capture(next)); if (alive.current) setMessage('Registro copiado.'); }
+      catch { if (alive.current) setMessage('Selecciona el texto del registro y usa Copiar.'); }
+    } catch { if (alive.current) setMessage('No se pudo obtener el registro.'); }
+    finally { if (alive.current) setBusy(false); }
+  };
+  return <details className="rounded-lg border border-slate-200 p-3">
+    <summary className="cursor-pointer font-medium">Captura Bluetooth — Solo Staging</summary>
+    <div className="mt-3 space-y-3">
+      <p>Conecta primero el BM-Vinca2. Inicia la captura y pulsa «Reiniciar escucha» para observar la preparación completa.</p>
+      <p>Solo en memoria. Copia antes de detener: detener, limpiar, salir del diagnóstico o cerrar sesión borra la captura. El portapapeles queda bajo tu control y puede contener datos de salud y fechas.</p>
+      <p role="status">{snapshot.active ? 'Captura activa' : 'Captura inactiva'} · {snapshot.events.length} eventos{snapshot.truncated ? ' · CAPTURA TRUNCADA' : ''}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={busy || snapshot.active} onClick={() => act('start')}>Iniciar captura</Button>
+        <Button disabled={busy || !snapshot.active} onClick={() => act('stop')}>Detener captura</Button>
+        <Button disabled={busy || !snapshot.events.length} onClick={copy}>Copiar registro</Button>
+        <Button disabled={busy} onClick={() => act('clear')}>Limpiar captura</Button>
+      </div>
+      {message && <p role="status">{message}</p>}
+      {snapshot.events.length > 0 && <textarea aria-label="Registro Bluetooth para seleccionar y copiar" readOnly
+        className="h-48 w-full rounded border bg-white p-2 font-mono text-xs" value={formatVinca2Capture(snapshot)} onFocus={event => event.target.select()} />}
+    </div>
+  </details>;
+};
 
 // Opening diagnostics never starts BLE work; recovery requires an explicit action.
 const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}) => {
@@ -45,6 +112,7 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
     <summary className="flex min-h-11 cursor-pointer items-center py-3 text-sm font-medium text-slate-500">DiagnÃ³stico tÃ©cnico</summary>
     <div className="min-w-0 space-y-4 break-words pb-4 text-xs text-slate-600">
 
+      {isVinca2CaptureAvailable() && <BluetoothCapture />}
       {sessionState.volumeResult?.commandsAccepted && <p>Comandos Bluetooth de volumen aceptados; volumen fÃ­sico no verificado.</p>}
       {sessionState.measurementModeResult?.commandsAccepted && <p>Comandos Bluetooth de modo aceptados; modo real no verificado.</p>}
       {onRestart && sessionState.status === 'listening' && <Button variant="outline" className="min-h-11 w-fit rounded-xl px-3 py-2" disabled={restartDisabled} onClick={onRestart}>{recoveryRequired ? 'Recuperar conexiÃ³n' : 'Reiniciar escucha'}</Button>}

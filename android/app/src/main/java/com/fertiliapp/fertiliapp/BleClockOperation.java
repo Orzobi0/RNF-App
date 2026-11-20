@@ -27,7 +27,12 @@ final class BleClockOperation {
     private String requestedLocal;
     private String deviceKey;
 
-    BleClockOperation(Handler handler) { this.handler = handler; }
+    private final Vinca2Capture capture;
+    BleClockOperation(Handler handler) { this(handler, null); }
+    BleClockOperation(Handler handler, Vinca2Capture capture) { this.handler = handler; this.capture = capture; }
+    private void observe(String direction, String status, byte[] bytes) {
+        if (capture != null) capture.record(Vinca2Profile.CURRENT_TIME.toString(), direction, status, bytes);
+    }
 
     // Shared transport exclusion only; the existing clock transaction is unchanged.
     synchronized boolean busy() { return pending != null; }
@@ -66,6 +71,7 @@ final class BleClockOperation {
             if (!sync) { read(); return; }
             byte[] payload = BleClockCodec.encodeCurrentTime(now);
             requestedLocal = BleClockCodec.localText(BleClockCodec.decodeCurrentTime(payload));
+            observe("write", "requested", payload);
             boolean started;
             if (Build.VERSION.SDK_INT >= 33) {
                 started = gatt.writeCharacteristic(target, payload, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothGatt.GATT_SUCCESS;
@@ -74,6 +80,7 @@ final class BleClockOperation {
                 target.setValue(payload);
                 started = gatt.writeCharacteristic(target);
             }
+            observe("write", started ? "queued" : "rejected", null);
             if (!started) fail("CLOCK_WRITE_FAILED", "No se pudo iniciar el ajuste del reloj.");
         } catch (Exception error) {
             fail("CLOCK_OPERATION_FAILED", "No se pudo realizar la operacion de reloj.");
@@ -83,12 +90,17 @@ final class BleClockOperation {
     private void read() {
         writing = false;
         try {
-            if (!transport.readCharacteristic(characteristic)) fail("CLOCK_READ_FAILED", "No se pudo leer el reloj.");
+            observe("read", "requested", null);
+            boolean started = transport.readCharacteristic(characteristic);
+            observe("read", started ? "queued" : "rejected", null);
+            if (!started) fail("CLOCK_READ_FAILED", "No se pudo leer el reloj.");
         } catch (Exception error) { fail("CLOCK_READ_FAILED", "No se pudo leer el reloj."); }
     }
 
     synchronized void onWrite(BluetoothGatt gatt, int status) {
-        if (pending == null || transport != gatt || !writing) return;
+        boolean expected = pending != null && transport == gatt && writing;
+        observe("write", "callback;gatt=" + status + ";expected=" + expected, null);
+        if (!expected) return;
         if (status != BluetoothGatt.GATT_SUCCESS) {
             fail("CLOCK_WRITE_FAILED", "El dispositivo rechazo el ajuste o ignoro campos de fecha/hora."); return;
         }
@@ -98,7 +110,9 @@ final class BleClockOperation {
     }
 
     synchronized void onRead(BluetoothGatt gatt, byte[] value, int status) {
-        if (pending == null || transport != gatt || writing) return;
+        boolean expected = pending != null && transport == gatt && !writing;
+        observe("read", "received;gatt=" + status + ";expected=" + expected, value);
+        if (!expected) return;
         if (status != BluetoothGatt.GATT_SUCCESS) { fail("CLOCK_READ_FAILED", "No se pudo verificar el reloj mediante lectura."); return; }
         try { complete(BleClockCodec.decodeCurrentTime(value)); }
         catch (IllegalArgumentException error) { fail("CLOCK_INVALID_DATE", "El reloj contiene una fecha desconocida o invalida."); }
@@ -119,6 +133,7 @@ final class BleClockOperation {
         result.put("phoneUtcOffsetMinutes", checkedOffset / 60000);
         result.put("phoneZoneChanged", !checkedZone.equals(phoneZone) || checkedOffset != phoneOffset);
         result.put("deviceTimeZone", "unknown");
+        observe(syncing ? "write" : "read", "complete;verified=" + result.optBoolean("verified"), null);
         PluginCall call = pending;
         clear();
         call.resolve(result);
@@ -126,6 +141,7 @@ final class BleClockOperation {
 
     private void fail(String code, String message) {
         if (pending == null) return;
+        observe(syncing ? "write" : "read", code, null);
         PluginCall call = pending;
         JSObject detail = new JSObject();
         detail.put("writeAccepted", accepted);

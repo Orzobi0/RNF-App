@@ -391,3 +391,24 @@ export const createFemometerPanelSession = createFemometerSessionManager({
   readFemometerClock, syncFemometerClock, setFemometerTemperatureUnit, readFemometerDeviceInfo, setFemometerVolume, setFemometerMeasurementMode,
   startStandardThermometerTrial, addStandardThermometerTrialListener, confirmStandardThermometerTrial,
 });
+
+// Diagnostic data never enters session readings, storage or telemetry.
+export const isVinca2CaptureAvailable = () =>
+  import.meta.env.VITE_APP_ENV === 'staging' && isFemometerBleAndroidNative();
+
+export const bluetoothCapture = action => {
+  if (!isVinca2CaptureAvailable()) throw createFemometerBleError('UNAVAILABLE_PLATFORM');
+  return callFemometerBle('bluetoothCapture', { action, stagingFrontend: true });
+};
+
+export const clearVinca2Capture = async () => {
+  if (isVinca2CaptureAvailable()) await bluetoothCapture('clear');
+};
+
+export const formatVinca2Capture = snapshot => [
+  'Captura Bluetooth Vinca 2 — Solo Staging',
+  'Contiene datos de salud y fechas. Revisa el texto antes de compartirlo.',
+  `Estado: ${snapshot.active ? 'activa' : 'inactiva'}; eventos: ${snapshot.events.length}; truncada: ${snapshot.truncated ? 'SÍ (límites o contención)' : 'no'}`,
+  'Límites: 1000 eventos, 128 bytes por paquete. Sin asociaciones entre canales.',
+  ...snapshot.events.map(event => `${event.order} | ${new Date(event.receivedAt).toISOString()} | +${event.elapsedMs} ms | ${event.channel} | ${event.direction} | ${event.status} | HEX: ${event.hex || '—'} | bytes: ${event.originalBytes}${event.originalBytes > 128 ? ' (TRUNCADO)' : ''}${event.decoded ? ` | decodificador actual: ${event.decoded}` : ''}`),
+].join('\n');
