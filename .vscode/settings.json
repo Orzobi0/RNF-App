@@ -4,5 +4,5 @@
   },
   "git.ignoreLimitWarning": true,
   "java.configuration.updateBuildConfiguration": "interactive",
-  "python.terminal.useEnvFile": true
+  "python.terminal.useEnvFile": false
 }
