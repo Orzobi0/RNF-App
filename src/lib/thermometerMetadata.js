@@ -1,6 +1,7 @@
 // Public descriptive data only. Native bindings remain the sole BLE authority.
 const textFields = new Set(['customName', 'commercialName', 'name', 'model', 'manufacturer', 'protocol', 'compatibility', 'firmware', 'software']);
-const preferences = { volume: ['low', 'medium', 'high'], measurementMode: ['quick', 'normal', 'precise'], temperatureUnit: ['C', 'F'] };
+const preferences = { volume: ['low', 'medium', 'high'], measurementMode: ['quick', 'normal', 'precise'], temperatureUnit: ['C', 'F'],
+  incorporationMode: ['manual', 'automatic'], automationPrompt: ['shown', 'chosen'] };
 export const sanitizeThermometerMetadata = values => Object.fromEntries(Object.entries(values ?? {}).filter(([field, value]) => {
   if (field === 'customName' && value === null) return true; // explicit removal, not unloaded
   if (textFields.has(field)) return typeof value === 'string' && value.trim().length > 0 && value.length <= (field === 'customName' ? 40 : 100)
@@ -53,6 +54,23 @@ export function createThermometerMetadataStore({ userId, storage, remote, change
     try { commit({ ...state, devices }); if (fromServer && Object.keys(state.pending).length) void flush(); } catch { emit('No se pudieron conservar los metadatos en este móvil.'); }
   }, () => emit('No se pudieron consultar los nombres y ajustes sincronizados.'));
   return {
+    // These choices need a server acknowledgement, unlike the ordinary offline outbox.
+    chooseIncorporationMode: async (id, mode) => {
+      if (disposed || !id || !preferences.incorporationMode.includes(mode)) throw new Error('Preferencia no disponible.');
+      const fields = Object.fromEntries(Object.entries({ incorporationMode: mode, automationPrompt: 'chosen' }).map(([field, value]) =>
+        [field, { value, updatedAt: Math.max(now(), (state.devices[id]?.[field]?.updatedAt ?? 0) + 1), revision: uuid() }]));
+      const merged = await remote.merge(id, fields);
+      if (disposed) throw new Error('La cuenta ha cambiado.');
+      if (merged.incorporationMode?.value !== mode) throw new Error('La preferencia cambió en otro dispositivo.');
+      commit({ ...state, devices: { ...state.devices, [id]: mergeThermometerFields(state.devices[id], merged) } });
+    },
+    claimAutomationPrompt: async id => {
+      if (disposed || !id || state.devices[id]?.automationPrompt || state.devices[id]?.incorporationMode) return false;
+      const result = await remote.claimAutomationPrompt(id, { value: 'shown', updatedAt: now(), revision: uuid() });
+      if (disposed) return false;
+      commit({ ...state, devices: { ...state.devices, [id]: mergeThermometerFields(state.devices[id], result.fields) } });
+      return result.claimed === true;
+    },
     get: id => thermometerMetadataValues(state.devices[id]),
     patch: (id, values, migration = false) => {
       if (disposed || !id) return;

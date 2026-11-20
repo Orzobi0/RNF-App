@@ -57,6 +57,8 @@ public class FemometerBle extends Plugin {
     private static final String BLUETOOTH_CONNECT_ALIAS = "bluetoothConnect";
     private static final String LOCATION_ALIAS = "location";
     private static final long SCAN_TIMEOUT_MS = 8000L;
+    private static final long REMEMBERED_VINCA_SCAN_TIMEOUT_MS = 25000L;
+    private String scanTargetAddress;
     private static final long CONNECT_TIMEOUT_MS = 15000L;
     private static final long DISCOVER_TIMEOUT_MS = 10000L;
     // Allow a 3–5 minute measurement plus time to position the thermometer.
@@ -430,7 +432,7 @@ public class FemometerBle extends Plugin {
             rejectWithCode(call, blockedCode);
             return;
         }
-        if (temperatureGatt != null || connectCall != null) { call.reject("Deten la conexion antes de buscar.", "CONNECTION_IN_PROGRESS"); return; }
+        if (temperatureGatt != null || connectCall != null || activeGatt != null || temperatureListenerCall != null || !gattCleanup.complete()) { call.reject("Deten la conexion antes de buscar.", "CONNECTION_IN_PROGRESS"); return; }
         if (scanCall != null) {
             Log.d(TAG, "Scan blocked: SCAN_IN_PROGRESS");
             call.reject("Ya hay una busqueda BLE en curso.", "SCAN_IN_PROGRESS");
@@ -444,6 +446,14 @@ public class FemometerBle extends Plugin {
             return;
         }
 
+        scanTargetAddress = null;
+        if (Boolean.TRUE.equals(call.getBoolean("rememberedVinca", false)) && call.getString("userId") != null) {
+            try {
+                FemometerIdentityStore.Binding binding = identities().get(call.getString("userId"));
+                if ("vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model)) scanTargetAddress = binding.address;
+            } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
+        }
+        final long scanTimeout = scanTargetAddress == null ? SCAN_TIMEOUT_MS : REMEMBERED_VINCA_SCAN_TIMEOUT_MS;
         devicesById.clear();
         idsByAddress.clear();
         scanCall = call;
@@ -500,17 +510,19 @@ public class FemometerBle extends Plugin {
 
         mainHandler.postDelayed(() -> {
             if (scanCall != call) return;
-            PluginCall pending = scanCall;
-            stopScanInternal();
-            if (pending != null) {
-                Log.d(TAG, "BLE scan finished: femometerDevices=" + devicesById.size());
-                JSObject result = new JSObject();
-                try {
-                    result.put("devices", buildScannedDevicesArray(pending.getString("userId")));
-                    pending.resolve(result);
-                } catch (IllegalStateException error) { pending.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); }
-            }
-        }, SCAN_TIMEOUT_MS);
+            finishScan();
+        }, scanTimeout);
+    }
+
+    private void finishScan() {
+        PluginCall pending = scanCall;
+        stopScanInternal();
+        if (pending == null) return;
+        JSObject result = new JSObject();
+        try {
+            result.put("devices", buildScannedDevicesArray(pending.getString("userId")));
+            pending.resolve(result);
+        } catch (IllegalStateException error) { pending.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); }
     }
 
     @PluginMethod
@@ -1111,6 +1123,8 @@ public class FemometerBle extends Plugin {
             idsByAddress.put(address, id);
         }
         devicesById.put(id, new ScannedDevice(result.getDevice(), address, advertisedName, result.getRssi(), standard));
+        // Discovery is only a candidate: GATT still verifies the stored identity/profile.
+        if (address.equals(scanTargetAddress)) finishScan();
     }
 
     private JSArray buildScannedDevicesArray(String userId) {
@@ -1728,6 +1742,7 @@ public class FemometerBle extends Plugin {
         }
         scanCallback = null;
         scanCall = null;
+        scanTargetAddress = null;
     }
 
     private void closeActiveGatt() {

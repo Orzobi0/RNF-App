@@ -36,7 +36,7 @@ test('normalization validates dates without repairing them or assuming a timezon
 test('unknown models do not inherit Vinca capabilities and unimplemented modes remain unavailable', () => {
   assert.equal(thermometerCapabilities({ model: 'other', clockSync: true }).clockSync, false);
   assert.equal(thermometerCapabilities().clockRead, false);
-  const result = thermometerCapabilities({ model: 'BM-Vinca2', clockRead: true, clockSync: false, historyReceive: true });
+  const result = thermometerCapabilities({ model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible', clockRead: true, clockSync: false, historyReceive: true });
   assert.equal(result.clockRead, true);
   assert.equal(result.clockSync, false);
   assert.equal(result.historyReceive, true);

@@ -61,7 +61,7 @@ export const normalizeBleMeasurement = (event, model = null) => {
 // Wall-clock resolution is a range check, NOT evidence of the clock's accuracy.
 // A named zone is mandatory for timestamps without an offset. Enumerating the
 // zone's offsets around that day detects both repeated and nonexistent DST times.
-export const classifyBleMeasurementAge = (measurement, { nowMs, timeZone } = {}) => {
+export const classifyBleMeasurementAge = (measurement, { nowMs, timeZone, calendarDays = false } = {}) => {
   const review = reason => ({ status: 'review', reason, candidate: false });
   const raw = measurement?.device_timestamp;
   if (!raw) return review('missing-date');
@@ -91,8 +91,54 @@ export const classifyBleMeasurementAge = (measurement, { nowMs, timeZone } = {})
   if (epochs.length !== 1) return review('ambiguous-local-date');
   const ageMs = nowMs - epochs[0];
   if (ageMs < 0) return review('future-date');
-  if (ageMs > 86400000) return review('older-than-24-hours');
+  if (calendarDays) {
+    try {
+      const format = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+      const day = epoch => {
+        const parts = Object.fromEntries(format.formatToParts(epoch).map(p => [p.type, p.value]));
+        return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+      };
+      const difference = day(nowMs) - day(epochs[0]);
+      if (difference !== 0 && difference !== 86400000) return review('not-today-or-yesterday');
+    } catch { return review('unknown-time-zone'); }
+  } else if (ageMs > 86400000) return review('older-than-24-hours');
   return { status: 'candidate', candidate: true, reason: 'within-24-hours-not-verified', epochMs: epochs[0], ageMs };
+};
+
+export const VINCA2_AUTOMATIC_IMPORT_BLOCKER = 'La incorporación automática aún no está disponible: falta acreditar la continuidad del reloj y comprobar posibles duplicados en todo el historial del servidor. Mientras tanto, revisa y confirma las temperaturas pendientes.';
+
+// Operational confidence is not a packet identity or proof of clock accuracy.
+// Existing persisted history keeps the last observation, but can overwrite a
+// failed read with a good one. It cannot certify the absence of intervening
+// incidents. Never promote a plausible date or a current sync to `ready`.
+export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZone, clockHistory } = {}) => {
+  const review = reason => ({ status: 'review', reason });
+  if (measurement?.device_protocol !== 'vinca2' || measurement.device_model !== 'BM-Vinca2'
+    || measurement.reception_validated !== true || !deviceKey || measurement.device_key !== deviceKey) return review('device-identity-unavailable');
+  if (!timeZone) return review('unknown-time-zone');
+  const age = classifyBleMeasurementAge(measurement, { nowMs, timeZone, calendarDays: true });
+  if (!age.candidate) return age;
+  const sync = clockHistory?.lastVerifiedSync, check = clockHistory?.lastValidCheck;
+  if (sync?.operation !== 'sync' || sync.verified !== true || !Number.isFinite(sync.checkedAt)
+    || !Number.isFinite(check?.checkedAt)) return review('clock-history-insufficient');
+  if (sync.checkedAt >= age.epochMs) return review('measurement-before-clock-sync');
+  if (check.checkedAt < age.epochMs || check.checkedAt > nowMs) return review('clock-check-not-after-measurement');
+  if (![sync, check].every(value => !value.errorCode && !value.phoneZoneChanged
+    && Number.isFinite(value.driftSeconds) && Math.abs(value.driftSeconds) <= 120)) return review('clock-misaligned');
+  if (sync.phoneTimeZone !== timeZone || check.phoneTimeZone !== timeZone
+    || sync.phoneUtcOffsetMinutes !== check.phoneUtcOffsetMinutes) return review('clock-time-zone-changed');
+  if (clockHistory.invalidatedAt || clockHistory.lastSignificantChange?.checkedAt >= sync.checkedAt
+    || !['read_correct', 'synchronized_verified'].includes(clockHistory.state)) return review('clock-trust-interrupted');
+  return review('clock-continuity-unproven');
+};
+
+// Separate authorization boundary. No manuallyConfirmed flag is fabricated,
+// and no automatic write is enabled until both outstanding evidence gaps close.
+export const prepareAutomaticBleDraft = (measurement, context = {}) => {
+  const decision = assessVinca2AutomaticDate(measurement, context);
+  throw Object.assign(new Error(VINCA2_AUTOMATIC_IMPORT_BLOCKER), {
+    code: 'ble-auto-review', title: 'Temperatura pendiente de revisión', reason: decision.reason,
+  });
 };
 
 // Processing receipts must come from a confirmed app write, never BLE fields or

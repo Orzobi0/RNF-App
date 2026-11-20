@@ -32,6 +32,17 @@ function MetadataOwner({ userId, children }) {
           transaction.set(target, { kind: 'thermometer', deviceKey, fields: merged });
           return merged;
         }),
+        claimAutomationPrompt: (deviceKey, field) => runTransaction(db, async transaction => {
+          if (!alive) throw new Error('Cuenta cerrada');
+          const target = doc(preferences, `thermometer_${encodeURIComponent(deviceKey)}`);
+          const current = await transaction.get(target);
+          if (!alive) throw new Error('Cuenta cerrada');
+          const fields = current.data()?.fields ?? {};
+          if (fields.automationPrompt || fields.incorporationMode) return { claimed: false, fields };
+          const next = { ...fields, automationPrompt: field };
+          transaction.set(target, { kind: 'thermometer', deviceKey, fields: next });
+          return { claimed: true, fields: next };
+        }),
       } });
       void store.current.flush();
     } catch { setState({ devices: {}, error: 'No se pueden conservar los nombres y ajustes en este móvil.' }); }
@@ -40,5 +51,10 @@ function MetadataOwner({ userId, children }) {
     return () => { alive = false; window.removeEventListener('online', online); store.current?.dispose(); store.current = null; };
   }, [userId]);
   const patch = (...args) => { if (!store.current) throw new Error('Los metadatos todavía no están disponibles.'); store.current.patch(...args); };
-  return <Context.Provider value={{ ...state, patch, get: id => store.current?.get(id) ?? {} }}>{children}</Context.Provider>;
+  const chooseIncorporationMode = async (...args) => {
+    if (!store.current) throw new Error('Espera a que se carguen los ajustes.');
+    return store.current.chooseIncorporationMode(...args);
+  };
+  const claimAutomationPrompt = async id => store.current ? store.current.claimAutomationPrompt(id) : false;
+  return <Context.Provider value={{ ...state, patch, chooseIncorporationMode, claimAutomationPrompt, get: id => store.current?.get(id) ?? {} }}>{children}</Context.Provider>;
 }

@@ -28,7 +28,7 @@ test('panel automatic session uses the real bridge wrappers without requesting p
     session = ble.createFemometerPanelSession('account', state => states.push(state), () => {});
     await session.start();
     assert.deepEqual(calls.map(call => call.method), ['getRememberedDevice', 'scan', 'addListener', 'startTemperatureListener']);
-    assert.deepEqual(calls[1].options, { userId: 'account' });
+    assert.deepEqual(calls[1].options, { userId: 'account', rememberedVinca: true });
     assert.deepEqual(calls[3].options, { deviceId: 'right', userId: 'account' });
     assert.equal(states.at(-1).status, 'listening');
     await session.dispose();
@@ -134,5 +134,35 @@ test('Android message bridge receives multiple readings and releases the subscri
   } finally {
     globalThis.window = oldWindow;
     await server.close();
+  }
+});
+
+
+test('A: delayed remembered discovery keeps a single connection and terminal events allow recovery', async () => {
+  const { createFemometerSessionManager } = await import('../src/lib/femometerSession.js');
+  for (const delay of [0, 5000, 10000, 15000]) {
+    let resolveScan, event, state, scans = 0, connections = 0, now = 0;
+    const api = {
+      now: () => now,
+      getRememberedFemometer: async () => ({ remembered: true, deviceKey: 'key', model: 'BM-Vinca2', protocol: 'vinca2' }),
+      scanForFemometer: async (user, expanded, rememberedVinca) => {
+        assert.equal(rememberedVinca, true); scans++;
+        return new Promise(resolve => { resolveScan = resolve; });
+      },
+      addFemometerTemperatureListener: async callback => { event = callback; return { remove: async () => {} }; },
+      startFemometerTemperatureListener: async () => { connections++; return { deviceKey: 'key', connectionReady: true, indicationsActive: true, timeoutSeconds: 360,
+        capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' } }; },
+      disconnectFemometer: async () => {},
+    };
+    const session = createFemometerSessionManager(api)('account', next => { state = next; }, () => {});
+    const start = session.start();
+    await new Promise(resolve => setImmediate(resolve));
+    await session.start();
+    assert.equal(scans, 1); assert.equal(connections, 0); assert.equal(state.status, 'searching');
+    now = delay; resolveScan([{ id: 'candidate', isRemembered: true }]); await start;
+    assert.equal(connections, 1); assert.equal(state.status, 'listening');
+    event({ status: 'disconnected' }); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(state.error.code, 'CONNECTION_LOST');
+    await session.dispose();
   }
 });

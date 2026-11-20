@@ -10,7 +10,7 @@ import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks as baseHooks, deferred, flush } from './helpers/load-frontend.mjs';
 
-const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft }); return harness; };
+const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft }); return harness; };
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -183,14 +183,14 @@ const bridge = () => {
   return { factory: createFemometerSessionManager(api), api, calls, flags, storage, emit: event => emit?.({ deviceKey, deviceModel: 'BM-Vinca2', ...event }) };
 };
 
-async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: null, isLoading: false }) {
+async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: null, isLoading: false }, metadata) {
   const harness = hooks();
   let userId = initialUser;
   let routeKey = 'dashboard';
   const lifecycle = new Set();
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-    ...harness.bindings, clearVinca2Capture: async () => { native.calls.captureClears = (native.calls.captureClears ?? 0) + 1; }, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
+    ...harness.bindings, ...(metadata ? { useThermometerMetadata: () => metadata } : {}), clearVinca2Capture: async () => { native.calls.captureClears = (native.calls.captureClears ?? 0) + 1; }, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
@@ -204,6 +204,7 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
   const render = () => harness.render(() => (lastTree = FemometerSessionOwner({ userId, children: null })));
   render(); await flush();
   return { render, cleanup: harness.cleanup, lifecycle, timers,
+    prompt: () => { render(); return treeNodes(lastTree).find(node => node.type === 'automation-prompt')?.props; },
     card: () => { render(); return treeNodes(lastTree).find(node => node.type === 'card').props; },
     navigate: key => { routeKey = key; render(); },
     background: async () => { lifecycle.forEach(callback => callback({ isActive: false })); await flush(); },
@@ -1473,12 +1474,12 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   wait.resolve(); await operation;
   for (const status of ['searching', 'connecting', 'stopping', 'inspecting']) {
     h.ble.sessionState.status = status;
-    const action = h.button(status === 'stopping'
+    const action = h.button(status === 'searching' ? 'Cancelar búsqueda' : status === 'stopping'
   ? 'Desconectado'
   : 'Conectando…');
 
 assert.ok(action);
-assert.equal(action.props.disabled, true);
+assert.equal(action.props.disabled, status !== 'searching');
   }
   h.ble.sessionState.status = 'listening';
   h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
@@ -2691,7 +2692,10 @@ test('presentation: readiness requires active indications and connection, and pr
   assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true } }), 'Conectando…');
   assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true, indicationsActive: true } }), 'Conectado');
   assert.equal(vinca2StatusText('stopped'), 'Desconectado');
-  assert.equal(vinca2StatusText('error'), 'No disponible');
+  assert.equal(vinca2StatusText('error'), 'No se pudo conectar');
+  assert.equal(vinca2StatusText('missing'), 'Termómetro no encontrado');
+  assert.equal(vinca2StatusText('searching'), 'Buscando termómetro…');
+  assert.equal(vinca2StatusText('error', { error: { code: 'CONNECTION_LOST' } }), 'Conexión perdida');
   const h = await devicesFixture();
   for (const remembered of [false, true]) {
     h.ble.sessionState.remembered = remembered;
@@ -3292,4 +3296,99 @@ test('preparation native guard uses saved identity and preserves the transport s
   const clockSource = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/BleClockOperation.java', import.meta.url), 'utf8');
   assert.ok(clockSource.indexOf('capture.record(channel.toString()') < clockSource.indexOf('if (DATE_TIME.equals(channel))'));
   assert.match(clockSource, /CLOCK_INVALID_DATE/); assert.match(clockSource, /CLOCK_DIAGNOSTIC_READ_ONLY/);
+});
+
+
+test('B: calendar policy accepts yesterday beyond 24 hours but never invents clock continuity', async () => {
+  const { assessVinca2AutomaticDate, prepareAutomaticBleDraft } = await import('../src/lib/bleMeasurements.js');
+  const nowMs = Date.parse('2026-11-20T22:00:00Z');
+  const reading = date => normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: date,
+    deviceModel: 'BM-Vinca2', deviceProtocol: 'vinca2', deviceKey: 'v', receptionValidated: true });
+  const context = { deviceKey: 'v', nowMs, timeZone: 'Europe/Madrid' };
+  const reason = (date, patch = {}) => assessVinca2AutomaticDate(reading(date), { ...context, ...patch }).reason;
+  for (const date of ['2026-11-20T08:00:00', '2026-11-19T01:00:00']) assert.equal(reason(date), 'clock-history-insufficient');
+  assert.equal(reason('2026-11-18T23:59:00'), 'not-today-or-yesterday');
+  assert.equal(reason('2026-11-20T23:30:00'), 'future-date');
+  assert.equal(reason(null), 'missing-date'); assert.equal(reason('2000-00-00T00:00:00'), 'invalid-date');
+  assert.equal(reason('2026-10-25T02:30:00', { nowMs: Date.parse('2026-10-25T12:00:00Z') }), 'ambiguous-local-date');
+  assert.equal(reason('2026-03-29T02:30:00', { nowMs: Date.parse('2026-03-29T12:00:00Z') }), 'nonexistent-local-date');
+  const sync = { operation: 'sync', verified: true, checkedAt: Date.parse('2026-11-19T08:00:00Z'), driftSeconds: 0,
+    phoneTimeZone: 'Europe/Madrid', phoneUtcOffsetMinutes: 60 };
+  const check = { ...sync, operation: 'read', checkedAt: nowMs };
+  const clockHistory = { state: 'read_correct', lastVerifiedSync: sync, lastValidCheck: check };
+  assert.equal(reason('2026-11-20T08:00:00', { clockHistory }), 'clock-continuity-unproven');
+  assert.equal(reason('2026-11-19T08:00:00', { clockHistory }), 'measurement-before-clock-sync');
+  for (const patch of [{ phoneTimeZone: 'UTC' }, { phoneUtcOffsetMinutes: 120 }])
+    assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: { ...check, ...patch } } }), 'clock-time-zone-changed');
+  assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, invalidatedAt: nowMs - 1 } }), 'clock-trust-interrupted');
+  assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: sync } }), 'clock-check-not-after-measurement');
+  assert.equal(reason('2026-11-20T08:00:00', { deviceKey: 'other' }), 'device-identity-unavailable');
+  assert.throws(() => prepareAutomaticBleDraft(reading('2026-11-20T08:00:00'), { ...context, clockHistory }), error => error.code === 'ble-auto-review');
+});
+
+test('B: mode choices require server success; prompt and choices persist per account/device, including close', async () => {
+  const storage = memoryStorage(); const data = {}; let offline = false;
+  const remote = {
+    subscribe: () => () => {},
+    merge: async (id, fields) => { if (offline) throw Error('offline'); return data[id] = mergeThermometerFields(data[id], fields); },
+    claimAutomationPrompt: async (id, field) => {
+      if (offline) throw Error('offline');
+      if (data[id]?.automationPrompt || data[id]?.incorporationMode) return { fields: data[id], claimed: false };
+      return { fields: data[id] = { ...data[id], automationPrompt: field }, claimed: true };
+    },
+  };
+  const create = (userId = 'a', backend = remote) => createThermometerMetadataStore({ userId, storage, remote: backend, changed: () => {} });
+  let first = create(), otherSession = create();
+  assert.deepEqual(await Promise.all([first.claimAutomationPrompt('v'), otherSession.claimAutomationPrompt('v')]), [true, false]);
+  assert.equal(first.get('v').incorporationMode, undefined); // Closing chooses nothing.
+  first.dispose(); first = create(); assert.equal(await first.claimAutomationPrompt('v'), false);
+  offline = true; await assert.rejects(first.chooseIncorporationMode('v', 'automatic'));
+  assert.equal(first.get('v').incorporationMode, undefined);
+  offline = false; await first.chooseIncorporationMode('v', 'automatic');
+  assert.equal(first.get('v').incorporationMode, 'automatic');
+  assert.deepEqual(first.get('other-device'), {});
+  first.dispose(); first = create(); assert.equal(first.get('v').incorporationMode, 'automatic');
+  await first.chooseIncorporationMode('v', 'manual'); assert.equal(first.get('v').incorporationMode, 'manual');
+  const accountB = create('b', { subscribe: () => () => {}, merge: async (_, fields) => fields });
+  assert.deepEqual(accountB.get('v'), {});
+  first.dispose(); otherSession.dispose(); accountB.dispose();
+});
+
+test('B: first confirmed Vinca save queues the question after review, never after a failed save', async () => {
+  const native = bridge(); let claims = 0;
+  const metadata = { devices: {}, get: () => ({}), patch: () => {}, claimAutomationPrompt: async () => { claims++; return claims === 1; } };
+  const owner = await mountedOwner(native, 'a', undefined, metadata);
+  try {
+    native.emit({ temperatureC: 36.42, deviceProtocol: 'vinca2', receptionValidated: true });
+    native.emit({ temperatureC: 36.43, deviceProtocol: 'vinca2', receptionValidated: true });
+    owner.render().openReadingReview(1); owner.render();
+    await assert.rejects(owner.render().incorporateReading(1, async () => { throw { code: 'ble-import-conflict' }; }));
+    owner.render(); await flush(); assert.equal(claims, 0);
+    const wait = deferred(); const save = owner.render().incorporateReading(1, () => wait.promise);
+    owner.render(); await flush(); assert.equal(claims, 0);
+    wait.resolve({ isoDate: '2026-11-20' }); await save;
+    owner.render(); await flush(); assert.equal(claims, 0); // Second pending is still being reviewed.
+    owner.card().onDismiss(); owner.render(); await flush();
+    assert.equal(claims, 1); assert.equal(owner.prompt().open, true);
+    owner.prompt().onClose(); assert.equal(owner.prompt(), undefined);
+    await owner.render().incorporateReading(2, async () => ({ isoDate: '2026-11-20' }));
+    owner.render(); await flush(); assert.equal(owner.prompt(), undefined);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('B: prompt close writes no mode, explicit buttons serialize and server errors keep it open', async () => {
+  const h = hooks(); const calls = []; let closed = 0; const wait = deferred();
+  const { Vinca2AutomationPrompt, Vinca2IncorporationSettings } = await loadFrontend('src/components/Vinca2Automation.jsx', {
+    ...h.bindings, VINCA2_AUTOMATIC_IMPORT_BLOCKER: 'Blocked', Button: 'button', Dialog: 'dialog', DialogContent: 'content',
+    DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description',
+    useThermometerMetadata: () => ({ devices: {}, chooseIncorporationMode: async (...args) => { calls.push(args); return wait.promise; } }),
+  }, ['Vinca2AutomationPrompt', 'Vinca2IncorporationSettings']);
+  const render = () => h.render(() => ({ props: { value: Vinca2AutomationPrompt({ deviceKey: 'v', open: true, onClose: () => closed++ }) } }));
+  let tree = render(); tree.props.onOpenChange(false); assert.equal(closed, 1); assert.deepEqual(calls, []);
+  const buttons = treeNodes(tree).filter(node => node.type === 'button');
+  const saving = buttons[0].props.onClick(); await buttons[1].props.onClick();
+  assert.deepEqual(calls, [['v', 'automatic']]);
+  wait.reject(Error('offline')); await saving; tree = render();
+  assert.equal(closed, 1); assert.ok(treeNodes(tree).some(node => node.props.role === 'alert'));
+  h.cleanup();
 });

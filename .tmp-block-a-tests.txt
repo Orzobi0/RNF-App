@@ -1,0 +1,711 @@
+TAP version 13
+# Subtest: panel automatic session uses the real bridge wrappers without requesting permissions or inspecting
+ok 1 - panel automatic session uses the real bridge wrappers without requesting permissions or inspecting
+  ---
+  duration_ms: 2192.4873
+  ...
+# [FemometerBle] { code: 'DEVICE_NOT_VERIFIED' }
+# Subtest: Android message bridge receives multiple readings and releases the subscription
+ok 2 - Android message bridge receives multiple readings and releases the subscription
+  ---
+  duration_ms: 620.0946
+  ...
+# Subtest: standard selection verifies, binds, promotes only the confirmed reading and reconnects without Vinca commands
+ok 3 - standard selection verifies, binds, promotes only the confirmed reading and reconnects without Vinca commands
+  ---
+  duration_ms: 9.5582
+  ...
+# Subtest: negative, timeout, late and failed standard confirmations preserve old bindings and never promote
+ok 4 - negative, timeout, late and failed standard confirmations preserve old bindings and never promote
+  ---
+  duration_ms: 18.6081
+  ...
+# Subtest: account disposal invalidates a pending standard confirmation and its late readings
+ok 5 - account disposal invalidates a pending standard confirmation and its late readings
+  ---
+  duration_ms: 1.3473
+  ...
+# Subtest: verification confirmation requires explicit basal/current take acknowledgement and selection
+ok 6 - verification confirmation requires explicit basal/current take acknowledgement and selection
+  ---
+  duration_ms: 30.0092
+  ...
+# Subtest: manual multibrand incorporation requires validated reception and preserves transmitted units and original date
+ok 7 - manual multibrand incorporation requires validated reception and preserves transmitted units and original date
+  ---
+  duration_ms: 19.4002
+  ...
+# Subtest: foreground keeps live listening, restarts an expired listener once and retains pending readings
+ok 8 - foreground keeps live listening, restarts an expired listener once and retains pending readings
+  ---
+  duration_ms: 13.1248
+  ...
+# Subtest: foreground after unsuccessful scan is bounded and requires a remembered device
+ok 9 - foreground after unsuccessful scan is bounded and requires a remembered device
+  ---
+  duration_ms: 9.1023
+  ...
+# Subtest: shared owner survives page consumers and retains consecutive identical readings; only successful save marks its row
+ok 10 - shared owner survives page consumers and retains consecutive identical readings; only successful save marks its row
+  ---
+  duration_ms: 10.2966
+  ...
+# Subtest: account change and unmount dispose old listener, clear readings and ignore a late save
+ok 11 - account change and unmount dispose old listener, clear readings and ignore a late save
+  ---
+  duration_ms: 6.6801
+  ...
+# Subtest: scan cancellation drains native cleanup before automatic or manual searches can restart
+ok 12 - scan cancellation drains native cleanup before automatic or manual searches can restart
+  ---
+  duration_ms: 2.6896
+  ...
+# Subtest: StrictMode-style remount and duplicate starts leave one native connection/listener
+ok 13 - StrictMode-style remount and duplicate starts leave one native connection/listener
+  ---
+  duration_ms: 1.0353
+  ...
+# Subtest: automatic clock read fails without interrupting temperatures, and is repeated only on reconnection
+ok 14 - automatic clock read fails without interrupting temperatures, and is repeated only on reconnection
+  ---
+  duration_ms: 1.6905
+  ...
+# Subtest: clock comparison uses phone local time and rejects invalid dates
+ok 15 - clock comparison uses phone local time and rejects invalid dates
+  ---
+  duration_ms: 0.1903
+  ...
+# Subtest: end of bounded listening retains readings without automatically reconnecting
+ok 16 - end of bounded listening retains readings without automatically reconnecting
+  ---
+  duration_ms: 7.2651
+  ...
+# Subtest: disposing during automatic clock read drains it and removes the temperature listener
+ok 17 - disposing during automatic clock read drains it and removes the temperature listener
+  ---
+  duration_ms: 1.5195
+  ...
+# Subtest: web, production and signed-out sessions never mount a BLE owner
+ok 18 - web, production and signed-out sessions never mount a BLE owner
+  ---
+  duration_ms: 15.086
+  ...
+# Subtest: Bluetooth popover keeps waves during listening and offers manual restart with independent indicators
+ok 19 - Bluetooth popover keeps waves during listening and offers manual restart with independent indicators
+  ---
+  duration_ms: 10.5458
+  ...
+# Subtest: global clock prompt stays closed until explicit action
+ok 20 - global clock prompt stays closed until explicit action
+  ---
+  duration_ms: 12.4242
+  ...
+# Subtest: confirmed notices group, remain dismissible and link to the exact day
+ok 21 - confirmed notices group, remain dismissible and link to the exact day
+  ---
+  duration_ms: 9.7596
+  ...
+# Subtest: a voluntary failed clock synchronization preserves listening and pending readings
+ok 22 - a voluntary failed clock synchronization preserves listening and pending readings
+  ---
+  duration_ms: 5.0686
+  ...
+# Subtest: device routes use the shared state and are unavailable outside the enabled prototype
+ok 23 - device routes use the shared state and are unavailable outside the enabled prototype
+  ---
+  duration_ms: 11.553
+  ...
+# Subtest: Bluetooth origin details show only available metadata and remain read-only and gated
+ok 24 - Bluetooth origin details show only available metadata and remain read-only and gated
+  ---
+  duration_ms: 7.1798
+  ...
+# Subtest: quick review preserves the original date, cancels without saving and requires a second explicit duplicate confirmation
+ok 25 - quick review preserves the original date, cancels without saving and requires a second explicit duplicate confirmation
+  ---
+  duration_ms: 22.9774
+  ...
+# Subtest: current clock verification cannot make an unattributed historical measurement eligible automatically
+ok 26 - current clock verification cannot make an unattributed historical measurement eligible automatically
+  ---
+  duration_ms: 1.0078
+  ...
+# Subtest: Ver día waits for exact date and loaded detail, scrolls once and never opens temperature sheet
+ok 27 - Ver día waits for exact date and loaded detail, scrolls once and never opens temperature sheet
+  ---
+  duration_ms: 13.9466
+  ...
+# Subtest: local pending queue recovers by account/device, preserves drafts and fails closed on interrupted writes
+ok 28 - local pending queue recovers by account/device, preserves drafts and fails closed on interrupted writes
+  ---
+  duration_ms: 0.7996
+  ...
+# Subtest: clock history distinguishes sync from read, survives recreation and invalidates trust on forget
+ok 29 - clock history distinguishes sync from read, survives recreation and invalidates trust on forget
+  ---
+  duration_ms: 0.4768
+  ...
+# Subtest: decision never infers a clock epoch or processing receipt from BLE time/model
+ok 30 - decision never infers a clock epoch or processing receipt from BLE time/model
+  ---
+  duration_ms: 0.514
+  ...
+# Subtest: owner restores pending work and edits, removes only confirmed saves and never retries an interrupted save
+ok 31 - owner restores pending work and edits, removes only confirmed saves and never retries an interrupted save
+  ---
+  duration_ms: 18.4104
+  ...
+# Subtest: persistent review card selects readings, minimizes explicitly and advances after save
+ok 32 - persistent review card selects readings, minimizes explicitly and advances after save
+  ---
+  duration_ms: 14.7881
+  ...
+# Subtest: three pending readings do not prevent a new bounded listening session or a fourth reading
+ok 33 - three pending readings do not prevent a new bounded listening session or a fourth reading
+  ---
+  duration_ms: 7.0233
+  ...
+# Subtest: 24-hour candidate window never verifies the clock and resolves DST conservatively
+ok 34 - 24-hour candidate window never verifies the clock and resolves DST conservatively
+  ---
+  duration_ms: 5.2867
+  ...
+# Subtest: visual laboratory is explicitly localhost development only; state is fictitious and detached
+ok 35 - visual laboratory is explicitly localhost development only; state is fictitious and detached
+  ---
+  duration_ms: 1.8713
+  ...
+# Subtest: Bluetooth success presentation has no expiry and supports outside, swipe and explicit dismissal
+ok 36 - Bluetooth success presentation has no expiry and supports outside, swipe and explicit dismissal
+  ---
+  duration_ms: 7.2566
+  ...
+# Subtest: integrated lab keeps the real application children and route state; fake BLE never runs a save adapter
+ok 37 - integrated lab keeps the real application children and route state; fake BLE never runs a save adapter
+  ---
+  duration_ms: 25.0784
+  ...
+# Subtest: lab owner is authenticated and available without query parameters across route navigation without mounting native BLE
+ok 38 - lab owner is authenticated and available without query parameters across route navigation without mounting native BLE
+  ---
+  duration_ms: 9.515
+  ...
+# Subtest: background invalidates listening immediately and foreground drains cleanup before reconnecting
+ok 39 - background invalidates listening immediately and foreground drains cleanup before reconnecting
+  ---
+  duration_ms: 1.799
+  ...
+# Subtest: manual restart is single flight, drains listeners, retains readings and allows retry after missing device
+ok 40 - manual restart is single flight, drains listeners, retains readings and allows retry after missing device
+  ---
+  duration_ms: 2.1049
+  ...
+# Subtest: background during manual restart cancels its search; rapid lifecycle changes cannot overlap connections
+ok 41 - background during manual restart cancels its search; rapid lifecycle changes cannot overlap connections
+  ---
+  duration_ms: 1.5333
+  ...
+# Subtest: pending notice hides on dismissal and navigation, reopens explicitly and resurfaces compact for a new reading
+ok 42 - pending notice hides on dismissal and navigation, reopens explicitly and resurfaces compact for a new reading
+  ---
+  duration_ms: 5.8157
+  ...
+# Subtest: discard commits only the selected local pending and fails closed on storage, saving and stale sessions
+ok 43 - discard commits only the selected local pending and fails closed on storage, saving and stale sessions
+  ---
+  duration_ms: 6.9903
+  ...
+# Subtest: original attempt destination is durable before saving and recovers uncertain without opening the notice
+ok 44 - original attempt destination is durable before saving and recovers uncertain without opening the notice
+  ---
+  duration_ms: 9.0894
+  ...
+# Subtest: uncertain review queries the original destination and requires an explicit missing decision before saving
+ok 45 - uncertain review queries the original destination and requires an explicit missing decision before saving
+  ---
+  duration_ms: 7.9737
+  ...
+# Subtest: uncertain query rejects partial or failed reads, invalidates date/cycle changes and ignores stale completions
+ok 46 - uncertain query rejects partial or failed reads, invalidates date/cycle changes and ignores stale completions
+  ---
+  duration_ms: 6.0784
+  ...
+# Subtest: already stored retires only the local reading; later and legacy attempts never retry
+ok 47 - already stored retires only the local reading; later and legacy attempts never retry
+  ---
+  duration_ms: 5.0831
+  ...
+# Subtest: duplicate permission is explicit and invalidated by editing; discard has a separate confirmation
+ok 48 - duplicate permission is explicit and invalidated by editing; discard has a separate confirmation
+  ---
+  duration_ms: 4.2016
+  ...
+# Subtest: cancel hides the whole pending window; only a subsequent new reading automatically shows a compact notice
+ok 49 - cancel hides the whole pending window; only a subsequent new reading automatically shows a compact notice
+  ---
+  duration_ms: 5.1189
+  ...
+# Subtest: uncertain check starts once per opening and ignores a closed or replaced review
+ok 50 - uncertain check starts once per opening and ignores a closed or replaced review
+  ---
+  duration_ms: 5.0421
+  ...
+# Subtest: special review sections replace decisions and hide unsafe or redundant incorporation controls
+ok 51 - special review sections replace decisions and hide unsafe or redundant incorporation controls
+  ---
+  duration_ms: 6.4283
+  ...
+# Subtest: Devices searches with one permission request and links with one result tap after inspection and cleanup
+ok 52 - Devices searches with one permission request and links with one result tap after inspection and cleanup
+  ---
+  duration_ms: 10.4856
+  ...
+# Subtest: Devices loading and permission/Bluetooth failures are retryable without a second permission mechanism
+ok 53 - Devices loading and permission/Bluetooth failures are retryable without a second permission mechanism
+  ---
+  duration_ms: 7.2092
+  ...
+# Subtest: saved devices stay visible while adding and scan results connect by opaque key, not model name
+ok 54 - saved devices stay visible while adding and scan results connect by opaque key, not model name
+  ---
+  duration_ms: 7.9681
+  ...
+# Subtest: adding can be abandoned and retains the existing device on failure
+ok 55 - adding can be abandoned and retains the existing device on failure
+  ---
+  duration_ms: 6.6565
+  ...
+# Subtest: linked Vinca exposes shared pending review and clock, serializes operations and confirms unlink without deleting readings
+ok 56 - linked Vinca exposes shared pending review and clock, serializes operations and confirms unlink without deleting readings
+  ---
+  duration_ms: 11.8614
+  ...
+# Subtest: technical diagnostics are collapsed by default and rendering never calls the session
+ok 57 - technical diagnostics are collapsed by default and rendering never calls the session
+  ---
+  duration_ms: 5.7249
+  ...
+# Subtest: Vinca configuration distinguishes clock states and opens the shared clock dialog
+ok 58 - Vinca configuration distinguishes clock states and opens the shared clock dialog
+  ---
+  duration_ms: 10.7305
+  ...
+# Subtest: coordinated binding waits for disconnect, freezes selection and keeps previous binding until native confirmation
+ok 59 - coordinated binding waits for disconnect, freezes selection and keeps previous binding until native confirmation
+  ---
+  duration_ms: 2.5941
+  ...
+# Subtest: incompatible, failed inspection/cleanup and unconfirmed persistence never replace the previous binding
+ok 60 - incompatible, failed inspection/cleanup and unconfirmed persistence never replace the previous binding
+  ---
+  duration_ms: 2.8137
+  ...
+# Subtest: binding rejects identifiers outside the current scan without inspecting or persisting them
+ok 61 - binding rejects identifiers outside the current scan without inspecting or persisting them
+  ---
+  duration_ms: 0.7089
+  ...
+# Subtest: stop, suspend and account replacement invalidate late inspections before persistence
+ok 62 - stop, suspend and account replacement invalidate late inspections before persistence
+  ---
+  duration_ms: 2.5602
+  ...
+# Subtest: cancellation while inspection disconnect is pending cannot proceed to native remember
+ok 63 - cancellation while inspection disconnect is pending cannot proceed to native remember
+  ---
+  duration_ms: 0.8015
+  ...
+# Subtest: device info validates each field without conflating firmware/software or retaining identifiers
+ok 64 - device info validates each field without conflating firmware/software or retaining identifiers
+  ---
+  duration_ms: 1.1558
+  ...
+# Subtest: device info is explicit, sequential with clock jobs, ignores duplicate presses and keeps temperatures
+ok 65 - device info is explicit, sequential with clock jobs, ignores duplicate presses and keeps temperatures
+  ---
+  duration_ms: 5.1521
+  ...
+# Subtest: device info absent fields, total absence and transport/timeout errors stay local to the query
+ok 66 - device info absent fields, total absence and transport/timeout errors stay local to the query
+  ---
+  duration_ms: 1.8977
+  ...
+# Subtest: device info cancellation clears immediately and late results cannot cross connections or accounts
+ok 67 - device info cancellation clears immediately and late results cannot cross connections or accounts
+  ---
+  duration_ms: 3.278
+  ...
+# Subtest: a disconnected event cancels device info without removing pending measurements
+ok 68 - a disconnected event cancels device info without removing pending measurements
+  ---
+  duration_ms: 5.6632
+  ...
+# Subtest: Vinca device info refreshes on opening only when ready, renders separate rows and a local error
+ok 69 - Vinca device info refreshes on opening only when ready, renders separate rows and a local error
+  ---
+  duration_ms: 12.3793
+  ...
+# Subtest: lab device info simulates all results and cancellation without a native adapter
+ok 70 - lab device info simulates all results and cancellation without a native adapter
+  ---
+  duration_ms: 15.8736
+  ...
+# Subtest: volume adapter validates the level and keeps the Android Staging boundary
+ok 71 - volume adapter validates the level and keeps the Android Staging boundary
+  ---
+  duration_ms: 6.9178
+  ...
+# Subtest: volume is explicit, has no default and preserves listening and pending temperatures
+ok 72 - volume is explicit, has no default and preserves listening and pending temperatures
+  ---
+  duration_ms: 6.3673
+  ...
+# Subtest: volume refuses unsupported and invalid requests and is excluded by clock and device info
+ok 73 - volume refuses unsupported and invalid requests and is excluded by clock and device info
+  ---
+  duration_ms: 3.2554
+  ...
+# Subtest: volume errors distinguish write failure, cancellation and unknown result and require reconnection
+ok 74 - volume errors distinguish write failure, cancellation and unknown result and require reconnection
+  ---
+  duration_ms: 5.0822
+  ...
+# Subtest: malformed volume responses never advertise an accepted or verified adjustment
+ok 75 - malformed volume responses never advertise an accepted or verified adjustment
+  ---
+  duration_ms: 2.0569
+  ...
+# Subtest: volume cancellation and late completion cannot cross account or connection boundaries
+ok 76 - volume cancellation and late completion cannot cross account or connection boundaries
+  ---
+  duration_ms: 5.459
+  ...
+# Subtest: Vinca volume controls show only sent levels, no default, and disable unsafe actions
+ok 77 - Vinca volume controls show only sent levels, no default, and disable unsafe actions
+  ---
+  duration_ms: 8.1799
+  ...
+# Subtest: volume lab simulates two stages, errors, timeout and exclusions without native access
+ok 78 - volume lab simulates two stages, errors, timeout and exclusions without native access
+  ---
+  duration_ms: 16.1524
+  ...
+# Subtest: volume cannot write while listener initialization is pending or readiness is incomplete
+ok 79 - volume cannot write while listener initialization is pending or readiness is incomplete
+  ---
+  duration_ms: 4.9388
+  ...
+# Subtest: measurement mode adapter validates the level and keeps the Android Staging boundary
+ok 80 - measurement mode adapter validates the level and keeps the Android Staging boundary
+  ---
+  duration_ms: 6.5565
+  ...
+# Subtest: measurement mode is explicit, has no default and preserves listening and pending temperatures
+ok 81 - measurement mode is explicit, has no default and preserves listening and pending temperatures
+  ---
+  duration_ms: 6.1529
+  ...
+# Subtest: measurement mode refuses unsupported and invalid requests and is excluded by clock and device info
+ok 82 - measurement mode refuses unsupported and invalid requests and is excluded by clock and device info
+  ---
+  duration_ms: 2.2636
+  ...
+# Subtest: measurement mode errors distinguish write failure, cancellation and unknown result and require reconnection
+ok 83 - measurement mode errors distinguish write failure, cancellation and unknown result and require reconnection
+  ---
+  duration_ms: 3.8562
+  ...
+# Subtest: malformed measurement mode responses never advertise an accepted or verified adjustment
+ok 84 - malformed measurement mode responses never advertise an accepted or verified adjustment
+  ---
+  duration_ms: 1.5603
+  ...
+# Subtest: measurement mode cancellation and late completion cannot cross account or connection boundaries
+ok 85 - measurement mode cancellation and late completion cannot cross account or connection boundaries
+  ---
+  duration_ms: 4.1954
+  ...
+# Subtest: Vinca measurement mode controls show only sent levels, no default, and disable unsafe actions
+ok 86 - Vinca measurement mode controls show only sent levels, no default, and disable unsafe actions
+  ---
+  duration_ms: 8.2984
+  ...
+# Subtest: measurement mode lab simulates two stages, errors, timeout and exclusions without native access
+ok 87 - measurement mode lab simulates two stages, errors, timeout and exclusions without native access
+  ---
+  duration_ms: 14.7561
+  ...
+# Subtest: measurement mode cannot write while listener initialization is pending or readiness is incomplete
+ok 88 - measurement mode cannot write while listener initialization is pending or readiness is incomplete
+  ---
+  duration_ms: 1.4542
+  ...
+# Subtest: measurement mode and volume exclude each other and quarantine their shared characteristic
+ok 89 - measurement mode and volume exclude each other and quarantine their shared characteristic
+  ---
+  duration_ms: 2.5196
+  ...
+# Subtest: preferences: account/device isolation, legacy absence, invalid values and non-destructive persistence
+ok 90 - preferences: account/device isolation, legacy absence, invalid values and non-destructive persistence
+  ---
+  duration_ms: 0.7863
+  ...
+# Subtest: preferences: accepted manual changes persist; rejected writes and failed storage retain the last durable choice
+ok 91 - preferences: accepted manual changes persist; rejected writes and failed storage retain the last durable choice
+  ---
+  duration_ms: 1.234
+  ...
+# Subtest: binding: confirmed link survives a subsequent listener failure and retry does not bind again
+ok 92 - binding: confirmed link survives a subsequent listener failure and retry does not bind again
+  ---
+  duration_ms: 0.6215
+  ...
+# Subtest: binding: unlink drains configuration and closes before forget, preserving pending review
+ok 93 - binding: unlink drains configuration and closes before forget, preserving pending review
+  ---
+  duration_ms: 2.3129
+  ...
+# Subtest: binding: failed close or native forget keeps binding; change suppresses foreground reconnect until cancelled
+ok 94 - binding: failed close or native forget keeps binding; change suppresses foreground reconnect until cancelled
+  ---
+  duration_ms: 2.1168
+  ...
+# Subtest: lifecycle: automatic settings serialize, exclude manual work and still deliver temperatures
+ok 95 - lifecycle: automatic settings serialize, exclude manual work and still deliver temperatures
+  ---
+  duration_ms: 1.8559
+  ...
+# Subtest: lifecycle: uncertain configuration stops the sequence without stopping temperatures; late result cannot cross accounts
+ok 96 - lifecycle: uncertain configuration stops the sequence without stopping temperatures; late result cannot cross accounts
+  ---
+  duration_ms: 2.6334
+  ...
+# Subtest: clock: local thresholds of 120 seconds and 24 hours, one automatic correction with read-back verification
+ok 97 - clock: local thresholds of 120 seconds and 24 hours, one automatic correction with read-back verification
+  ---
+  duration_ms: 3.7025
+  ...
+# Subtest: clock: failed/unverified correction is not a verified sync, does not loop or mutate pending history
+ok 98 - clock: failed/unverified correction is not a verified sync, does not loop or mutate pending history
+  ---
+  duration_ms: 2.7955
+  ...
+# Subtest: discard: ordinary pending review requests confirmation, cancel retains it, confirm never incorporates
+ok 99 - discard: ordinary pending review requests confirmation, cancel retains it, confirm never incorporates
+  ---
+  duration_ms: 4.4742
+  ...
+# Subtest: discard: unlink leaves pending readings reviewable with original binding and individual durable removal
+ok 100 - discard: unlink leaves pending readings reviewable with original binding and individual durable removal
+  ---
+  duration_ms: 4.4123
+  ...
+# Subtest: UI: stored preferences remain selected when disconnected, and normal review puts discard before the primary incorporation action
+ok 101 - UI: stored preferences remain selected when disconnected, and normal review puts discard before the primary incorporation action
+  ---
+  duration_ms: 10.5499
+  ...
+# Subtest: lab integration: new binding prepares preferences, restoration is serial, cancellation and unlink keep fictitious pending work
+ok 102 - lab integration: new binding prepares preferences, restoration is serial, cancellation and unlink keep fictitious pending work
+  ---
+  duration_ms: 13.6331
+  ...
+# Subtest: preferences: an existing binding without preferences never receives defaults, including reselecting the same thermometer
+ok 103 - preferences: an existing binding without preferences never receives defaults, including reselecting the same thermometer
+  ---
+  duration_ms: 1.1062
+  ...
+# Subtest: lifecycle: a listener reporting another binding is closed before any automatic settings
+ok 104 - lifecycle: a listener reporting another binding is closed before any automatic settings
+  ---
+  duration_ms: 0.5216
+  ...
+# Subtest: presentation: local clock formatting validates calendar fields without timezone conversion
+ok 105 - presentation: local clock formatting validates calendar fields without timezone conversion
+  ---
+  duration_ms: 5.1798
+  ...
+# Subtest: presentation: segmented preferences retain accessible selection and three equal touch targets
+ok 106 - presentation: segmented preferences retain accessible selection and three equal touch targets
+  ---
+  duration_ms: 6.9296
+  ...
+# Subtest: presentation: binding notice only follows confirmation, closes and expires without hiding the device
+ok 107 - presentation: binding notice only follows confirmation, closes and expires without hiding the device
+  ---
+  duration_ms: 6.1881
+  ...
+# Subtest: presentation: review footer has discard on the left and incorporation on the right; closing belongs to the container
+ok 108 - presentation: review footer has discard on the left and incorporation on the right; closing belongs to the container
+  ---
+  duration_ms: 6.0353
+  ...
+# Subtest: presentation: readiness requires active indications and connection, and product images keep their proportions
+ok 109 - presentation: readiness requires active indications and connection, and product images keep their proportions
+  ---
+  duration_ms: 11.2886
+  ...
+# Subtest: multibrand: expanded search is explicit and never changes an existing binding
+ok 110 - multibrand: expanded search is explicit and never changes an existing binding
+  ---
+  duration_ms: 0.7148
+  ...
+# Subtest: multibrand: only the implemented and inspected profile can replace a binding
+ok 111 - multibrand: only the implemented and inspected profile can replace a binding
+  ---
+  duration_ms: 1.0916
+  ...
+# Subtest: multibrand: a reconnected unknown profile cannot configure clock, volume or mode
+ok 112 - multibrand: a reconnected unknown profile cannot configure clock, volume or mode
+  ---
+  duration_ms: 0.5812
+  ...
+# Subtest: multibrand: origin stays with each pending reading across device changes and recovery
+ok 113 - multibrand: origin stays with each pending reading across device changes and recovery
+  ---
+  duration_ms: 6.1984
+  ...
+# Subtest: multibrand: UI distinguishes discovery states and expanded search; unknown models have no Vinca image or settings
+ok 114 - multibrand: UI distinguishes discovery states and expanded search; unknown models have no Vinca image or settings
+  ---
+  duration_ms: 10.7677
+  ...
+# Subtest: multibrand: capability flags require both the implemented model and validated protocol
+ok 115 - multibrand: capability flags require both the implemented model and validated protocol
+  ---
+  duration_ms: 1.2885
+  ...
+# Subtest: review container dismissal retains the pending reading and draft in durable storage
+ok 116 - review container dismissal retains the pending reading and draft in durable storage
+  ---
+  duration_ms: 4.5677
+  ...
+# Subtest: search presentation replaces instructions with progress/results and recognizes Vinca before inspection
+ok 117 - search presentation replaces instructions with progress/results and recognizes Vinca before inspection
+  ---
+  duration_ms: 5.4599
+  ...
+# Subtest: multiple bindings switch one connection, preserve preferences and reconnect only the selected device
+ok 118 - multiple bindings switch one connection, preserve preferences and reconnect only the selected device
+  ---
+  duration_ms: 1.7391
+  ...
+# Subtest: failed addition and individual unlink preserve other bindings and durable pending temperatures
+ok 119 - failed addition and individual unlink preserve other bindings and durable pending temperatures
+  ---
+  duration_ms: 1.1663
+  ...
+# Subtest: opening another device shows its own preferences and connects by its opaque key
+ok 120 - opening another device shows its own preferences and connects by its opaque key
+  ---
+  duration_ms: 6.2838
+  ...
+# Subtest: standard trial is isolated from the normal queue, storage, settings and binding selection
+ok 121 - standard trial is isolated from the normal queue, storage, settings and binding selection
+  ---
+  duration_ms: 5.4511
+  ...
+# Subtest: adding a supported device retains saved devices; reselecting an existing one never creates defaults
+ok 122 - adding a supported device retains saved devices; reselecting an existing one never creates defaults
+  ---
+  duration_ms: 1.0918
+  ...
+# Subtest: trial cancellation drains a late start and rejects late trial events without reconnecting
+ok 123 - trial cancellation drains a late start and rejects late trial events without reconnecting
+  ---
+  duration_ms: 0.8028
+  ...
+# Subtest: concurrent unlink requests cannot report success for a different device
+ok 124 - concurrent unlink requests cannot report success for a different device
+  ---
+  duration_ms: 0.6084
+  ...
+# Subtest: thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key
+ok 125 - thermometer metadata migrates additively, merges partial updates and retains offline edits per account and key
+  ---
+  duration_ms: 2.2957
+  ...
+# Subtest: inline thermometer name commits Enter once, cancels Escape and preserves explicit removal
+ok 126 - inline thermometer name commits Enter once, cancels Escape and preserves explicit removal
+  ---
+  duration_ms: 3.7631
+  ...
+# Subtest: standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt
+ok 127 - standard promotion without original date persists before one manual save; partial failures retain binding and pending attempt
+  ---
+  duration_ms: 14.7276
+  ...
+# Subtest: EasyHome current and historical range inference preserves unknown transmitted units and original values
+ok 128 - EasyHome current and historical range inference preserves unknown transmitted units and original values
+  ---
+  duration_ms: 0.9731
+  ...
+# Subtest: EasyHome histories persist independently across reconnect, discard, uncertain writes and account changes
+ok 129 - EasyHome histories persist independently across reconnect, discard, uncertain writes and account changes
+  ---
+  duration_ms: 10.5174
+  ...
+# Subtest: persisted thermometer info survives disconnection and keeps original identity separate from nickname
+ok 130 - persisted thermometer info survives disconnection and keeps original identity separate from nickname
+  ---
+  duration_ms: 6.4409
+  ...
+# Subtest: EasyHome unit and clock operations exclude information reads and never invoke Vinca settings
+ok 131 - EasyHome unit and clock operations exclude information reads and never invoke Vinca settings
+  ---
+  duration_ms: 1.123
+  ...
+# Subtest: navigation during first binding leaves its received take pending without saving an obsolete destination
+ok 132 - navigation during first binding leaves its received take pending without saving an obsolete destination
+  ---
+  duration_ms: 5.2026
+  ...
+# Subtest: EasyHome historical editor confirms edited Celsius, date and time, preserving provenance
+ok 133 - EasyHome historical editor confirms edited Celsius, date and time, preserving provenance
+  ---
+  duration_ms: 3.7984
+  ...
+# Subtest: EasyHome UI exposes only Celsius and the numeric editor belongs only to its histories
+ok 134 - EasyHome UI exposes only Celsius and the numeric editor belongs only to its histories
+  ---
+  duration_ms: 10.7783
+  ...
+# Subtest: diagnostic capture is cleared on account change and logout without removing pending temperatures
+ok 135 - diagnostic capture is cleared on account change and logout without removing pending temperatures
+  ---
+  duration_ms: 3.98
+  ...
+# Subtest: capture wrappers exclude PWA, production and Experiment and export only explicit fields
+ok 136 - capture wrappers exclude PWA, production and Experiment and export only explicit fields
+  ---
+  duration_ms: 20.9578
+  ...
+# Subtest: native hooks observe both Android callback signatures and proprietary bytes before the existing discard
+ok 137 - native hooks observe both Android callback signatures and proprietary bytes before the existing discard
+  ---
+  duration_ms: 1.457
+  ...
+# Subtest: capture UI is manual, supports selectable text and clears on stop and unmount
+ok 138 - capture UI is manual, supports selectable text and clears on stop and unmount
+  ---
+  duration_ms: 6.0385
+  ...
+# Subtest: prepared observation keeps automatic reads but suppresses only Vinca automatic clock correction
+ok 139 - prepared observation keeps automatic reads but suppresses only Vinca automatic clock correction
+  ---
+  duration_ms: 1.8165
+  ...
+# Subtest: preparation native guard uses saved identity and preserves the transport sequence
+ok 140 - preparation native guard uses saved identity and preserves the transport sequence
+  ---
+  duration_ms: 2.31
+  ...
+1..140
+# tests 140
+# suites 0
+# pass 140
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4220.3632

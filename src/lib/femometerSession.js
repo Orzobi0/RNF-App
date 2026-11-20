@@ -164,7 +164,7 @@ export const createFemometerSessionManager = (api) => {
         onTemperature({ ...event, deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
         if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
           void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
-            ['timeout', 'stopped'].includes(event.status) ? null : { message: event.message || 'El termómetro se desconectó.' });
+            ['timeout', 'stopped'].includes(event.status) ? null : { code: event.status === 'disconnected' ? 'CONNECTION_LOST' : 'LISTENER_ERROR', message: event.message || 'El termómetro se desconectó.' });
         }
       });
       const result = await call(() => api.startFemometerTemperatureListener(deviceId, userId));
@@ -193,7 +193,8 @@ export const createFemometerSessionManager = (api) => {
       publish({ status: 'searching' });
       // Native scan checks existing permissions and Bluetooth before starting;
       // unlike requestBluetoothPermissions, it never opens a permission dialog.
-      const found = await call(() => api.scanForFemometer(userId, expanded));
+      const found = await call(() => api.scanForFemometer(userId, expanded, automatic && saved.remembered === true
+        && (saved.protocol === 'vinca2' || (!saved.protocol && (!saved.model || saved.model === 'BM-Vinca2')))));
       const matches = found.filter(device => device.isRemembered === true);
       const match = matches.length === 1 ? matches[0] : null;
       const devices = automatic ? (match ? [match] : []) : found;

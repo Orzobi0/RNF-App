@@ -14,6 +14,7 @@ import FemometerReviewCard from '@/components/FemometerReviewCard';
 import { isBleVisualLabEnabled } from '@/lib/bleVisualLab';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Vinca2AutomationPrompt } from '@/components/Vinca2Automation';
 
 const inactive = { enabled: false, readings: [], pendingCount: 0 };
 const FemometerContext = createContext(inactive);
@@ -62,6 +63,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [storageError, setStorageError] = useState('');
   const [clockHistory, setClockHistory] = useState(null);
   const [lifecycleStatus, setLifecycleStatus] = useState('registering');
+  const [automationCandidate, setAutomationCandidate] = useState(null);
+  const [automationPromptDevice, setAutomationPromptDevice] = useState(null);
+  const promptClaim = useRef(false);
   const updateReadings = (next, requireDurable = false) => {
     try {
       if (requireDurable && !localRef.current) throw new Error('Almacenamiento local no disponible.');
@@ -184,6 +188,8 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       const result = await save();
       status('incorporated', { savedIsoDate: result?.isoDate,
         savedTime: result?.measurements?.at(-1)?.time });
+      if (sessionRef.current === owner && row.normalized?.device_protocol === 'vinca2'
+        && row.normalized.reception_validated === true && row.deviceKey) setAutomationCandidate(row.deviceKey);
       return result;
     } catch (error) {
       status(error?.code?.startsWith('ble-') ? row.importStatus : 'uncertain', { ...(error?.code?.startsWith('ble-') ? { attempt: row.attempt } : {}), reviewError: { code: error?.code,
@@ -242,6 +248,21 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   };
   const pendingReadings = readings.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
   const reviewReading = pendingReadings.find(row => row.uiId === reviewReadingId) ?? pendingReadings[0];
+  const reviewInProgress = Boolean(reviewReading && reviewVisibleOn === location.key && reviewExpanded)
+    || readings.some(row => row.importStatus === 'saving') || clockDialogOpen;
+  useEffect(() => {
+    if (!automationCandidate || reviewInProgress || promptClaim.current) return;
+    const owner = sessionRef.current;
+    promptClaim.current = true;
+    // Server transaction claims the once-per-account/device question. A close
+    // records no automatic choice. Offline/unavailable preferences never enable it.
+    Promise.resolve(metadataRef.current.claimAutomationPrompt?.(automationCandidate)).then(claimed => {
+      if (sessionRef.current === owner && claimed) setAutomationPromptDevice(automationCandidate);
+    }).catch(() => {}).finally(() => {
+      promptClaim.current = false;
+      if (sessionRef.current === owner) setAutomationCandidate(null);
+    });
+  }, [automationCandidate, reviewInProgress]);
   const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...draft, confirmed: false } } : row));
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     completeVerification, pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
@@ -249,6 +270,8 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
+    {automationPromptDevice && <Vinca2AutomationPrompt key={automationPromptDevice} deviceKey={automationPromptDevice}
+      open={!reviewInProgress} onClose={() => setAutomationPromptDevice(null)} />}
     <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
       onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}
       storageError={storageError} deviceKey={sessionState.deviceKey}>

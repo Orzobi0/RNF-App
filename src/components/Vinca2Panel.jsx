@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useFemometer } from '@/contexts/FemometerContext';
 import Vinca2Diagnostics from '@/components/Vinca2Diagnostics';
+import { Vinca2IncorporationSettings } from '@/components/Vinca2Automation';
 
 export const vinca2StatusText = (status, session = {}) => status === 'listening' && (!session.listenerResult?.connectionReady || !session.listenerResult?.indicationsActive) ? 'Conectando…' : ({
   checking: 'Conectando…', idle: 'Desconectado', stopped: 'Desconectado',
-  searching: 'Conectando…', inspecting: 'Conectando…',
+  searching: 'Buscando termómetro…', inspecting: 'Conectando…',
   binding: 'Conectando…', connecting: 'Conectando…', listening: 'Conectado', stopping: 'Desconectado',
-  missing: 'No disponible', error: 'No disponible',
+  missing: 'Termómetro no encontrado', error: session.error?.code === 'CONNECTION_LOST' ? 'Conexión perdida' : 'No se pudo conectar',
 })[status] || 'Desconectado';
 
 const Vinca2Panel = ({ deviceKey } = {}) => {
@@ -45,7 +46,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
     return () => cancelAnimationFrame(frame);
   }, []);
   const run = async (operation, argument) => {
-    if (operation === 'unlink' ? sessionState.bindingBusy : operationLock.current || busy) return;
+    if (operation !== 'stop' && (operation === 'unlink' ? sessionState.bindingBusy : operationLock.current || busy)) return;
     if (listening && !['restart', 'stop', 'readClock', 'syncClock', 'readDeviceInfo', 'setVolume', 'setMeasurementMode', 'setTemperatureUnit', 'unlink'].includes(operation)) return;
     operationLock.current = true;
     setWorking(true); setActionError(null);
@@ -59,6 +60,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
     } finally { operationLock.current = false; setWorking(false); }
   };
   const retry = ['error', 'missing'].includes(status);
+  const searching = status === 'searching';
   const operation = listening ? 'restart' : 'start';
   const recover = sessionState.gattReconnectRequired || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired;
   const primaryLabel = sessionState.configurationBusy ? 'Preparando ajustes…' : busy ? (['checking', 'searching', 'connecting', 'inspecting', 'binding', 'stopping'].includes(status) ? vinca2StatusText(status, sessionState) : 'Preparando…')
@@ -149,10 +151,10 @@ const canReadDeviceInfo =
 
           <button
             type="button"
-            aria-label={listening ? 'Detener escucha' : primaryLabel}
-            title={listening ? 'Detener escucha' : primaryLabel}
-            disabled={busy}
-            onClick={() => run(listening ? 'stop' : operation)}
+            aria-label={searching ? 'Cancelar búsqueda' : listening ? 'Detener escucha' : primaryLabel}
+            title={searching ? 'Cancelar búsqueda' : listening ? 'Detener escucha' : primaryLabel}
+            disabled={busy && !searching}
+            onClick={() => run((listening || searching) ? 'stop' : operation)}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte hover:bg-rose-50 disabled:opacity-40"
           >
             <span
@@ -178,6 +180,7 @@ const canReadDeviceInfo =
       </div>
     </div>
     {metadata.error && <p role="status" className="text-xs text-amber-800">{metadata.error}</p>}
+    {vinca && remembered && <Vinca2IncorporationSettings key={deviceKey ?? sharedState.deviceKey} deviceKey={deviceKey ?? sharedState.deviceKey} />}
     {(actionError || sessionState.error) && <div role="alert" className="mb-4 text-sm text-amber-800">
       <p>{actionError || sessionState.error?.message || 'No se pudo conectar. Vuelve a intentarlo.'}</p>
       {sessionState.error?.code === 'PERMISSION_NOT_GRANTED' && <p>Permite el acceso a Bluetooth al reintentar. Si el móvil ya no lo solicita, revisa los permisos de FertiliApp en los ajustes del teléfono.</p>}

@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
-import { prepareManualBleDraft, isPossibleBleDuplicate } from '@/lib/bleMeasurements';
+import { prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate } from '@/lib/bleMeasurements';
 import { measurementsFromRecord, selectedMeasurementSummary, hasMeasurementTemperature } from '@/lib/temperatureMeasurements';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
 
@@ -1565,11 +1565,16 @@ const bleDayTemperatureState = data => Object.fromEntries(Object.entries(data ??
 
 // Append only. Server queries discover document IDs; transaction reads supply
 // the values used for the write. No other day's measurements are read or locked.
-export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicate = false } = {}) => {
+export const incorporateAutomaticBleMeasurementDB = (draft, context) =>
+  incorporateBleMeasurementDB(draft, { automaticContext: context ?? {}, allowPossibleDuplicate: false });
+
+export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicate = false, automaticContext } = {}) => {
   const review = (message, check = 'validation') => createAppError('ble-import-conflict', 'Requiere revisión',
     `${message} [${check}]`, { check });
   if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()) throw review('Disponible solo en Android Staging.');
-  const confirmed = prepareManualBleDraft(draft?.measurements?.[0], {
+  const confirmed = automaticContext ? prepareAutomaticBleDraft(draft?.measurements?.[0], {
+    ...automaticContext, nowMs: Date.now(),
+  }) : prepareManualBleDraft(draft?.measurements?.[0], {
     ...draft, confirmed: draft?.manuallyConfirmed, time: draft?.measurements?.[0]?.time, nowMs: Date.now(),
   });
   const { userId, cycleId, isoDate } = confirmed;

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as dates from 'date-fns';
 import { loadFrontend } from './helpers/load-frontend.mjs';
-import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, isPossibleBleDuplicate } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, prepareManualBleDraft, prepareAutomaticBleDraft, classifyBleMeasurement, isPossibleBleDuplicate } from '../src/lib/bleMeasurements.js';
 
 test('Vinca2 possible duplicate uses original minute and exact original temperature, never reception time', () => {
   const original = normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: '2020-01-02T08:15:01' }, 'BM-Vinca2');
@@ -69,7 +69,7 @@ async function fixture() {
   const api = await loadFrontend('src/lib/cycleDataHandler.js', {
     ...dates, db, doc: (...parts) => parts.length === 1 ? ref(parts[0], 'generated-' + ++serial) : ref(...parts),
     collection: ref, getDoc: read, getDocFromServer: read,
-    prepareManualBleDraft, isPossibleBleDuplicate, measurementsFromRecord, selectedMeasurementSummary, hasMeasurementTemperature,
+    prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, measurementsFromRecord, selectedMeasurementSummary, hasMeasurementTemperature,
     isFemometerBleAndroidNative: () => flags.android, isFemometerBlePrototypeEnabled: () => flags.enabled,
     getDocsFromServer: async reference => {
       if (flags.offline) throw Error('offline');
@@ -102,7 +102,7 @@ async function fixture() {
       }
       throw Error('transaction retries exhausted');
     },
-  }, ['incorporateBleMeasurementDB', 'updateCycleEntry', 'fetchBleAttemptDayDB']);
+  }, ['incorporateBleMeasurementDB', 'incorporateAutomaticBleMeasurementDB', 'updateCycleEntry', 'fetchBleAttemptDayDB']);
   const draft = prepareManualBleDraft(measurement, confirmation);
   return { flags, store, root, day, draft, api, transactionReads, commits: () => commits,
     readings: () => [...store.entries()].filter(([path]) => path.startsWith(day + '/measurements/')).map(([, data]) => data),
@@ -318,4 +318,15 @@ test('uncertain server check rejects offline, cache, incomplete records and chan
     await assert.rejects(h.api.fetchBleAttemptDayDB(attempt));
     assert.equal(h.commits(), 0);
   }
+});
+
+
+test('B: automatic authorization never borrows manual confirmation or duplicate override', async () => {
+  const h = await fixture();
+  const before = structuredClone([...h.store]);
+  await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB(h.draft, { allowPossibleDuplicate: true, manuallyConfirmed: true }),
+    error => error.code === 'ble-auto-review');
+  await assert.rejects(h.save({ automaticContext: {}, allowPossibleDuplicate: true }), error => error.code === 'ble-auto-review');
+  assert.equal(h.commits(), 0); assert.deepEqual([...h.store], before);
+  await h.save(); assert.equal(h.commits(), 1); // Manual route remains operational.
 });

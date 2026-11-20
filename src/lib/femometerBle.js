@@ -257,8 +257,8 @@ export const requestBluetoothPermissions = async () => {
   return result;
 };
 
-export const scanForFemometer = async (userId, expanded = false) => {
-  const result = await callFemometerBle('scan', { userId, ...(expanded ? { expanded: true } : {}) });
+export const scanForFemometer = async (userId, expanded = false, rememberedVinca = false) => {
+  const result = await callFemometerBle('scan', { userId, ...(expanded ? { expanded: true } : {}), ...(rememberedVinca ? { rememberedVinca: true } : {}) });
   return Array.isArray(result?.devices) ? result.devices : [];
 };
 
