@@ -1,8 +1,22 @@
 import { temperatureNumber, measurementsFromRecord } from './temperatureMeasurements.js';
 import { implementedThermometer } from './thermometerCatalog.js';
 
+// EBT-300 has no documented unit flag. This inference remains provisional.
+const interpretEasyHome = value => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  if (value >= 32 && value <= 43) return { unit: 'celsius', celsius: value };
+  if (value >= 89.6 && value <= 109.4) return { unit: 'fahrenheit', celsius: Math.round((value - 32) * 5 / 9 * 100) / 100 };
+  return null;
+};
+
 export const authorizedBleMeasurement = measurement => {
-  if (measurement?.device_protocol === 'easyhome-ebt300' && (measurement.measurement_kind === 'historical' || measurement.transmitted_unit !== 'celsius' || temperatureNumber(measurement.temperature) < 32 || temperatureNumber(measurement.temperature) > 43)) return false;
+  if (measurement?.device_protocol === 'easyhome-ebt300') {
+    const original = interpretEasyHome(measurement.transmitted_temperature ?? measurement.temperature_original ?? measurement.temperature);
+    const value = temperatureNumber(measurement.temperature);
+    if (!original || value === null || value < 32 || value > 43) return false;
+    if (measurement.transmitted_unit !== 'celsius' && (measurement.temperature_interpretation !== 'range-inference-provisional'
+      || measurement.inferred_temperature_unit !== original.unit)) return false;
+  }
   // Historical Vinca rows predate protocol/provenance fields and remain reviewable.
   if (!measurement?.device_protocol) return measurement?.device_model === 'BM-Vinca2';
   return Boolean(measurement.device_key) && measurement.reception_validated === true
@@ -15,6 +29,10 @@ export const authorizedBleMeasurement = measurement => {
 // buffered readings can predate the adjustment and contain no timezone information.
 export const normalizeBleMeasurement = (event, model = null) => {
   if (typeof event?.temperatureC !== 'number' || !Number.isFinite(event.temperatureC)) return null;
+  const easy = event.deviceProtocol === 'easyhome-ebt300';
+  const interpreted = easy ? interpretEasyHome(event.temperatureOriginal ?? event.temperatureC) : null;
+  if (easy && !interpreted) return null;
+  const temperature = interpreted?.celsius ?? event.temperatureC;
   const raw = event.deviceTimestamp ?? null;
   const match = typeof raw === 'string' && raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/);
   let valid = false;
@@ -25,12 +43,13 @@ export const normalizeBleMeasurement = (event, model = null) => {
       && day >= 1 && day <= days && hour < 24 && minute < 60 && second < 60;
   }
   return {
-    temperature: event.temperatureC, temperature_original: event.temperatureC, time: valid ? raw.slice(11, 16) : '', selected: false,
+    temperature, temperature_original: temperature, time: valid ? raw.slice(11, 16) : '', selected: false,
     temperature_corrected: '', time_corrected: '', use_corrected: false,
     source: 'bluetooth', device_model: event.deviceModel ?? model, device_key: typeof event.deviceKey === 'string' ? event.deviceKey : null,
     device_protocol: event.deviceProtocol ?? null, reception_validated: event.receptionValidated === true && event.experimental !== true,
     device_custom_name: event.deviceCustomName ?? null, device_name: event.deviceName ?? null, transmitted_temperature: event.temperatureOriginal ?? event.temperatureC,
-    transmitted_unit: event.temperatureUnit ?? 'celsius', measurement_kind: event.measurementKind ?? null,
+    ...(easy ? { inferred_temperature_unit: interpreted.unit, temperature_interpretation: 'range-inference-provisional' } : {}),
+    transmitted_unit: easy ? 'unknown' : event.temperatureUnit ?? 'celsius', measurement_kind: event.measurementKind ?? null,
     device_timestamp: raw, received_at: event.receivedAt ?? null,
     device_date_reliability: raw === null
       ? (event.deviceTimestampReliability === 'invalid' ? 'invalid' : 'missing')
@@ -102,12 +121,16 @@ const validIsoDay = (day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.te
   && normalizeBleMeasurement({ temperatureC: 0, deviceTimestamp: `${day}T00:00:00` }).device_date_reliability === 'unverified';
 
 // Manual confirmation authorizes this incorporation, never verifies the device clock.
-export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, userId, cycleId, nowMs } = {}) => {
+export const prepareManualBleDraft = (measurement, { isoDate, time, temperatureC, confirmed, userId, cycleId, nowMs } = {}) => {
   if (measurement?.device_protocol === 'easyhome-ebt300' && !authorizedBleMeasurement(measurement)) {
-    const uncertainUnit = measurement.measurement_kind === 'historical' || measurement.transmitted_unit !== 'celsius';
-    throw Object.assign(new Error(uncertainUnit ? 'No se puede incorporar esta lectura EBT-300: su unidad original no está confirmada.' : 'La lectura EBT-300 no tiene una temperatura o una recepción válidas.'), {
-      code: uncertainUnit ? 'ble-unit-unconfirmed' : 'ble-invalid-reading', title: 'Lectura pendiente de comprobación',
+    throw Object.assign(new Error('La lectura EBT-300 no tiene una temperatura o una recepción válidas.'), {
+      code: 'ble-invalid-reading', title: 'Lectura pendiente de comprobación',
     });
+  }
+  const editable = measurement?.device_protocol === 'easyhome-ebt300' && measurement.measurement_kind === 'historical';
+  const reviewed = editable ? temperatureNumber(temperatureC) : temperatureNumber(measurement?.temperature);
+  if (editable && (reviewed === null || reviewed < 32 || reviewed > 43)) {
+    throw Object.assign(new Error('Revisa la temperatura en °C (entre 32 y 43).'), { code: 'ble-invalid-temperature', title: 'Revisa la temperatura' });
   }
   const localDate = new Date(`${isoDate}T${time}:00`);
   if (confirmed !== true || !userId || !cycleId || !validIsoDay(isoDate)
@@ -119,7 +142,7 @@ export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, u
     throw new Error('Confirma una fecha y hora reales válidas, no futuras.');
   }
   return { userId, cycleId, isoDate, manuallyConfirmed: true,
-    measurements: [{ ...measurement, time, selected: true,
+    measurements: [{ ...measurement, ...(editable ? { temperature: reviewed } : {}), time, selected: true,
       confirmed_timestamp: `${isoDate}T${time}:00`,
       confirmed_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }] };

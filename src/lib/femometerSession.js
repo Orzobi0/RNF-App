@@ -91,7 +91,7 @@ export const createFemometerSessionManager = (api) => {
       const bindings = Array.isArray(saved.bindings) ? saved.bindings : saved.remembered && saved.deviceKey
         ? [{ deviceKey: saved.deviceKey, model: saved.model ?? 'BM-Vinca2' }] : [];
       const preferencesByDevice = Object.fromEntries(bindings.map(device => {
-        try { return [device.deviceKey, localState?.preferences(device.deviceKey) ?? {}]; } catch { return [device.deviceKey, {}]; }
+        try { return [device.deviceKey, { ...localState?.preferences(device.deviceKey), ...(device.protocol === 'easyhome-ebt300' ? { temperatureUnit: 'C' } : {}) }]; } catch { return [device.deviceKey, {}]; }
       }));
       publish({ bindings, preferencesByDevice, remembered: saved.remembered, deviceKey: saved.deviceKey ?? null,
         boundModel: saved.model ?? (saved.remembered && !saved.protocol ? 'BM-Vinca2' : null), boundName: saved.name, boundProtocol: saved.protocol, boundCompatibility: saved.compatibility });
@@ -99,7 +99,7 @@ export const createFemometerSessionManager = (api) => {
     const loadPreferences = deviceKey => {
       try {
         if (!localState) throw new Error('Almacenamiento no disponible.');
-        const preferences = localState.preferences(deviceKey);
+        const preferences = { ...localState.preferences(deviceKey), ...(state.boundProtocol === 'easyhome-ebt300' ? { temperatureUnit: 'C' } : {}) };
         publish({ preferences, preferencesByDevice: { ...state.preferencesByDevice, [deviceKey]: preferences }, preferenceError: null });
       } catch {
         publish({ preferences: {}, preferenceError: 'No se pudieron recuperar las preferencias locales.' });
@@ -241,7 +241,7 @@ export const createFemometerSessionManager = (api) => {
       return clockJob;
     };
     const setTemperatureUnit = unit => {
-      if (!['C', 'F'].includes(unit) || !state.capabilities?.unitWrite || !connectionPrepared()
+      if ((state.boundProtocol === 'easyhome-ebt300' && unit !== 'C') || !['C', 'F'].includes(unit) || !state.capabilities?.unitWrite || !connectionPrepared()
         || disposed || suspended || bindingJob || job || stopping || clockJob || deviceInfoJob || volumeJob || measurementModeJob || state.configurationBusy || state.gattReconnectRequired) return Promise.resolve();
       const token = version, key = state.deviceKey;
       savePreference('temperatureUnit', unit);

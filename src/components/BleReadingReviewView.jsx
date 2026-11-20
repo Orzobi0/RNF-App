@@ -11,7 +11,7 @@ const alternative = `${decisionButton} border-rose-200 bg-rose-50 text-rose-800 
 const warning = 'space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-3 text-sm';
 
 export function BleReadingReviewView({
-  reading, draft, busy, error, checkedUncertain,
+  reading, measurement = reading.normalized, draft, busy, error, checkedUncertain,
   check = { status: 'idle' }, canCheck = false, onCheck, onAlreadyStored, onMissing,
   storedConfirm = false, incorporationRequested = false, onConfirmStored, onBackStored,
   duplicateApproved = false, discardConfirm = false, onDifferent, onRepeated, onCancelDiscard, onDiscard, onRequestDiscard,
@@ -62,6 +62,12 @@ export function BleReadingReviewView({
     </section>}
     {showFields && !storedConfirm && (
 <div className="grid grid-cols-2 gap-2">
+          {measurement?.device_protocol === 'easyhome-ebt300' && measurement.measurement_kind === 'historical' && <label className="col-span-2 block text-sm font-medium text-slate-700">
+            Temperatura (°C)
+            <Input type="number" inputMode="decimal" min="32" max="43" step="0.01" value={draft.temperatureC} disabled={busy}
+              onChange={event => change({ temperatureC: event.target.value })} className="mt-1 h-11 rounded-xl" />
+            <span className="block text-xs font-normal">Valor interpretado provisionalmente. Revisa la temperatura, la fecha y la hora antes de incorporarla.</span>
+          </label>}
           <label className="block min-w-0 text-sm font-medium text-slate-700">
             Fecha
             <Input

@@ -35,9 +35,31 @@ public class EasyHomeProfileTest {
         local.set(java.util.Calendar.YEAR, 2226);
         try { EasyHomeProfile.clockCommand(local); fail("year"); } catch (IllegalArgumentException expected) { }
         byte[] value = current(); value[4] = 0; value[5] = 0; reject(value, true);
-        value = current(); value[4] = (byte)0x80; value[5] = 0x25; reject(value, true); // 96 F is never guessed
+        value = current(); value[4] = (byte)0x80; value[5] = 0x25; assertEquals(35.56, EasyHomeProfile.decode(value, true).temperature, 0.001); // provisional range inference
         value = current(); value[4] = (byte)0xCC; value[5] = 0x10;
         assertEquals(43.0, EasyHomeProfile.decode(value, true).temperature, 0.001);
+    }
+    @Test public void infersBothRangesForCurrentAndHistoryWithoutInventingAUnitFlag() {
+        int[] values = {3200, 4300, 8960, 10940, 9770};
+        double[] normalized = {32, 43, 32, 43, 36.5};
+        for (int kind : new int[] {1, 17}) {
+            for (int i = 0; i < values.length; i++) {
+                byte[] packet = current(); packet[1] = (byte)kind;
+                packet[4] = (byte)values[i]; packet[5] = (byte)(values[i] >> 8);
+                EasyHomeProfile.Reading reading = EasyHomeProfile.decode(packet, true);
+                assertEquals(normalized[i], reading.temperature, 0.00001);
+                assertEquals(values[i] / 100.0, reading.original, 0.00001);
+                assertEquals(i < 2 ? "celsius" : "fahrenheit", reading.inferredUnit);
+                assertEquals(kind == 1, reading.live);
+            }
+            for (int invalid : new int[] {0, 3199, 4301, 8959, 10941, 65535}) {
+                byte[] packet = current(); packet[1] = (byte)kind;
+                packet[4] = (byte)invalid; packet[5] = (byte)(invalid >> 8); reject(packet, true);
+            }
+            for (int field : new int[] {10, 11, 12, 13, 14}) {
+                byte[] packet = current(); packet[1] = (byte)kind; packet[field] = (byte)255; reject(packet, true);
+            }
+        }
     }
     private void reject(byte[] packet, boolean configured) {
         try { EasyHomeProfile.decode(packet, configured); fail("must reject"); }

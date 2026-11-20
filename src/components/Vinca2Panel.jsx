@@ -277,7 +277,8 @@ const canReadDeviceInfo =
             {sessionState.measurementModeError && <p role="alert" className="text-sm text-amber-800">{sessionState.measurementModeError.message}</p>}
           </div>
         </details>}
-        {(capabilities?.unitWrite || sessionState.boundProtocol === 'easyhome-ebt300') && <details>
+        {sessionState.boundProtocol === 'easyhome-ebt300' && <p className={rowClass}>Unidad de temperatura: °C · Configuración automática</p>}
+        {capabilities?.unitWrite && sessionState.boundProtocol !== 'easyhome-ebt300' && <details>
           <summary className={`${rowClass} cursor-pointer`}><Thermometer className="h-4 w-4" /><span className="flex-1">Unidad de temperatura</span><span className="text-xs">°{info.temperatureUnit ?? devicePreferences?.temperatureUnit ?? 'C'}</span><ChevronRight className="h-4 w-4" /></summary>
           <div className="space-y-2 pb-4 text-sm">
             <div role="group" aria-label="Unidad de temperatura" className="flex gap-2">{['C', 'F'].map(unit => <Button key={unit} variant="outline" disabled={busy || recover || !capabilities?.unitWrite || !listening} aria-pressed={(info.temperatureUnit ?? devicePreferences?.temperatureUnit ?? 'C') === unit} onClick={() => run('setTemperatureUnit', unit)}>°{unit}</Button>)}</div>

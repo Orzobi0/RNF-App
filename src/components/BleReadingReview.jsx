@@ -13,7 +13,7 @@ export function BleReadingReview({ userId, reading, onClose, onSaved, active = t
   // Only legacy pending rows lack both a normalized origin and a reception model.
   const measurement = reading.normalized ?? normalizeBleMeasurement(reading, reading.deviceModel ?? (reading.deviceProtocol ? null : 'BM-Vinca2'));
   const [draft, setDraft] = useState(() => ({ isoDate: measurement?.time ? measurement.device_timestamp.slice(0, 10) : '',
-    time: measurement?.time || '', ...reading.draft, confirmed: false }));
+    time: measurement?.time || '', temperatureC: measurement?.temperature ?? '', ...reading.draft, confirmed: false }));
   const [error, setError] = useState(reading.reviewError ?? null);
   const [busy, setBusy] = useState(false);
   const [duplicateApproval, setDuplicateApproval] = useState(null);
@@ -26,7 +26,7 @@ export function BleReadingReview({ userId, reading, onClose, onSaved, active = t
   const mounted = useRef(true);
   const generation = useRef(0);
   const queryActive = useRef(false);
-  const key = JSON.stringify([userId, reading.uiId, reading.attempt, currentCycle?.id, draft.isoDate, draft.time]);
+  const key = JSON.stringify([userId, reading.uiId, reading.attempt, currentCycle?.id, draft.isoDate, draft.time, draft.temperatureC]);
   const latest = useRef(key); latest.current = key;
   const cycleRef = useRef(currentCycle?.id); cycleRef.current = currentCycle?.id;
   const session = sessionRef.current;

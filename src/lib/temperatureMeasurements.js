@@ -14,7 +14,7 @@ export const hasMeasurementTemperature = (measurement) =>
 export const measurementOriginFields = (measurement) => Object.fromEntries([
   'temperature_original', 'device_timestamp', 'received_at', 'device_date_reliability',
   'device_timezone', 'confirmed_timestamp', 'confirmed_timezone',
-  'device_custom_name', 'device_protocol', 'device_name', 'reception_validated', 'transmitted_temperature', 'transmitted_unit', 'measurement_kind',
+  'device_custom_name', 'device_protocol', 'device_name', 'reception_validated', 'transmitted_temperature', 'transmitted_unit', 'measurement_kind', 'inferred_temperature_unit', 'temperature_interpretation',
 ].filter(key => measurement?.[key] !== undefined).map(key => [key, measurement[key]]));
 
 export const normalizeMeasurements = (measurements) => {

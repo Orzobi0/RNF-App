@@ -39,8 +39,10 @@ final class EasyHomeProfile {
         return new byte[] {90, 3, 6, (byte)(year - 1970), (byte)month, (byte)day, (byte)hour, (byte)minute, (byte)second};
     }
     static final class Reading {
-        final double temperature; final String timestamp; final boolean live;
-        Reading(double temperature, String timestamp, boolean live) { this.temperature = temperature; this.timestamp = timestamp; this.live = live; }
+        final double temperature, original; final String timestamp, inferredUnit; final boolean live;
+        Reading(double temperature, double original, String inferredUnit, String timestamp, boolean live) {
+            this.temperature = temperature; this.original = original; this.inferredUnit = inferredUnit; this.timestamp = timestamp; this.live = live;
+        }
     }
     static Reading decode(byte[] data, boolean celsiusConfigured) {
         if (!celsiusConfigured || data == null || data.length != 15 || (data[1] != 1 && data[1] != 17))
@@ -51,7 +53,14 @@ final class EasyHomeProfile {
             data[12] & 255, data[13] & 255, data[14] & 255);
         double temperature = ((data[4] & 255) + ((data[5] & 255) << 8)) / 100.0;
         // Manufacturer EBT-300 manual: 89.6–109.4 F (32–43 C).
-        if (temperature < 32 || temperature > 43) throw new IllegalArgumentException("range");
-        return new Reading(temperature, timestamp, data[1] == 1);
+        double original = temperature;
+        String inferredUnit;
+        // Provisional range inference, NOT a transmitted unit flag or hardware verification.
+        if (temperature >= 32 && temperature <= 43) inferredUnit = "celsius";
+        else if (temperature >= 89.6 && temperature <= 109.4) {
+            inferredUnit = "fahrenheit";
+            temperature = Math.round((temperature - 32) * 5 / 9 * 100) / 100.0;
+        } else throw new IllegalArgumentException("range");
+        return new Reading(temperature, original, inferredUnit, timestamp, data[1] == 1);
     }
 }

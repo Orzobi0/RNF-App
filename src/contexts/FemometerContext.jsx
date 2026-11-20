@@ -91,7 +91,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       if (!alive) return;
       setSessionState(next);
       for (const device of next.bindings ?? []) {
-        try { metadataRef.current.patch(device.deviceKey, { ...device, commercialName: thermometerName(device), ...(device.protocol === 'easyhome-ebt300' ? { temperatureUnit: 'C' } : {}), ...next.preferencesByDevice?.[device.deviceKey] }, true); } catch { setStorageError("No se pudieron conservar los metadatos del termómetro."); }
+        try { metadataRef.current.patch(device.deviceKey, { ...device, commercialName: thermometerName(device), ...next.preferencesByDevice?.[device.deviceKey], ...(device.protocol === 'easyhome-ebt300' ? { temperatureUnit: 'C' } : {}) }, true); } catch { setStorageError("No se pudieron conservar los metadatos del termómetro."); }
       }
       try {
         if (next.remembered !== null) localRef.current?.activate(next.deviceKey ?? null);

@@ -1225,12 +1225,9 @@ public class FemometerBle extends Plugin {
             if ("easyhome-ebt300".equals(temperatureProtocol)) {
                 if (easyOperation.busy() || easyOperation.uncertain(temperatureGatt)) return;
                 EasyHomeProfile.Reading reading = EasyHomeProfile.decode(value, easyUnitConfigured);
-                if (!reading.live) {
-                    JSObject warning = new JSObject(); warning.put("message", "Historico EBT-300 no incorporable: su unidad original no esta confirmada.");
-                    notifyListeners(TEMPERATURE_EVENT, warning); return;
-                }
-                decoded = new JSObject(); decoded.put("temperatureC", reading.temperature); decoded.put("temperatureOriginal", reading.temperature);
-                decoded.put("temperatureUnit", "celsius"); decoded.put("deviceTimestamp", reading.timestamp);
+                decoded = new JSObject(); decoded.put("temperatureC", reading.temperature); decoded.put("temperatureOriginal", reading.original);
+                decoded.put("temperatureUnit", "unknown"); decoded.put("temperatureInferredUnit", reading.inferredUnit);
+                decoded.put("temperatureInterpretation", "range-inference-provisional"); decoded.put("deviceTimestamp", reading.timestamp);
                 decoded.put("deviceTimestampReliability", "unverified"); decoded.put("receivedAt", formatIsoLocal(new Date()));
                 decoded.put("measurementKind", reading.live ? "current" : "historical");
             } else {

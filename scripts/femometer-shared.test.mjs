@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { thermometerName } from '../src/lib/thermometerCatalog.js';
 import { createThermometerMetadataStore, mergeThermometerFields, sanitizeThermometerMetadata } from '../src/lib/thermometerMetadata.js';
-import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, isPossibleBleDuplicate, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
 import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
@@ -1156,7 +1156,7 @@ test('original attempt destination is durable before saving and recovers uncerta
 });
 
 async function uncertainEditorFixture(patch = {}) {
-  const harness = hooks(); const requests = []; let writes = 0; let removed = 0; let closed = 0;
+  const harness = hooks(); const requests = []; const payloads = []; let writes = 0; let removed = 0; let closed = 0;
   const sessionRef = { current: {} }; let cycle = { id: 'current-cycle' }; let active = true;
   const reading = { uiId: 7, temperatureC: 36.4, deviceTimestamp: '2020-01-01T08:00:00', importStatus: 'uncertain',
     draft: { isoDate: '2026-11-03', time: '09:15' },
@@ -1164,12 +1164,12 @@ async function uncertainEditorFixture(patch = {}) {
   const { BleReadingReview } = await loadFrontend('src/components/BleReadingReview.jsx', {
     ...harness.bindings, BleReadingReviewView: 'view', normalizeBleMeasurement, prepareManualBleDraft, useNavigate: () => () => {},
     fetchBleAttemptDayDB: attempt => { const wait = deferred(); requests.push({ attempt, wait }); return wait.promise; },
-    useCycleData: () => ({ currentCycle: cycle, isLoading: false, incorporateBleMeasurement: async () => { writes++; return {}; } }),
+    useCycleData: () => ({ currentCycle: cycle, isLoading: false, incorporateBleMeasurement: async payload => { writes++; payloads.push(payload); return {}; } }),
     useFemometer: () => ({ sessionRef, updateReadingDraft() {}, incorporateReading: async (_, save) => save(), discardReading: () => removed++ }),
   }, ['BleReadingReview']);
   const render = () => harness.render(() => ({ props: { value: BleReadingReview({ userId: 'a', reading, active, onClose: () => closed++ }) } })).props;
   render(); await flush();
-  return { render, reading, requests, sessionRef, active: value => { active = value; render(); }, cleanup: harness.cleanup, cycle: id => { cycle = { id }; },
+  return { render, reading, requests, payloads, sessionRef, active: value => { active = value; render(); }, cleanup: harness.cleanup, cycle: id => { cycle = { id }; },
     counts: () => ({ writes, removed, closed }),
     complete: request => request.wait.resolve({ complete: true, userId: 'a', cycleId: 'original-cycle', isoDate: '2026-11-02', exists: true, measurements: [] }) };
 }
@@ -3049,11 +3049,48 @@ test('standard promotion without original date persists before one manual save; 
   }
 });
 
-test('EasyHome settings are profile gated and ambiguous units or historical packets cannot be incorporated', () => {
-  const raw = { temperatureC: 36.52, deviceKey: 'easy', deviceModel: 'EBT-300', deviceProtocol: 'easyhome-ebt300', receptionValidated: true, temperatureUnit: 'celsius', measurementKind: 'current' };
-  assert.equal(authorizedBleMeasurement(normalizeBleMeasurement(raw)), true);
-  for (const patch of [{ measurementKind: 'historical' }, { temperatureUnit: 'fahrenheit' }, { temperatureC: 96 }, { temperatureC: 0 }])
-    assert.equal(authorizedBleMeasurement(normalizeBleMeasurement({ ...raw, ...patch })), false);
+const easySample = { temperatureC: 36.52, temperatureOriginal: 36.52, deviceKey: 'easy', deviceModel: 'EBT-300', deviceProtocol: 'easyhome-ebt300', receptionValidated: true, temperatureUnit: 'unknown', measurementKind: 'historical', deviceTimestamp: '2026-02-07T22:15:00' };
+test('EasyHome current and historical range inference preserves unknown transmitted units and original values', () => {
+  for (const measurementKind of ['current', 'historical']) {
+    for (const [original, celsius, unit] of [[32, 32, 'celsius'], [43, 43, 'celsius'], [89.6, 32, 'fahrenheit'], [109.4, 43, 'fahrenheit'], [97.7, 36.5, 'fahrenheit']]) {
+      const m = normalizeBleMeasurement({ ...easySample, measurementKind, temperatureOriginal: original });
+      assert.equal(m.temperature, celsius); assert.equal(m.temperature_original, celsius);
+      assert.equal(isPossibleBleDuplicate(m, { ...m }), true);
+      assert.equal(isPossibleBleDuplicate(m, { ...m, device_timestamp: '2026-02-06T22:15:00' }), false);
+      assert.equal(m.transmitted_temperature, original); assert.equal(m.transmitted_unit, 'unknown');
+      assert.equal(m.inferred_temperature_unit, unit); assert.equal(authorizedBleMeasurement(m), true);
+    }
+  }
+  for (const original of [0, 31.99, 43.01, 89.59, 109.41, NaN, Infinity, '36.5'])
+    assert.equal(normalizeBleMeasurement({ ...easySample, temperatureOriginal: original }), null);
+  const m = normalizeBleMeasurement({ ...easySample, temperatureOriginal: 97.7 });
+  const draft = { isoDate: '2026-02-08', time: '08:15', temperatureC: '36,62', confirmed: true, userId: 'a', cycleId: 'cycle', nowMs: Date.parse('2026-11-20') };
+  const saved = prepareManualBleDraft(m, draft).measurements[0];
+  assert.equal(saved.temperature, 36.62); assert.equal(saved.time, '08:15');
+  assert.equal(saved.confirmed_timestamp, '2026-02-08T08:15:00');
+  for (const field of ['temperature_original', 'transmitted_temperature', 'transmitted_unit', 'inferred_temperature_unit', 'temperature_interpretation', 'device_timestamp']) assert.equal(saved[field], m[field]);
+  for (const patch of [{ temperatureC: '' }, { temperatureC: 44 }, { temperatureC: 31 }, { isoDate: '2026-02-30' }, { time: '25:00' }, { confirmed: false }]) assert.throws(() => prepareManualBleDraft(m, { ...draft, ...patch }));
+  assert.equal(normalizeBleMeasurement({ ...easySample, deviceTimestamp: '2026-02-30T08:00:00' }).device_date_reliability, 'invalid');
+});
+
+test('EasyHome histories persist independently across reconnect, discard, uncertain writes and account changes', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.emit({ ...easySample, deviceKey: 'bound-a' }); native.emit({ ...easySample, deviceKey: 'bound-a', temperatureOriginal: 97.7 }); native.emit({ ...easySample, deviceKey: 'bound-a' });
+    assert.equal(owner.render().pendingCount, 3);
+    const session = owner.render().sessionRef.current;
+    await session.stop(); await session.start();
+    assert.equal(owner.render().pendingCount, 3);
+    owner.render().updateReadingDraft(2, { temperatureC: '36.61', isoDate: '2026-02-08', time: '08:15' });
+    const rows = createFemometerLocalState(native.storage, 'a').recover();
+    assert.equal(rows.length, 3); assert.equal(rows[1].draft.temperatureC, '36.61');
+    assert.equal(rows[1].normalized.transmitted_temperature, 97.7);
+    owner.render().discardReading(1, session);
+    await assert.rejects(owner.render().incorporateReading(2, async () => { throw Error('network'); }, { attempt: { id: 'easy-attempt', userId: 'a', cycleId: 'cycle', isoDate: '2026-02-08', time: '08:15' } }));
+    assert.equal(owner.render().readings.find(row => row.uiId === 2).importStatus, 'uncertain');
+    await owner.changeAccount('b'); assert.equal(owner.render().pendingCount, 0);
+    await owner.changeAccount('a'); assert.equal(owner.render().pendingCount, 2);
+  } finally { owner.cleanup(); await flush(); }
 });
 
 
@@ -3072,16 +3109,18 @@ test('EasyHome unit and clock operations exclude information reads and never inv
   n.api.getRememberedFemometer = async () => ({ remembered: true, deviceKey: 'easy', model: 'EBT-300', protocol: 'easyhome-ebt300', compatibility: 'experimental' });
   n.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'easy', connectionReady: true, indicationsActive: true,
     capabilities: { model: 'EBT-300', protocol: 'easyhome-ebt300', compatibility: 'experimental', clockSync: true, unitWrite: true } });
+  local.savePreference('easy', 'temperatureUnit', 'F');
   let units = 0;
-  n.api.setFemometerTemperatureUnit = async unit => { units++; assert.equal(unit, 'F'); return pending.promise; };
+  n.api.setFemometerTemperatureUnit = async unit => { units++; assert.equal(unit, 'C'); return pending.promise; };
   const session = n.factory('a', next => { state = next; }, () => {}, local);
-  await session.start(); assert.equal(n.calls.clock, 0); assert.equal(n.calls.sync, 0); assert.deepEqual(n.calls.volume, []);
-  const setting = session.setTemperatureUnit('F'); await flush();
+  await session.start(); assert.equal(state.preferences.temperatureUnit, 'C'); assert.equal(units, 0); assert.equal(n.calls.clock, 0); assert.equal(n.calls.sync, 0); assert.deepEqual(n.calls.volume, []);
+  await session.setTemperatureUnit('F'); assert.equal(units, 0);
+  const setting = session.setTemperatureUnit('C'); await flush();
   await session.readDeviceInfo(); await session.syncClock(); await session.setTemperatureUnit('C');
   assert.equal(n.calls.info, 0); assert.equal(n.calls.sync, 0); assert.equal(units, 1);
   pending.resolve({ writeAccepted: true, verified: false }); await setting;
   assert.equal(state.unitResult.verified, false); assert.equal(state.gattReconnectRequired, true);
-  assert.equal(local.preferences('easy').temperatureUnit, 'F'); await session.dispose();
+  assert.equal(local.preferences('easy').temperatureUnit, 'C'); await session.dispose();
 });
 
 test('navigation during first binding leaves its received take pending without saving an obsolete destination', async () => {
@@ -3096,4 +3135,45 @@ test('navigation during first binding leaves its received take pending without s
   await flush(); owner.navigate('other-screen'); wait.resolve(); await assert.rejects(result, /pendiente/);
   assert.equal(saves, 0); assert.equal(owner.render().pendingCount, 1); assert.equal(h.saved().deviceKey, 'standard-key');
   owner.cleanup(); await flush(); await h.session.dispose();
+});
+
+test('EasyHome historical editor confirms edited Celsius, date and time, preserving provenance', async () => {
+  const normalized = normalizeBleMeasurement({ ...easySample, temperatureOriginal: 97.7 });
+  const h = await uncertainEditorFixture({ ...easySample, normalized, importStatus: 'pending', draft: undefined, attempt: undefined });
+  try {
+    assert.equal(h.render().draft.temperatureC, 36.5);
+    assert.equal(h.render().draft.isoDate, '2026-02-07');
+    h.render().change({ temperatureC: '36.64', isoDate: '2026-02-08', time: '09:12' });
+    await h.render().confirm();
+    assert.equal(h.payloads.length, 1);
+    const saved = h.payloads[0].measurements[0];
+    assert.equal(saved.temperature, 36.64); assert.equal(saved.confirmed_timestamp, '2026-02-08T09:12:00');
+    assert.equal(saved.transmitted_temperature, 97.7); assert.equal(saved.temperature_original, 36.5);
+  } finally { h.cleanup(); }
+});
+
+test('EasyHome UI exposes only Celsius and the numeric editor belongs only to its histories', async () => {
+  const h = await vincaPanelFixture({ remembered: true, boundProtocol: 'easyhome-ebt300', boundModel: 'EBT-300', status: 'listening',
+    preferences: { temperatureUnit: 'F' }, capabilities: { unitWrite: true } });
+  try {
+    const text = JSON.stringify(h.render());
+    assert.match(text, /Configuración automática/); assert.doesNotMatch(text, /°F/);
+    assert.equal(treeNodes(h.render()).filter(n => n.type === 'button' && ['°C', '°F'].includes(n.props.children)).length, 0);
+  } finally { h.cleanup(); }
+  const harness = hooks(); const changes = [];
+  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', {
+    ...harness.bindings, Button: 'button', Input: 'input', CheckCircle2: 'check', Trash2: 'trash', PlusCircle: 'plus', measurementDisplay, measurementSourceLabel,
+  }, ['BleReadingReviewView']);
+  try {
+    for (const [protocol, kind, editable] of [['easyhome-ebt300', 'historical', true], ['easyhome-ebt300', 'current', false], ['vinca2', 'historical', false], ['health-thermometer', 'historical', false]]) {
+      const props = { reading: { importStatus: 'pending', normalized: { device_protocol: protocol, measurement_kind: kind } },
+        draft: { temperatureC: 36.5, isoDate: '2026-02-07', time: '22:15' }, change: patch => changes.push(patch) };
+      const inputs = treeNodes(BleReadingReviewView(props)).filter(n => n.type === 'input' && n.props.type === 'number');
+      assert.equal(inputs.length, editable ? 1 : 0);
+      if (editable) {
+        inputs[0].props.onChange({ target: { value: '36.61' } }); assert.deepEqual(changes, [{ temperatureC: '36.61' }]);
+        assert.equal(treeNodes(BleReadingReviewView({ ...props, busy: true })).find(n => n.type === 'input' && n.props.type === 'number').props.disabled, true);
+      }
+    }
+  } finally { harness.cleanup(); }
 });
