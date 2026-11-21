@@ -107,8 +107,10 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
   const [selectedReadingId, setSelectedReadingId] = useState(null);
   const lastTemperatureReading = readings.find(item => item.uiId === selectedReadingId) ?? readings.at(-1) ?? null;
   const [temperatureSecondsRemaining, setTemperatureSecondsRemaining] = useState(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
+  const continuousListening = sessionState.listenerResult?.capabilities?.protocol === 'vinca2'
+    && sessionState.listenerResult?.timeoutSeconds === 0;
   useEffect(() => {
-    if (!isTemperatureListenerActive) return undefined;
+    if (!isTemperatureListenerActive || continuousListening) return undefined;
     const timeout = Number(sessionState.listenerResult?.timeoutSeconds);
     const duration = Number.isFinite(timeout) && timeout > 0 ? Math.floor(timeout) : DEFAULT_TEMPERATURE_LISTEN_SECONDS;
     const startedAt = listeningStartedAt ?? Date.now();
@@ -117,7 +119,7 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
       setTemperatureSecondsRemaining(Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000)));
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [isTemperatureListenerActive, sessionState.listenerResult, listeningStartedAt]);
+  }, [isTemperatureListenerActive, continuousListening, sessionState.listenerResult, listeningStartedAt]);
 
   const renderStatusLine = (ok, successText, missingText) => (
     <li className={cn('flex gap-2 text-sm', ok ? 'text-emerald-700' : 'text-amber-700')}>
@@ -180,8 +182,8 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
               <div>
                 {isTemperatureListenerActive ? (
                   <p className="text-sm font-medium text-slate-700">
-                    Escuchando el termómetro… {Math.floor(temperatureSecondsRemaining / 60)}:
-                    {String(temperatureSecondsRemaining % 60).padStart(2, '0')} restantes
+                    {continuousListening ? 'Conectado' : <>Escuchando el termómetro… {Math.floor(temperatureSecondsRemaining / 60)}:
+                    {String(temperatureSecondsRemaining % 60).padStart(2, '0')} restantes</>}
                   </p>
                 ) : null}
                 {temperatureListenerMessage ? (

@@ -216,38 +216,31 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
     changeAccount: async next => { userId = next; render(); await flush(); } };
 }
 
-test('foreground refreshes active listening once and retains pending readings', async () => {
+test('foreground preserves healthy Vinca listening beyond six minutes and late readings across pages', async () => {
   const native = bridge();
   const owner = await mountedOwner(native);
-  native.emit({ temperatureC: 36.4 });
-  native.flags.now = 120_000;
-  await owner.foreground();
-  assert.equal(native.calls.connections, 2);
-  assert.equal(native.calls.disconnects, 1);
-  // No native timeout event arrived while suspended.
-  native.flags.now = 361_000;
-  await Promise.all([owner.foreground(), owner.foreground()]);
-  assert.equal(native.calls.connections, 3);
-  assert.equal(native.calls.disconnects, 2);
-  assert.equal(native.calls.peakListeners, 1);
-  assert.equal(owner.render().pendingCount, 1);
-  native.emit({ status: 'timeout' }); // Queued terminal event, cleanup in flight.
-  await owner.foreground();
-  assert.equal(native.calls.connections, 3); // Cooldown.
-  assert.equal(owner.render().sessionState.foreground.reason, 'brief_cooldown');
-  native.flags.now += 5_001;
-  await owner.foreground();
-  assert.equal(native.calls.connections, 4);
-  assert.equal(native.calls.permissions, 0);
-  await owner.changeAccount('b');
-  assert.equal(owner.lifecycle.size, 1);
-  assert.equal(owner.render().pendingCount, 0);
-  owner.cleanup(); await flush();
+  try {
+    native.flags.now = 120_000;
+    await owner.foreground();
+    native.flags.now = 900_000;
+    await Promise.all([owner.foreground(), owner.foreground()]);
+    owner.navigate('records'); owner.render(); await flush();
+    native.emit({ temperatureC: 35.77 });
+    assert.equal(native.calls.connections, 1);
+    assert.equal(native.calls.disconnects, 0);
+    assert.equal(native.calls.peakListeners, 1);
+    assert.equal(owner.render().pendingCount, 1);
+    native.emit({ status: 'disconnected' }); await flush();
+    assert.notEqual(owner.render().sessionState.status, 'listening');
+    await owner.foreground();
+    assert.equal(native.calls.connections, 2);
+    assert.equal(native.calls.permissions, 0);
+    await owner.changeAccount('b');
+    assert.equal(owner.render().pendingCount, 0);
+  } finally { owner.cleanup(); await flush(); }
   assert.equal(owner.lifecycle.size, 0);
   assert.equal(owner.timers.size, 0);
   assert.equal(native.calls.listeners, 0);
-  await owner.foreground();
-  assert.equal(native.calls.connections, 5);
 });
 
 test('foreground after unsuccessful scan is bounded and requires a remembered device', async () => {
@@ -2695,7 +2688,7 @@ test('presentation: readiness requires active indications and connection, and pr
   assert.equal(vinca2StatusText('error'), 'No se pudo conectar');
   assert.equal(vinca2StatusText('missing'), 'Termómetro no encontrado');
   assert.equal(vinca2StatusText('searching'), 'Buscando termómetro…');
-  assert.equal(vinca2StatusText('error', { error: { code: 'CONNECTION_LOST' } }), 'Conexión perdida');
+  assert.equal(vinca2StatusText('error', { error: { code: 'CONNECTION_LOST' } }), 'Desconectado');
   const h = await devicesFixture();
   for (const remembered of [false, true]) {
     h.ble.sessionState.remembered = remembered;
@@ -3293,7 +3286,7 @@ test('preparation native guard uses saved identity and preserves the transport s
   assert.doesNotMatch(prepare, /connectGatt|startReception|writeCharacteristic/);
   assert.match(source, /capture.connectionStarted\(\)/);
   assert.match(source, /capture.observingClock\(\)/);
-  for (const status of ['scan_started', 'scan_finished', 'bound_device_found', 'bound_device_not_found', 'window_started', 'window_ended']) assert.ok(source.includes(status));
+  for (const status of ['scan_started', 'scan_finished', 'bound_device_found', 'bound_device_not_found', 'listening_until_disconnect', 'window_ended']) assert.ok(source.includes(status));
   const clockSource = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/BleClockOperation.java', import.meta.url), 'utf8');
   assert.ok(clockSource.indexOf('capture.record(channel.toString()') < clockSource.indexOf('if (DATE_TIME.equals(channel))'));
   assert.match(clockSource, /CLOCK_INVALID_DATE/); assert.match(clockSource, /CLOCK_DIAGNOSTIC_READ_ONLY/);
@@ -3485,11 +3478,11 @@ test('Vinca recovery has one foreground timer, serializes reconnects and stops a
   try {
     await session.start(); assert.equal(timers.size, 1); assert.equal([...timers.values()][0], 60000);
     await tick(); assert.equal(native.calls.connections, 1); // No undocumented 2A21 polling or minute reconnects.
-    native.flags.now = 360001;
-    native.flags.disconnectWait = deferred();
-    const a = session.recoverReadings(); const b = session.recoverReadings('foreground');
-    assert.equal(a, b); await flush(); assert.equal(native.calls.disconnects, 1);
-    native.flags.disconnectWait.resolve(); await a; native.flags.disconnectWait = null;
+    native.flags.now = 900001;
+    await Promise.all([session.recoverReadings(), session.recoverReadings('foreground')]);
+    assert.equal(native.calls.connections, 1); assert.equal(native.calls.disconnects, 0);
+    native.emit({ status: 'disconnected' }); await flush();
+    await tick();
     assert.equal(native.calls.connections, 2); assert.equal(timers.size, 1);
     await session.suspend(); assert.equal(timers.size, 0);
     await session.recoverReadings('foreground'); assert.equal(native.calls.connections, 2);
@@ -3516,19 +3509,21 @@ test('automatic consent prepares a verified clock reference and preserves it on 
     assert.equal(native.calls.sync, 1);
     const syncAt = owner.render().clockHistory.lastVerifiedSync.checkedAt;
     native.flags.now += 60000;
+    native.emit({ status: 'disconnected' }); await flush();
     await owner.foreground(); owner.render();
     assert.equal(native.calls.sync, 1);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, syncAt);
     assert.ok(owner.render().clockHistory.lastValidCheck.checkedAt > syncAt);
     native.api.readFemometerClock = async () => { throw { code: 'CLOCK_INVALID_DATE' }; };
     native.flags.now += 60000;
+    native.emit({ status: 'disconnected' }); await flush();
     await owner.foreground(); owner.render();
     assert.equal(native.calls.sync, 2);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, native.flags.now);
   } finally { owner.cleanup(); await flush(); }
 });
 
-test('a fixed connection clock is rechecked after reconnect without diagnosing drift or writing time', async () => {
+test('a fixed connection clock requires review without interrupting reception or writing time', async () => {
   const native = bridge(); native.flags.now = Date.now();
   let snapshot = native.flags.now;
   const listen = native.api.startFemometerTemperatureListener;
@@ -3543,9 +3538,9 @@ test('a fixed connection clock is rechecked after reconnect without diagnosing d
     assert.equal(owner.render().sessionState.clockError.code, 'CLOCK_SNAPSHOT_STALE');
     assert.equal(owner.render().clockHistory.lastIncidentAt, null);
     await session.checkAutomaticClock();
-    assert.equal(native.calls.connections, 2); assert.equal(native.calls.sync, 0);
-    assert.equal(owner.render().sessionState.clockError, null);
-    assert.equal(owner.render().clockHistory.staleCheck, null);
+    assert.equal(native.calls.connections, 1); assert.equal(native.calls.sync, 0);
+    assert.equal(owner.render().sessionState.clockError.code, 'CLOCK_SNAPSHOT_STALE');
+    assert.ok(owner.render().clockHistory.staleCheck);
   } finally { owner.cleanup(); await flush(); }
 });
 
@@ -3582,4 +3577,38 @@ test('Add opens without stopping reception; search interrupts it and leaving clo
   await h.button('Buscar termómetros').props.onClick();
   assert.equal(stopped, 1); assert.equal(searches, 1);
   h.cleanup(); await flush(); assert.equal(cancelled, 1); assert.equal(h.ble.sessionState.changingDevice, false);
+});
+
+
+test('Vinca minimal transport provenance survives pending recovery but does not identify a measurement', async () => {
+  const native = bridge(); let delivered;
+  const session = native.factory('a', () => {}, event => { delivered = event; });
+  try {
+    await session.start();
+    const transport = { sessionId: 'opaque', connectedAt: 1, indicationsReadyAt: 2, receivedAt: 900000 };
+    native.emit({ temperatureC: 35.77, transport });
+    assert.deepEqual(delivered.transport, { ...transport, reconnect: false });
+    const storage = memoryStorage();
+    createFemometerLocalState(storage, 'a').saveReadings([{ ...delivered, deviceKey: 'v', localId: 'local-review',
+      importStatus: 'pending', rawHex: 'must-not-persist', normalized: normalizeBleMeasurement(delivered) }]);
+    const recovered = createFemometerLocalState(storage, 'a').recover()[0];
+    assert.deepEqual(recovered.transport, delivered.transport);
+    assert.equal(recovered.rawHex, undefined);
+    assert.equal(createFemometerLocalState(storage, 'b').recover().length, 0);
+    native.emit({ status: 'disconnected' }); await flush(); native.flags.now = 900001;
+    await session.recoverReadings();
+    native.emit({ temperatureC: 35.77, transport: { ...transport, sessionId: 'opaque-next' } });
+    assert.equal(delivered.transport.reconnect, true);
+  } finally { await session.dispose(); }
+});
+
+test('native continuous policy is connected to setup while preserving operation deadlines and proprietary subscription', async () => {
+  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerBle.java', import.meta.url), 'utf8');
+  const timeout = source.slice(source.indexOf('private void scheduleTemperatureListenerTimeout()'), source.indexOf('private void clearTemperatureListenerTimeout()'));
+  assert.match(timeout, /if \(Vinca2Reception.continuous\(temperatureProfileValidated, experimentalReception\)\) return;/);
+  assert.match(timeout, /TEMPERATURE_LISTENER_TIMEOUT_MS/);
+  assert.match(source, /scheduleTemperatureSetupTimeout\(\)/);
+  assert.match(source, /CONNECT_TIMEOUT_MS \+ DISCOVER_TIMEOUT_MS/);
+  assert.match(source, /VINCA_INDICATION_UUID/);
+  assert.match(source, /vincaReception.accept\(value,/);
 });

@@ -162,3 +162,40 @@ test('an empty destination is not proof of global uniqueness', () => {
     data: [{ id: 'stored-day', measurements: [{ ...incoming(), id: 'stored' }], measurementsComplete: false }] });
   assert.equal(classifyBleMeasurement(incoming(), { ...context, duplicateCheck: undefined }).status, 'duplicate');
 });
+
+
+test('Vinca take before a redundant sync uses prior uninterrupted confidence, never receipt as proof of novelty', async () => {
+  const { updateFemometerClockHistory } = await import('../src/lib/femometerLocalState.js');
+  const { assessVinca2AutomaticDate, prepareAutomaticBleDraft } = await import('../src/lib/bleMeasurements.js');
+  const epoch = time => Date.parse(`2026-11-21T${time}Z`);
+  const observation = (time, extra = {}) => ({ operation: 'sync', verified: true, checkedAt: epoch(time),
+    driftSeconds: 0, phoneTimeZone: 'UTC', phoneUtcOffsetMinutes: 0, ...extra });
+  let history = updateFemometerClockHistory(null, observation('10:00:00'));
+  history = updateFemometerClockHistory(history, observation('11:21:46', { operation: 'read', verified: false }));
+  history = updateFemometerClockHistory(history, observation('11:21:47'));
+  history = updateFemometerClockHistory(history, observation('11:24:24', { operation: 'read', verified: false }));
+  assert.equal(history.lastVerifiedSync.checkedAt, epoch('11:21:47'));
+  assert.equal(history.confidenceStart.checkedAt, epoch('10:00:00'));
+  const reading = normalizeBleMeasurement({ temperatureC: 35.77, deviceTimestamp: '2026-11-21T11:21:41',
+    receivedAt: '2026-11-21T11:24:23Z', deviceProtocol: 'vinca2', deviceModel: 'BM-Vinca2', deviceKey: 'v', receptionValidated: true });
+  const context = { deviceKey: 'v', timeZone: 'UTC', nowMs: epoch('11:24:25'), clockHistory: history,
+    userId: 'u', cycleId: 'c', incorporationMode: 'automatic', automaticConsent: 'v2' };
+  assert.equal(assessVinca2AutomaticDate(reading, context).status, 'ready');
+  assert.equal(prepareAutomaticBleDraft(reading, context).measurements[0].confirmed_timestamp, reading.device_timestamp);
+  // Same observed packet with only the initial synchronization: recent or historic is unknown.
+  const initial = updateFemometerClockHistory(null, observation('11:21:47'));
+  const insufficient = updateFemometerClockHistory(initial, observation('11:24:24', { operation: 'read' }));
+  for (const device_timestamp of ['2026-11-21T11:21:41', '2026-11-21T09:00:00']) {
+    const candidate = { ...reading, device_timestamp };
+    const unsafe = { ...context, clockHistory: insufficient };
+    assert.equal(assessVinca2AutomaticDate(candidate, unsafe).reason, 'measurement-before-clock-sync');
+    assert.throws(() => prepareAutomaticBleDraft(candidate, unsafe), { code: 'ble-auto-review' });
+  }
+  for (const incident of [{ driftSeconds: 600 }, { errorCode: 'CLOCK_FAILED' }, { phoneUtcOffsetMinutes: 60 },
+    { errorCode: 'CLOCK_SNAPSHOT_STALE' }]) {
+    let interrupted = updateFemometerClockHistory(history, observation('11:21:46', { operation: 'read', ...incident }));
+    interrupted = updateFemometerClockHistory(interrupted, observation('11:21:47'));
+    assert.equal(interrupted.confidenceStart.checkedAt, epoch('11:21:47'));
+    assert.notEqual(assessVinca2AutomaticDate(reading, { ...context, clockHistory: interrupted }).status, 'ready');
+  }
+});

@@ -14,7 +14,10 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   const listening = status === 'listening' && state.listenerResult?.connectionReady === true && state.listenerResult?.indicationsActive === true;
   const reconnect = state.gattReconnectRequired || state.volumeReconnectRequired || state.measurementModeReconnectRequired;
   const unlinked = !searching && !listening && remembered === false;
-  const label = state.configurationBusy ? 'Preparando ajustes…' : state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
+  const vinca = state.boundProtocol === 'vinca2' || state.boundModel === 'BM-Vinca2';
+  const label = vinca ? (listening ? 'Conectado' : status === 'searching' ? 'Buscando termómetro…'
+    : searching || state.restarting ? 'Conectando…' : unlinked ? 'Sin vincular' : 'Desconectado')
+    : state.configurationBusy ? 'Preparando ajustes…' : state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
     : searching ? 'Buscando / conectando' : unlinked ? 'Sin vincular' : 'Desconectado';
   const Icon = listening || searching || unlinked ? Bluetooth : BluetoothOff;
   const description = `Bluetooth: ${label}. ${ble.pendingCount} lecturas pendientes.${issue ? ' El reloj requiere atención.' : ''} Abrir opciones`;

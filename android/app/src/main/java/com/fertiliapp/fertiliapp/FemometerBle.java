@@ -85,6 +85,7 @@ public class FemometerBle extends Plugin {
     private final BleMeasurementModeOperation measurementModeOperation = new BleMeasurementModeOperation(mainHandler);
     private final BleGattCleanup gattCleanup = new BleGattCleanup();
     private volatile boolean temperatureReady;
+    private Vinca2Reception vincaReception = new Vinca2Reception();
     private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
     private final Map<String, String> idsByAddress = new LinkedHashMap<>();
 
@@ -689,6 +690,7 @@ public class FemometerBle extends Plugin {
         if (trial) { trialDeviceId = deviceId; verification.begin(userId, scannedDevice.address); }
         temperatureListenerCall = call;
         final String connectedDeviceKey = temperatureDeviceKey;
+        vincaReception = new Vinca2Reception();
 
         BluetoothGattCallback callback = new BluetoothGattCallback() {
             @Override
@@ -703,6 +705,7 @@ public class FemometerBle extends Plugin {
                 }
 
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    vincaReception.connectedAt = System.currentTimeMillis();
                     Log.d(TAG, "Temperature listener connected, discovering services");
                     try {
                         if (!gatt.discoverServices()) {
@@ -1304,7 +1307,8 @@ public class FemometerBle extends Plugin {
     }
 
     private void finishTemperatureSetup() {
-        capture.record("listener", "control", "window_started;duration_seconds=360", null);
+        vincaReception.indicationsReadyAt = System.currentTimeMillis();
+        capture.record("listener", "control", temperatureProfileValidated ? "listening_until_disconnect" : "bounded_listening_started", null);
         clearTemperatureSetupTimeout();
         PluginCall pending = temperatureListenerCall;
         temperatureListenerCall = null;
@@ -1313,7 +1317,8 @@ public class FemometerBle extends Plugin {
         result.put("captureObserveClock", capture.observingClock());
         result.put("connectionReady", true);
         result.put("indicationsActive", true);
-        result.put("timeoutSeconds", (experimentalReception ? TRIAL_TIMEOUT_MS : TEMPERATURE_LISTENER_TIMEOUT_MS) / 1000);
+        result.put("timeoutSeconds", Vinca2Reception.continuous(temperatureProfileValidated, experimentalReception) ? 0
+            : (experimentalReception ? TRIAL_TIMEOUT_MS : TEMPERATURE_LISTENER_TIMEOUT_MS) / 1000);
         result.put("experimental", experimentalReception);
         result.put("measurementIntervalConfigured", temperatureProfileValidated);
         result.put("capabilities", experimentalReception ? new JSObject() : profileCapabilities(temperatureGatt, temperatureProtocol, temperatureDeviceModel));
@@ -1364,6 +1369,15 @@ public class FemometerBle extends Plugin {
                         "deviceTimestampReliability", "deviceTimeZone", "measurementType", "measurementTypeCode", "flags"})
                     safe.put(key, decoded.opt(key));
                 capture.decoded(captured, safe.toString());
+            }
+            if (temperatureProfileValidated && !experimentalReception) {
+                if (!vincaReception.accept(value, decoded.optString("deviceTimestamp", "").length() == 19)) return;
+                JSObject transport = new JSObject();
+                transport.put("sessionId", vincaReception.sessionId);
+                transport.put("connectedAt", vincaReception.connectedAt);
+                transport.put("indicationsReadyAt", vincaReception.indicationsReadyAt);
+                transport.put("receivedAt", System.currentTimeMillis());
+                decoded.put("transport", transport);
             }
             decoded.put("deviceKey", connectedDeviceKey);
             decoded.put("deviceModel", temperatureDeviceModel);
@@ -1603,6 +1617,7 @@ public class FemometerBle extends Plugin {
 
     private void scheduleTemperatureListenerTimeout() {
         clearTemperatureListenerTimeout();
+        if (Vinca2Reception.continuous(temperatureProfileValidated, experimentalReception)) return;
         temperatureListenerTimeoutRunnable = () -> {
             Log.d(TAG, "Temperature listening window ended");
             notifyTemperatureListenerState("timeout", "Ha finalizado el tiempo de escucha.");

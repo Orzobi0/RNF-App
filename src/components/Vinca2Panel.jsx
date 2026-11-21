@@ -14,7 +14,7 @@ export const vinca2StatusText = (status, session = {}) => status === 'listening'
   checking: 'Conectando…', idle: 'Desconectado', stopped: 'Desconectado',
   searching: 'Buscando termómetro…', inspecting: 'Conectando…',
   binding: 'Conectando…', connecting: 'Conectando…', listening: 'Conectado', stopping: 'Desconectado',
-  missing: 'Termómetro no encontrado', error: session.error?.code === 'CONNECTION_LOST' ? 'Conexión perdida' : 'No se pudo conectar',
+  missing: 'Termómetro no encontrado', error: session.error?.code === 'CONNECTION_LOST' ? 'Desconectado' : 'No se pudo conectar',
 })[status] || 'Desconectado';
 
 const Vinca2Panel = ({ deviceKey } = {}) => {

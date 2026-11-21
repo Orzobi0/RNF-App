@@ -113,7 +113,7 @@ export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZ
   if (!timeZone) return review('unknown-time-zone');
   const age = classifyBleMeasurementAge(measurement, { nowMs, timeZone, calendarDays: true });
   if (!age.candidate) return age;
-  const sync = clockHistory?.lastVerifiedSync, check = clockHistory?.lastValidCheck;
+  const sync = clockHistory?.confidenceStart ?? clockHistory?.lastVerifiedSync, check = clockHistory?.lastValidCheck;
   if (clockHistory?.historyVersion !== 2 || sync?.continuityTracked !== true || sync?.operation !== 'sync' || sync.verified !== true || !Number.isFinite(sync.checkedAt)
     || !Number.isFinite(check?.checkedAt)) return review('clock-history-insufficient');
   if (sync.checkedAt >= age.epochMs) return review('measurement-before-clock-sync');
@@ -129,7 +129,7 @@ export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZ
 
 export const automaticBleReviewMessage = reason => ({
   'clock-history-insufficient': 'Es necesario sincronizar el reloj. La nueva referencia servirá para las próximas mediciones.',
-  'measurement-before-clock-sync': 'La temperatura es anterior a la última sincronización. Revisa su fecha original.',
+  'measurement-before-clock-sync': 'La toma empezó antes de la referencia fiable del reloj. Puede ser reciente o retransmitida; confirma su fecha.',
   'clock-check-not-after-measurement': 'Falta una comprobación posterior del reloj. La temperatura necesita revisión.',
   'clock-misaligned': 'El reloj supera la tolerancia de 120 segundos. La temperatura necesita revisión.',
   'clock-trust-interrupted': 'Hay una incidencia del reloj. La temperatura necesita revisión.',
@@ -172,7 +172,7 @@ export const decideVinca2Reading = (measurement, { existing = [], receipt, local
     if (!age.candidate) return age;
     if (clockHistory?.state === 'misaligned') return { status: 'review', reason: 'clock-misaligned', candidate: true };
     if (!clockHistory?.lastVerifiedSync || !clockHistory?.lastValidCheck || clockHistory.invalidatedAt || clockHistory.state === 'unknown') return { status: 'review', reason: 'clock-history-insufficient', candidate: true };
-    if (age.epochMs < clockHistory.lastVerifiedSync.checkedAt) return { status: 'review', reason: 'measurement-before-clock-sync', candidate: true };
+    if (age.epochMs <= (clockHistory.confidenceStart ?? clockHistory.lastVerifiedSync).checkedAt) return { status: 'review', reason: 'measurement-before-clock-sync', candidate: true };
     if (cycleCertain !== true) return { status: 'review', reason: 'destination-cycle-uncertain', candidate: true };
   }
   return { status: 'review', reason: 'measurement-clock-epoch-unproven' };

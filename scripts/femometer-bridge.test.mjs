@@ -63,6 +63,11 @@ test('Android message bridge receives multiple readings and releases the subscri
       deliver({ callbackId: registration.callbackId, success: true, save: true, data: { temperatureC } });
     }
     assert.deepEqual(readings.map(r => r.temperatureC), [36.42, 36.51]);
+    const transport = { sessionId: 'opaque-connection', connectedAt: 1000, indicationsReadyAt: 2000, receivedAt: 900000 };
+    deliver({ callbackId: registration.callbackId, success: true, save: true,
+      data: { temperatureC: 35.77, deviceTimestamp: '2026-11-21T11:21:41', transport } });
+    assert.deepEqual(readings.at(-1).transport, transport);
+    assert.equal(readings.at(-1).deviceTimestamp, '2026-11-21T11:21:41');
     // Interleave an ordinary request with the persistent listener.
     const originalTimer = globalThis.setTimeout;
     let scanTimeout;
@@ -99,7 +104,7 @@ test('Android message bridge receives multiple readings and releases the subscri
     const trialRegistration = messages.at(-1);
     assert.equal(trialRegistration.options.eventName, 'thermometerTrialReading');
     deliver({ callbackId: trialRegistration.callbackId, success: true, save: true, data: { experimental: true, temperatureC: 36.5 } });
-    assert.equal(trials.length, 1); assert.equal(readings.length, 2);
+    assert.equal(trials.length, 1); assert.equal(readings.length, 3);
     await trialListener.remove();
     const rememberedScan = ble.scanForFemometer('user-a');
     const rememberedRequest = messages.at(-1);
@@ -119,7 +124,7 @@ test('Android message bridge receives multiple readings and releases the subscri
     await listener.remove();
     assert.equal(messages.length, count);
     deliver({ callbackId: registration.callbackId, success: true, save: true, data: { temperatureC: 37 } });
-    assert.equal(readings.length, 2);
+    assert.equal(readings.length, 3);
     assert.equal(forwarded.length, 1);
     const again = await ble.addFemometerTemperatureListener(event => readings.push(event));
     deliver({ callbackId: messages.at(-1).callbackId, success: true, save: true, data: { status: 'timeout' } });

@@ -42,11 +42,11 @@ export const createFemometerLocalState = (storage, userId, metadata = null) => {
       for (const row of readings) {
         if (!row.deviceKey || row.importStatus === 'incorporated' || row.importStatus === 'discarded') continue;
         devices[row.deviceKey] ??= { clock: null, pending: [] };
-        // Do not retain raw packets or transport diagnostics in durable review work.
+        // Retain only minimal transport provenance, never raw packets or MAC addresses.
         const { uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC, deviceTimestamp, receivedAt,
-          normalized, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked } = row;
+          normalized, transport, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked } = row;
         devices[row.deviceKey].pending.push({ uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC,
-          deviceTimestamp, receivedAt, normalized, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked });
+          deviceTimestamp, receivedAt, normalized, transport, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked });
       }
       commit({ ...state, devices });
     },
@@ -82,7 +82,16 @@ export const updateFemometerClockHistory = (previous, observation) => {
     || last.phoneUtcOffsetMinutes !== observation.phoneUtcOffsetMinutes
     || (valid && Number.isFinite(last.driftSeconds) && Math.abs(last.driftSeconds - observation.driftSeconds) > 120));
   const incident = !valid || (observation.operation === 'sync' && !syncVerified) || Math.abs(observation.driftSeconds) > 120 || changed;
-  return { ...previous, state, historyVersion: 2, pendingCheck: null, staleCheck: null, lastCheck: observation,
+  // A redundant verified write must not erase an already established clock interval.
+  // A correction, incident, zone change or invalidation always starts a new one.
+  const priorSync = previous?.confidenceStart ?? previous?.lastVerifiedSync;
+  const continues = priorSync?.continuityTracked === true && previous?.state === 'read_correct'
+    && last?.operation === 'read' && last.checkedAt > priorSync.checkedAt && !incident && !previous?.invalidatedAt
+    && !previous?.staleCheck && (previous?.lastIncidentAt ?? 0) <= priorSync.checkedAt
+    && (previous?.lastSignificantChange?.checkedAt ?? 0) <= priorSync.checkedAt;
+  return { ...previous, confidenceStart: syncVerified
+      ? (continues ? priorSync : { ...observation, continuityTracked: true }) : previous?.confidenceStart ?? null,
+    state, historyVersion: 2, pendingCheck: null, staleCheck: null, lastCheck: observation,
     invalidatedAt: syncVerified ? null : previous?.invalidatedAt ?? null,
     lastIncidentAt: incident ? Math.max(observation.checkedAt, previous?.lastIncidentAt ?? 0) : previous?.lastIncidentAt ?? null,
     lastValidCheck: valid ? observation : previous?.lastValidCheck ?? null,
