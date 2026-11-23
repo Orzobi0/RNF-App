@@ -4,6 +4,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useFemometer } from '@/contexts/FemometerContext';
 import { normalizeBleMeasurement, prepareManualBleDraft } from '@/lib/bleMeasurements';
 import { fetchBleAttemptDayDB } from '@/lib/cycleDataHandler';
+import { vinca2DateNeedsReview } from '@/lib/bleMeasurements';
 import { BleReadingReviewView } from '@/components/BleReadingReviewView';
 
 export function BleReadingReview({ userId, reading, onClose, onSaved, active = true }) {
@@ -12,8 +13,8 @@ export function BleReadingReview({ userId, reading, onClose, onSaved, active = t
   const navigate = useNavigate();
   // Only legacy pending rows lack both a normalized origin and a reception model.
   const measurement = reading.normalized ?? normalizeBleMeasurement(reading, reading.deviceModel ?? (reading.deviceProtocol ? null : 'BM-Vinca2'));
-  const [draft, setDraft] = useState(() => ({ isoDate: measurement?.time ? measurement.device_timestamp.slice(0, 10) : '',
-    time: measurement?.time || '', temperatureC: measurement?.temperature ?? '', ...reading.draft, confirmed: false }));
+  const [draft, setDraft] = useState(() => ({ isoDate: !vinca2DateNeedsReview(measurement) && measurement?.time ? measurement.device_timestamp.slice(0, 10) : '',
+    time: vinca2DateNeedsReview(measurement) ? '' : measurement?.time || '', temperatureC: measurement?.temperature ?? '', ...reading.draft, confirmed: false }));
   const [error, setError] = useState(reading.reviewError ?? null);
   useEffect(() => { if (reading.reviewError) setError(reading.reviewError); }, [reading.reviewError]);
   const [busy, setBusy] = useState(false);

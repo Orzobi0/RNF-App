@@ -38,4 +38,25 @@ public class TemperatureMeasurementCodecTest {
         packet[9] = 24; invalid(packet); packet[9] = 8;
         packet[12] = 10; invalid(packet);
     }
+    @Test public void vincaRecoversOnlyTheDateWithoutRelaxingStructureOrTemperature() {
+        byte[] packet = Arrays.copyOf(value(6, 3579, -2), 13);
+        packet[12] = 6; // All-zero Date Time is unknown, but structure is complete.
+        TemperatureMeasurementCodec.validateVincaFinal(packet);
+        invalid(packet); // Other thermometers retain strict date validation.
+        assertEquals(35.79, TemperatureMeasurementCodec.ieee11073(packet, 1), 0.00001);
+        for (int year : new int[] {2024, 2099}) {
+            packet[5] = (byte) year; packet[6] = (byte) (year >> 8);
+            packet[7] = 2; packet[8] = 3; packet[9] = 6; packet[10] = 38; packet[11] = 27;
+            TemperatureMeasurementCodec.validateVincaFinal(packet);
+        }
+        TemperatureMeasurementCodec.validateVincaFinal(value(0, 3579, -2));
+        for (byte[] bad : new byte[][] {Arrays.copyOf(packet, 12), Arrays.copyOf(packet, 14),
+                value(8, 3579, -2), value(0, 0x7fffff, 0), value(0, 5000, -2), value(1, 3579, -2)}) {
+            try { TemperatureMeasurementCodec.validateVincaFinal(bad); fail("must reject malformed or doubtful temperature"); }
+            catch (IllegalArgumentException expected) { }
+        }
+        packet[12] = 10;
+        try { TemperatureMeasurementCodec.validateVincaFinal(packet); fail("invalid type"); }
+        catch (IllegalArgumentException expected) { }
+    }
 }

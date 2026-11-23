@@ -70,7 +70,7 @@ const BluetoothCapture = () => {
   return <details className="rounded-lg border border-slate-200 p-3">
     <summary className="cursor-pointer font-medium">Captura Bluetooth — Solo Staging</summary>
     <div className="mt-3 space-y-3">
-      <p>Con la escucha detenida, prepara la captura y usa los controles existentes para conectar. No se conecta al preparar. Si ya está conectado, inicia la captura y pulsa «Reiniciar escucha».</p>
+      <p>Con la escucha detenida, prepara la captura y usa los controles existentes para conectar. No se conecta al preparar. Si ya está conectado, inicia la captura y pulsa «Reconectar».</p>
       <p>Solo en memoria. Copia antes de detener: detener, limpiar, salir del diagnóstico o cerrar sesión borra la captura. El portapapeles queda bajo tu control y puede contener datos de salud y fechas.</p>
       <p role="status">{snapshot.prepared ? 'Captura preparada' : snapshot.active ? 'Captura activa' : 'Captura inactiva'} · {snapshot.events.length} eventos{snapshot.truncated ? ' · CAPTURA TRUNCADA' : ''}</p>
       <label className="flex items-start gap-2"><input type="checkbox" checked={observeClock} disabled={busy || snapshot.active}
@@ -137,7 +137,7 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
       {isVinca2CaptureAvailable() && <BluetoothCapture />}
       {sessionState.volumeResult?.commandsAccepted && <p>Comandos Bluetooth de volumen aceptados; volumen físico no verificado.</p>}
       {sessionState.measurementModeResult?.commandsAccepted && <p>Comandos Bluetooth de modo aceptados; modo real no verificado.</p>}
-      {onRestart && sessionState.status === 'listening' && <Button variant="outline" className="min-h-11 w-fit rounded-xl px-3 py-2" disabled={restartDisabled} onClick={onRestart}>{recoveryRequired ? 'Recuperar conexión' : 'Reiniciar escucha'}</Button>}
+      {onRestart && sessionState.status === 'listening' && <Button variant="outline" className="min-h-11 w-fit rounded-xl px-3 py-2" disabled={restartDisabled} onClick={onRestart}>{recoveryRequired ? 'Recuperar conexión' : sessionState.boundModel === 'BM-Vinca2' ? 'Reconectar' : 'Reiniciar escucha'}</Button>}
       <p>Estado de escucha: {sessionState.status}</p>
       <p>Modelo de la conexión: {sessionState.listenerResult?.capabilities?.model || 'sin validar'} · Protocolo: {sessionState.listenerResult?.capabilities?.protocol || 'no disponible'}</p>
       {clockHistory && <div><p>Historial del reloj: {clockHistory.state}</p>

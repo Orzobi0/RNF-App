@@ -6,7 +6,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, lazy, Su
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { clearVinca2Capture, createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
-import { normalizeBleMeasurement, decideVinca2Reading, authorizedBleMeasurement } from '@/lib/bleMeasurements';
+import { normalizeBleMeasurement, decideVinca2Reading, authorizedBleMeasurement, vinca2DateNeedsReview, recoveredVinca2DateMessage } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
 import BleReadingReview from '@/components/BleReadingReview';
 import { createFemometerLocalState } from '@/lib/femometerLocalState';
@@ -230,11 +230,16 @@ export const FemometerSessionOwner = ({ userId, children }) => {
           && isPossibleBleDuplicate(item.normalized, row.normalized))) {
         throw Object.assign(new Error('Posible temperatura duplicada. Comprueba esta lectura y los intentos anteriores.'), { code: 'ble-possible-duplicate' });
       }
+      if (vinca2DateNeedsReview(row.normalized)) {
+        throw Object.assign(new Error(recoveredVinca2DateMessage), { code: 'ble-auto-review' });
+      }
       await (owner.checkAutomaticClock?.() ?? owner.readClock());
       valid();
       const latest = sessionStateRef.current;
       if (latest.clockBusy || latest.clockError || latest.clockResult?.checkedAt !== localRef.current?.clock(row.deviceKey)?.lastValidCheck?.checkedAt) {
-        throw Object.assign(new Error('No se pudo confirmar la comprobación posterior del reloj.'), { code: 'ble-auto-review' });
+        throw Object.assign(new Error(latest.clockError?.code === 'CLOCK_SNAPSHOT_STALE'
+          ? 'El termómetro devuelve una hora fija en esta conexión. No podemos verificar esta toma: revisa su fecha y hora. La recepción sigue activa.'
+          : 'No se pudo comprobar el reloj después de la toma. La temperatura está conservada: revisa su fecha y hora y reintenta la comprobación del reloj.'), { code: 'ble-auto-review' });
       }
       const context = { userId, cycleId: cycle.currentCycle.id, deviceKey: row.deviceKey,
         incorporationMode: 'automatic', automaticConsent: 'v2', nowMs: Date.now(),

@@ -1,5 +1,6 @@
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React from 'react';
+import { vinca2DateNeedsReview, recoveredVinca2DateMessage } from '@/lib/bleMeasurements';
 import { CheckCircle2, Trash2, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { measurementDisplay, measurementSourceLabel } from '@/lib/temperatureMeasurements';
@@ -25,6 +26,11 @@ export function BleReadingReviewView({
   const originalDay = (reading.deviceTimestamp || reading.normalized?.device_timestamp || '').slice(0, 10);
   const showConsultedDay = reading.attempt?.isoDate && (reading.attempt.isoDate !== originalDay || reading.attempt.isoDate !== draft.isoDate);
   return <div aria-label="Revisar temperatura" className="space-y-3">
+    {vinca2DateNeedsReview(measurement) && <section className={warning} aria-label="Revisar fecha y hora">
+      <p>{recoveredVinca2DateMessage}</p>
+      <p>Fecha original del termómetro: {measurement.device_timestamp || 'No disponible (ausente o inválida)'}</p>
+      <p>Fecha y hora elegidas: {draft.isoDate && draft.time ? `${draft.isoDate} · ${draft.time}` : 'Pendientes de elegir'}</p>
+    </section>}
     {uncertain && <section className={warning} aria-label="Comprobar guardado incierto">
       <p>No hemos podido confirmar que la temperatura se haya guardado correctamente. Comprueba si ya está registrada.</p>
       {showConsultedDay && <p>Día consultado: {reading.attempt.isoDate} (destino del intento).</p>}

@@ -127,7 +127,16 @@ export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZ
   return { status: 'ready', reason: 'operational-clock-confidence', epochMs: age.epochMs };
 };
 
+export const vinca2DateNeedsReview = (measurement, nowMs = Date.now()) => measurement?.device_protocol === 'vinca2'
+  && !classifyBleMeasurementAge(measurement, { nowMs, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, calendarDays: true }).candidate;
+
+export const recoveredVinca2DateMessage = 'Hemos recuperado la temperatura, pero el reloj del termómetro tenía una fecha incorrecta. Confirma cuándo realizaste la medición';
+
 export const automaticBleReviewMessage = reason => ({
+  'missing-date': recoveredVinca2DateMessage,
+  'invalid-date': recoveredVinca2DateMessage,
+  'future-date': recoveredVinca2DateMessage,
+  'not-today-or-yesterday': recoveredVinca2DateMessage,
   'clock-history-insufficient': 'Es necesario sincronizar el reloj. La nueva referencia servirá para las próximas mediciones.',
   'measurement-before-clock-sync': 'La toma empezó antes de la referencia fiable del reloj. Puede ser reciente o retransmitida; confirma su fecha.',
   'clock-check-not-after-measurement': 'Falta una comprobación posterior del reloj. La temperatura necesita revisión.',

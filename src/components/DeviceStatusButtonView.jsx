@@ -16,7 +16,9 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   const unlinked = !searching && !listening && remembered === false;
   const vinca = state.boundProtocol === 'vinca2' || state.boundModel === 'BM-Vinca2';
   const label = vinca ? (listening ? 'Conectado' : status === 'searching' ? 'Buscando termómetro…'
-    : searching || state.restarting ? 'Conectando…' : unlinked ? 'Sin vincular' : 'Desconectado')
+    : searching || state.restarting || status === 'listening' ? 'Conectando…'
+    : status === 'missing' ? 'Termómetro no encontrado'
+    : status === 'error' && state.error?.code !== 'CONNECTION_LOST' ? 'No se pudo conectar' : unlinked ? 'Sin vincular' : 'Desconectado')
     : state.configurationBusy ? 'Preparando ajustes…' : state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
     : searching ? 'Buscando / conectando' : unlinked ? 'Sin vincular' : 'Desconectado';
   const Icon = listening || searching || unlinked ? Bluetooth : BluetoothOff;
@@ -100,7 +102,7 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
           : listening
             ? reconnect
               ? 'Recuperar conexión'
-              : 'Reiniciar escucha'
+              : vinca ? 'Reconectar' : 'Reiniciar escucha'
             : remembered ? 'Conectar' : 'Añadir termómetro'
       }
       aria-label={
@@ -109,7 +111,7 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
           : listening
             ? reconnect
               ? 'Recuperar conexión'
-              : 'Reiniciar escucha'
+              : vinca ? 'Reconectar' : 'Reiniciar escucha'
             : remembered ? 'Conectar' : 'Añadir termómetro'
       }
       disabled={

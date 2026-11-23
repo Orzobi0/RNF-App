@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { thermometerName } from '../src/lib/thermometerCatalog.js';
 import { createThermometerMetadataStore, mergeThermometerFields, sanitizeThermometerMetadata } from '../src/lib/thermometerMetadata.js';
-import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge, vinca2DateNeedsReview, recoveredVinca2DateMessage } from '../src/lib/bleMeasurements.js';
 import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks as baseHooks, deferred, flush } from './helpers/load-frontend.mjs';
 
-const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate }); return harness; };
+const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, vinca2DateNeedsReview, recoveredVinca2DateMessage }); return harness; };
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -1476,8 +1476,8 @@ assert.equal(action.props.disabled, status !== 'searching');
   }
   h.ble.sessionState.status = 'listening';
   h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
-  assert.match(JSON.stringify(h.render()), /Escuchando temperaturas/);
-  assert.equal(h.button('Reiniciar escucha'), undefined);
+  assert.match(JSON.stringify(h.render()), /Conectado/);
+  assert.equal(h.button('Reconectar'), undefined);
   const diagnostics = treeNodes(h.render()).find(n => n.type === 'diagnostics');
   await diagnostics.props.onRestart(); assert.ok(h.calls.includes('restart'));
   h.ble.sessionState.listenerResult.indicationsActive = false;
@@ -1487,7 +1487,7 @@ assert.equal(action.props.disabled, status !== 'searching');
   assert.equal(treeNodes(h.render()).find(n => n.type === 'dialog').props.open, true);
   assert.equal(h.button('Confirmar desvinculación').props.disabled, false);
   assert.match(JSON.stringify(h.render()), /Se detendrá la escucha/);
-  await h.button('Detener escucha').props.onClick(); assert.ok(h.calls.includes('stop'));
+  await h.button('Desconectar').props.onClick(); assert.ok(h.calls.includes('stop'));
   h.ble.sessionState.status = 'stopped';
   h.button('Cancelar').props.onClick(); assert.equal(h.calls.some(Array.isArray), false);
   h.button('Desvincular termómetro').props.onClick();
@@ -3541,6 +3541,13 @@ test('a fixed connection clock requires review without interrupting reception or
     assert.equal(native.calls.connections, 1); assert.equal(native.calls.sync, 0);
     assert.equal(owner.render().sessionState.clockError.code, 'CLOCK_SNAPSHOT_STALE');
     assert.ok(owner.render().clockHistory.staleCheck);
+    // Only a natural loss creates a new connection; never interrupt reception for CTS.
+    native.emit({ status: 'disconnected' }); await flush();
+    native.flags.now += 60000;
+    await owner.foreground(); owner.render();
+    assert.equal(owner.render().clockHistory.staleCheck, null);
+    assert.equal(owner.render().clockHistory.state, 'read_correct');
+    assert.equal(native.calls.sync, 0);
   } finally { owner.cleanup(); await flush(); }
 });
 
@@ -3611,4 +3618,50 @@ test('native continuous policy is connected to setup while preserving operation 
   assert.match(source, /CONNECT_TIMEOUT_MS \+ DISCOVER_TIMEOUT_MS/);
   assert.match(source, /VINCA_INDICATION_UUID/);
   assert.match(source, /vincaReception.accept\(value,/);
+});
+
+
+test('Vinca dates 2024/2099/invalid/missing remain durable and require an explicit manual destination', async () => {
+  for (const deviceTimestamp of ['2024-02-03T06:38:27', '2099-11-21T14:04:00', null]) {
+    const normalized = normalizeBleMeasurement({ temperatureC: 35.79, deviceTimestamp,
+      deviceTimestampReliability: 'invalid', deviceModel: 'BM-Vinca2', deviceProtocol: 'vinca2',
+      deviceKey: 'bound-a', receptionValidated: true });
+    const h = await uncertainEditorFixture({ normalized, deviceTimestamp, draft: undefined,
+      importStatus: 'pending', attempt: undefined });
+    try {
+      assert.equal(h.render().draft.isoDate, ''); assert.equal(h.render().draft.time, '');
+      const storage = memoryStorage(); const local = createFemometerLocalState(storage, 'a');
+      local.saveReadings([{ ...h.reading, deviceKey: 'bound-a', receivedOrder: 1 }]);
+      assert.deepEqual(createFemometerLocalState(storage, 'a').recover()[0].normalized, normalized);
+      assert.equal(createFemometerLocalState(storage, 'other-account').recover().length, 0);
+      h.cycle('chosen-cycle'); h.render().change({ isoDate: '2026-11-20', time: '08:15' });
+      await h.render().confirm();
+      assert.equal(h.payloads[0].cycleId, 'chosen-cycle');
+      assert.equal(h.payloads[0].measurements[0].temperature, 35.79);
+      assert.equal(h.payloads[0].measurements[0].device_timestamp, deviceTimestamp);
+      assert.equal(h.payloads[0].measurements[0].confirmed_timestamp, '2026-11-20T08:15:00');
+    } finally { h.cleanup(); }
+  }
+});
+
+test('Vinca clock 2024 and 2099 is corrected once and verified without closing reception', async () => {
+  for (const date of ['2024-02-03T06:38:27', '2099-11-21T14:04:00']) {
+    const h = integratedSession(); h.flags.now = new Date(2026, 10, 21, 14, 5).getTime();
+    h.api.readFemometerClock = async () => ({ deviceKey: 'bound-a', deviceLocalTime: date });
+    h.api.syncFemometerClock = async () => { h.calls.sync++; return { deviceKey: 'bound-a', deviceLocalTime: localText(h.flags.now), verified: true }; };
+    try {
+      await h.session.start(); await h.session.resume();
+      assert.equal(h.calls.sync, 1); assert.equal(h.state().clockResult.verified, true);
+      assert.equal(h.calls.disconnects, 0);
+      h.emit({ temperatureC: 35.79, deviceTimestamp: date }); assert.equal(h.temperatures.length, 1);
+    } finally { await h.session.dispose(); }
+  }
+});
+
+test('a skipped posterior clock operation cannot reuse an earlier result', async () => {
+  const h = integratedSession();
+  try {
+    await h.session.start(); await h.session.stop();
+    await assert.rejects(h.session.checkAutomaticClock(), error => error.code === 'ble-auto-review');
+  } finally { await h.session.dispose(); }
 });

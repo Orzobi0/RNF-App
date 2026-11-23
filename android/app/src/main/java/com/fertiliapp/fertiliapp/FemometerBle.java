@@ -1361,6 +1361,7 @@ public class FemometerBle extends Plugin {
                 decoded.put("measurementKind", reading.live ? "current" : "historical");
             } else {
                 if (!temperatureProfileValidated) TemperatureMeasurementCodec.validateFinal(value);
+                else TemperatureMeasurementCodec.validateVincaFinal(value);
                 decoded = decodeTemperatureMeasurement(value);
             }
             if (captured != null) {

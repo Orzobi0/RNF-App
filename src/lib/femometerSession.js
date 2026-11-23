@@ -261,7 +261,7 @@ export const createFemometerSessionManager = (api) => {
           if (!sync && connectionClockSample && connectionClockSample.deviceLocalTime === result?.deviceLocalTime
             && now() - connectionClockSample.checkedAt > 5000) {
             publish({ clockResult: null, clockError: { code: 'CLOCK_SNAPSHOT_STALE', operation: 'read',
-              deviceKey: state.deviceKey, checkedAt: now(), message: 'El termómetro conserva la hora de esta conexión. Se comprobará al reconectar.' } });
+              deviceKey: state.deviceKey, checkedAt: now(), message: 'El termómetro devuelve una hora fija en esta conexión. No se puede verificar de nuevo aquí. Revisa la temperatura pendiente; cuando hayas terminado todas las mediciones, puedes reconectar para comprobar el reloj.' } });
             return;
           }
           const driftSeconds = femometerClockDriftSeconds(result?.deviceLocalTime, now());
@@ -540,7 +540,11 @@ export const createFemometerSessionManager = (api) => {
         if (!recoveryBlocked && foregroundRecoveryPending) void session.recoverReadings('foreground');
       },
       checkAutomaticClock: async () => {
+        const previousAttempt = state.clockAttempt;
         await clock(false);
+        if (state.clockAttempt === previousAttempt || state.clockBusy) {
+          throw Object.assign(new Error('El reloj está ocupado o requiere reconexión. La temperatura se conserva para revisar su fecha y hora.'), { code: 'ble-auto-review' });
+        }
         // A fixed snapshot cannot verify a later take. Keep receiving; manual review is safer than interrupting it.
       },
       readClock: () => clock(false),

@@ -64,7 +64,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
   const operation = listening ? 'restart' : 'start';
   const recover = sessionState.gattReconnectRequired || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired;
   const primaryLabel = sessionState.configurationBusy ? 'Preparando ajustes…' : busy ? (['checking', 'searching', 'connecting', 'inspecting', 'binding', 'stopping'].includes(status) ? vinca2StatusText(status, sessionState) : 'Preparando…')
-    : listening ? recover ? 'Recuperar conexión' : 'Reiniciar escucha' : retry ? 'Reintentar' : 'Conectar';
+    : listening ? recover ? 'Recuperar conexión' : (vinca ? 'Reconectar' : 'Reiniciar escucha') : retry ? 'Reintentar' : 'Conectar';
   const clockLabel = sessionState.boundProtocol === 'easyhome-ebt300'
   ? sessionState.clockResult?.writeAccepted
     ? 'Ajuste enviado'
@@ -145,14 +145,14 @@ const canReadDeviceInfo =
             )}
 
             {healthyListening
-              ? 'Escuchando temperaturas'
+              ? (vinca ? 'Conectado' : 'Escuchando temperaturas')
               : vinca2StatusText(status, sessionState)}
           </p>
 
           <button
             type="button"
-            aria-label={searching ? 'Cancelar búsqueda' : listening ? 'Detener escucha' : primaryLabel}
-            title={searching ? 'Cancelar búsqueda' : listening ? 'Detener escucha' : primaryLabel}
+            aria-label={searching ? 'Cancelar búsqueda' : listening ? (vinca ? 'Desconectar' : 'Detener escucha') : primaryLabel}
+            title={searching ? 'Cancelar búsqueda' : listening ? (vinca ? 'Desconectar' : 'Detener escucha') : primaryLabel}
             disabled={busy && !searching}
             onClick={() => run((listening || searching) ? 'stop' : operation)}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte hover:bg-rose-50 disabled:opacity-40"
@@ -172,7 +172,7 @@ const canReadDeviceInfo =
               )}
             </span>
             <span className="sr-only">
-              {listening ? 'Detener escucha' : primaryLabel}
+              {listening ? (vinca ? 'Desconectar' : 'Detener escucha') : primaryLabel}
             </span>
           </button>
         </div>

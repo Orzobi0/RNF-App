@@ -95,9 +95,9 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
     Leer reloj
   </Button>
 )}
-          {connected && capabilities?.clockSync && <Button variant={issue ? 'default' : 'outline'} className={`min-h-11 h-auto max-w-full whitespace-normal rounded-xl px-4 py-2 ${issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} disabled={Boolean(busy || reconnect)} onClick={() => void run('syncClock')}>{easyClock ? 'Enviar ajuste de reloj' : 'Sincronizar y verificar'}</Button>}
+          {connected && capabilities?.clockSync && <Button variant={issue ? 'default' : 'outline'} className={`min-h-11 h-auto max-w-full whitespace-normal rounded-xl px-4 py-2 ${issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} disabled={Boolean(busy || reconnect)} onClick={() => void run('syncClock')}>{easyClock ? 'Enviar ajuste de reloj' : clockError?.operation === 'sync' ? 'Reintentar sincronización' : 'Sincronizar y verificar'}</Button>}
           {!connected && <Button className="min-h-11 rounded-xl" disabled={busy} onClick={() => void run(sessionState.remembered ? 'start' : 'scan')}>Conectar</Button>}
-          {connected && reconnect && <Button className="min-h-11 h-auto whitespace-normal rounded-xl" disabled={busy} onClick={() => void run('restart')}>Recuperar conexión</Button>}
+          {connected && (reconnect || clockError?.code === 'CLOCK_SNAPSHOT_STALE') && <Button className="min-h-11 h-auto whitespace-normal rounded-xl" disabled={busy} onClick={() => void run('restart')}>{clockError?.code === 'CLOCK_SNAPSHOT_STALE' ? 'Reconectar al terminar las mediciones' : 'Recuperar conexión'}</Button>}
           <Button variant={issue ? 'ghost' : 'default'} className={`min-h-11 rounded-xl ${!issue ? 'bg-fertiliapp-fuerte text-white hover:brightness-95' : ''}`} onClick={() => setClockDialogOpen(false)}>Cerrar</Button>
         </div>
         <Button variant="link" className="min-h-11 self-start px-0 text-sm text-slate-600" onClick={() => { setClockDialogOpen(false); navigate('/settings/devices'); }}>Ir a dispositivos</Button>
