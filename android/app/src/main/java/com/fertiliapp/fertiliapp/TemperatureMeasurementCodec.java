@@ -24,7 +24,7 @@ final class TemperatureMeasurementCodec {
     private static void validateFinal(byte[] value, boolean recoverDate) {
         if (value == null || value.length < 5) throw new IllegalArgumentException("length");
         int flags = value[0] & 255;
-        if ((flags & 0xf8) != 0) throw new IllegalArgumentException("reserved-flags");
+        if ((flags & (recoverDate ? 0x78 : 0xf8)) != 0) throw new IllegalArgumentException("reserved-flags");
         int length = 5 + ((flags & 2) != 0 ? 7 : 0) + ((flags & 4) != 0 ? 1 : 0);
         if (value.length != length) throw new IllegalArgumentException("length");
         ieee11073(value, 1);

@@ -1,34 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useRef } from 'react';
 import * as Toast from '@radix-ui/react-toast';
 import { Thermometer, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Separate provider: Bluetooth never changes the lifetime/position of other toasts.
 export function BleSavedNotice({ notice, onDismiss, onViewDay }) {
-  const node = useRef(null);
-  const dismiss = useRef(onDismiss); dismiss.current = onDismiss;
   const touch = useRef(null);
-  const [element, setElement] = useState(null);
-  const attach = useCallback(value => { node.current = value; setElement(value); }, []);
-  useEffect(() => {
-  if (!notice) return undefined;
-
-  const installedAt = performance.now();
-
-  const outside = event => {
-    if (event.timeStamp < installedAt) return;
-
-    if (node.current && !node.current.contains(event.target)) {
-      dismiss.current();
-    }
-  };
-
-  document.addEventListener('click', outside);
-
-  return () => {
-    document.removeEventListener('click', outside);
-  };
-}, [Boolean(notice), element]);
   if (!notice) return null;
   const temperatureText =
   typeof notice.temperature === 'number'
@@ -48,7 +25,6 @@ const formattedDate = dateMatch
   : 'Fecha no disponible';
   return <Toast.Provider duration={Infinity} swipeDirection="right">
     <Toast.Root
-  ref={attach}
   open
   duration={Infinity}
   onOpenChange={open => {

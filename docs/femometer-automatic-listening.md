@@ -1,6 +1,6 @@
 # Recepción automática Vinca 2 — Android Staging
 
-La sesión pertenece a la cuenta autenticada y se comparte entre páginas. La búsqueda del dispositivo vinculado admite hasta 25 segundos y termina al encontrar la identidad correcta. No se amplía la compatibilidad ni se solicitan permisos automáticamente. Web/PWA y producción mantienen sus barreras actuales.
+La sesión pertenece a la cuenta autenticada y se comparte entre páginas. La búsqueda automática del Vinca 2 vinculado admite hasta 12 segundos y termina al encontrar la identidad correcta; la búsqueda dirigida manual conserva hasta 25 segundos. No se amplía la compatibilidad ni se solicitan permisos automáticamente. Web/PWA y producción mantienen sus barreras actuales.
 
 ## Evidencia y preparación
 
@@ -15,7 +15,9 @@ Se mantienen la recepción de temperatura final por UUID 0x2A1C, la suscripción
 3. Solo con conexión e indicaciones preparadas se muestra «Conectado». Una sesión Vinca 2 validada no tiene el corte de seis minutos; los otros perfiles conservan sus plazos.
 4. La app recibe la temperatura cuando el dispositivo la indica, incluso después de seis minutos, sin solicitarla justo antes ni renovar una conexión sana.
 5. Navegar y recibir un evento de primer plano con la sesión todavía preparada no reconecta. Los callbacks nativos de pérdida/error invalidan la sesión y permiten la recuperación ordenada.
-6. Tras una pérdida se muestra «Desconectado». La comprobación cada 60 segundos solo busca si falta conexión. Los fallos de recuperación aumentan las esperas a 120 y 240 segundos y se detienen tras tres fallos; primer plano o Conectar permite otro intento. No hay conexiones ni suscripciones simultáneas.
+6. Cada apertura o retorno real desde segundo plano dispone de dos búsquedas automáticas como máximo: hasta 12 segundos, espera de 8 segundos desde que termina el primer intento y otra búsqueda de hasta 12 segundos. Los límites afectan al escaneo, no a los plazos separados de conexión/GATT. Si conecta, se cancela el temporizador; no existe sondeo periódico de una conexión sana. Una pérdida puede consumir únicamente el intento restante de esa ventana.
+7. Tras agotar la ventana, encender el termómetro más tarde no provoca nuevos escaneos. «Conectar»/«Reconectar» sigue disponible y conserva el plazo manual. Los eventos repetidos de app activa y la navegación no reinician el presupuesto.
+8. Suspensión, desconexión explícita, cambio de cuenta/vinculación, desvinculación y desmontaje invalidan el trabajo pendiente. Bluetooth/permisos no disponibles y errores no recuperables detienen la recuperación. Si una incorporación u operación GATT bloquea temporalmente el reintento, este queda pendiente hasta liberar el bloqueo, sin consumir intentos ni solapar operaciones. Los diagnósticos de sesión distinguen inicio, reintento, éxito, agotamiento, petición manual, primer plano y cancelación, sin nuevos identificadores sensibles.
 
 Se conservan los timeouts de conexión, descubrimiento, preparación y operaciones GATT. Suspender la app sigue cerrando GATT y cancela los temporizadores; al volver se recupera. No hay servicio de escucha permanente en segundo plano. El apagado/encendido del termómetro requiere validar físicamente los callbacks y la recuperación; no se promete detección instantánea de un apagado sin aviso BLE.
 
@@ -47,7 +49,11 @@ Los 17 fragmentos propietarios posteriores y aproximadamente 143 valores observa
 
 ## Interfaz y alcance
 
-Se reutilizan panel, diagnóstico y revisión. Vinca 2 no muestra una cuenta atrás de seis minutos. Se mantienen Añadir, búsqueda explícita, cancelación, vinculación/desvinculación, ajustes y elección manual/automática. El primer guardado manual validado conserva la pregunta persistente de automatización. No se modifican Functions, Rules, secretos, Health Connect ni dependencias.
+Se reutilizan panel, diagnóstico y revisión. Las nuevas candidatas automáticas llevan una marca de presentación en memoria (`automaticProcessing`); se conservan como `pending`/`saving` en el almacenamiento existente. El contador y la selección manual excluyen solo esas candidatas mientras se procesan. Al fallar o no poder comenzar, vuelven a revisión. La espera para comenzar tiene un límite visual de 30 segundos y una operación iniciada, de 120 segundos: excederlo hace accesible la lectura, pero nunca desbloquea ni repite una escritura que aún no ha terminado. Las lecturas restauradas no se automatizan por su antigua elegibilidad; un guardado interrumpido sigue siendo incierto.
+
+El aviso solo se genera al confirmar el guardado y permanece en el gestor autenticado por encima de las rutas. Navegar o pulsar fuera ya no lo descarta. Se mantienen cierre explícito, gesto y «Ver día», agrupación y deduplicación por lectura; cambiar de cuenta desmonta el aviso anterior.
+
+ Vinca 2 no muestra una cuenta atrás de seis minutos. Se mantienen Añadir, búsqueda explícita, cancelación, vinculación/desvinculación, ajustes y elección manual/automática. El primer guardado manual validado conserva la pregunta persistente de automatización. No se modifican Functions, Rules, secretos, Health Connect ni dependencias.
 
 ## Validación física pendiente
 
@@ -79,3 +85,12 @@ Revisión realizada sobre `nov26`, commit `f88d1764`, sin cambios locales inicia
 Se amplían las pruebas de recuperación 2024/2099/fecha ausente, persistencia por cuenta, destino manual elegido, estructura inválida, sincronización única y operación posterior omitida. La suite existente cubre snapshot, continuidad, automatización posterior, duplicados, cambios de cuenta/dispositivo/ciclo, fallos de Firebase y recepción prolongada. **No se ejecutaron los tests JavaScript Bluetooth ni Java por indicación de este encargo**; las cifras de la sección anterior corresponden al trabajo previo. La validación física sigue pendiente y no se ha realizado despliegue ni cambio de backend.
 
 Validación de esta revisión: `npm run build` de Staging y comprobación de aislamiento/hashes correctas; `git diff --check` sin errores. No se ensambló ni instaló APK.
+
+## Validación de recuperación y presentación (23/11/2026)
+
+- Bloque A: ventana automática 12 s + espera 8 s + 12 s, conexión continua y recuperación manual; diagnósticos en el panel existente. Bloque B: contador de intervención separado del procesamiento en memoria y aviso confirmado que sobrevive a la navegación. Los bloques no dependen uno del otro; las pruebas compartidas y esta documentación se pueden seleccionar por fragmentos para commits separados.
+- Suites Bluetooth: 164 pruebas superadas; suite Staging: 184 superadas (incluye pruebas compartidas, no son cifras sumables). `check:staging`, `build:staging`, `sync:staging:android` y `git diff --check` correctos.
+- Gradle `testDebugUnitTest assembleDebug` no se ejecutó: el primer intento no tenía JDK configurado; con Android Studio2/jbr, el sandbox impidió escribir el bloqueo de la caché `.gradle`. Se solicitó permiso y fue rechazado. No se generó una APK nueva ni se validó Java mediante Gradle.
+- Sin pruebas físicas, Firebase real, commits ni despliegues. Se conserva sin modificación la corrección local previa del decodificador (`recoverDate ? 0x78 : 0xf8`).
+- Para probar físicamente, configurar `JAVA_HOME` al JDK instalado y `CAPACITOR_ENV=staging`, ejecutar desde `android/` `gradlew.bat testDebugUnitTest assembleDebug` e instalar `app/build/outputs/apk/debug/app-debug.apk`. La configuración existente usa `server.url=https://fertiliapp-staging.web.app`: la APK por sí sola NO activa este frontend local. Antes de comprobar los dos bloques juntos debe servirse esta revisión mediante el flujo de desarrollo Android aprobado o publicarse en Staging con autorización posterior; aquí no se cambia ese flujo ni se despliega.
+- Con el frontend correcto: termómetro encendido al abrir (un intento), apagado durante ambos intentos (12/8/12, sin tercero), encendido durante el segundo (conexión inmediata), encendido diez minutos después (solo Conectar), recepción de varias tomas y de una toma de más de seis minutos; navegar entre dashboard/gráfica/registros/ajustes sin reinicio. Repetir segundo plano/retorno, desconexión explícita, cuenta/vinculación, permisos y Bluetooth apagados. Con consentimiento automático, comprobar ausencia de contador durante verificación/guardado, aviso confirmado persistente, cierre/gesto/Ver día, lectura manual simultánea, fecha/reloj incorrectos, duplicados y error/resultado incierto offline, incluido reinicio.

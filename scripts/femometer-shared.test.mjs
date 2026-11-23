@@ -62,7 +62,7 @@ test('standard selection verifies, binds, promotes only the confirmed reading an
   assert.ok(h.calls.indexOf('confirm-and-close') < h.calls.indexOf('listen-normal'));
   h.normal({ ...h.received[0] }); h.normal({ ...h.received[0] }); assert.equal(h.received.length, 1);
   h.normal({ ...h.received[0], deviceTimestamp: '2026-11-18T08:10:01' }); assert.equal(h.received.length, 2);
-  await h.session.stop(); await h.session.resume(); assert.equal(h.state().status, 'listening');
+  await h.session.suspend(); await h.session.resume(); assert.equal(h.state().status, 'listening');
   assert.equal(h.state().capabilities.clockSync, false); assert.equal(h.state().capabilities.volumeWrite, false);
   await h.session.dispose();
 });
@@ -183,7 +183,7 @@ const bridge = () => {
   return { factory: createFemometerSessionManager(api), api, calls, flags, storage, emit: event => emit?.({ deviceKey, deviceModel: 'BM-Vinca2', ...event }) };
 };
 
-async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: null, isLoading: false }, metadata) {
+async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: null, isLoading: false }, metadata, presentationClock = null) {
   const harness = hooks();
   let userId = initialUser;
   let routeKey = 'dashboard';
@@ -197,8 +197,9 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
       assert.equal(name, 'appStateChange'); lifecycle.add(callback);
       return { remove: async () => lifecycle.delete(callback) };
     } },
-    setTimeout: callback => { timers.add(callback); return callback; },
-    clearTimeout: callback => timers.delete(callback),
+    ...(presentationClock ? { Date: presentationClock.Date } : {}),
+    setTimeout: (callback, delay) => { timers.add(callback); presentationClock?.delays.set(callback, delay); return callback; },
+    clearTimeout: callback => { timers.delete(callback); presentationClock?.delays.delete(callback); },
   }, ['FemometerSessionOwner']);
   let lastTree;
   const render = () => harness.render(() => (lastTree = FemometerSessionOwner({ userId, children: null })));
@@ -232,7 +233,7 @@ test('foreground preserves healthy Vinca listening beyond six minutes and late r
     assert.equal(owner.render().pendingCount, 1);
     native.emit({ status: 'disconnected' }); await flush();
     assert.notEqual(owner.render().sessionState.status, 'listening');
-    await owner.foreground();
+    await owner.background(); await owner.foreground();
     assert.equal(native.calls.connections, 2);
     assert.equal(native.calls.permissions, 0);
     await owner.changeAccount('b');
@@ -247,12 +248,12 @@ test('foreground after unsuccessful scan is bounded and requires a remembered de
   const native = bridge(); native.flags.found = false;
   const owner = await mountedOwner(native);
   native.flags.found = true;
-  await owner.foreground();
+  await owner.background(); await owner.foreground();
   assert.equal(native.calls.connections, 1); // First return is not blocked by mount's scan.
   native.emit({ status: 'disconnected' }); await flush();
   await owner.foreground();
   assert.equal(native.calls.connections, 1);
-  assert.equal(owner.render().sessionState.foreground.reason, 'brief_cooldown');
+  assert.equal(owner.render().sessionState.foreground.reason, 'already_active');
   await Promise.all([owner.render().sessionRef.current.start(), owner.render().sessionRef.current.start()]);
   assert.equal(native.calls.connections, 2); // Explicit retry bypasses only the cooldown.
   assert.equal(native.calls.peakListeners, 1);
@@ -471,6 +472,11 @@ Clock3: 'clock',
   assert.equal(Boolean(restart.props.disabled), false); restart.props.onClick(); assert.equal(restarts, 1);
   nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Incorporar (3)').props.onClick();
   assert.equal(reviews, 1);
+  ble.pendingCount = 0; ble.processingCount = 1;
+  assert.equal(treeNodes(render()).some(node => node.type === 'readings'), false);
+  assert.match(treeNodes(render()).find(node => node.type === 'button').props['aria-label'], /Procesando temperatura/);
+  ble.pendingCount = 1;
+  assert.ok(treeNodes(render()).some(node => node.props['aria-label'] === 'Incorporar (1)'));
   ble.enabled = false;
   assert.equal(render(), null);
 });
@@ -547,7 +553,10 @@ test('confirmed notices group, remain dismissible and link to the exact day', as
   assert.equal(render().notice.count, 2);
   render().onViewDay(render().notice.isoDate);
   assert.deepEqual(routes.at(-1), ['/records', { state: { selectedDate: '2026-11-04', scrollToDayDetail: true } }]);
-  page = 'records'; assert.equal(render().notice, null);
+  for (const route of ['records', 'chart', 'settings', 'cycle-detail']) { page = route; assert.equal(render().notice.count, 2); }
+  render().onDismiss();
+  page = 'dashboard'; assert.equal(render().notice, null);
+  page = 'chart'; assert.equal(render().notice, null);
   harness.cleanup();
 });
 
@@ -866,7 +875,7 @@ test('visual laboratory is explicitly localhost development only; state is ficti
   }
 });
 
-test('Bluetooth success presentation has no expiry and supports outside, swipe and explicit dismissal', async () => {
+test('Bluetooth success presentation has no expiry and ignores outside clicks and supports swipe and explicit dismissal', async () => {
   const harness = hooks(); const events = new Map(); let dismissed = 0; const days = [];
   const { BleSavedNotice } = await loadFrontend('src/components/BleSavedNotice.jsx', {
     ...harness.bindings, Toast: { Provider: 'provider', Root: 'notice', Title: 'title', Description: 'description', Close: 'close', Viewport: 'viewport' },
@@ -878,13 +887,12 @@ test('Bluetooth success presentation has no expiry and supports outside, swipe a
   assert.equal(tree.props.duration, Infinity);
   const nodes = treeNodes(tree), root = nodes.find(node => node.type === 'notice');
   assert.equal(root.props.duration, Infinity);
-  root.props.ref({ contains: () => false });
-  events.get('click')({ target: {} }); assert.equal(dismissed, 1);
+  assert.equal(events.has('click'), false); assert.equal(dismissed, 0);
   root.props.onTouchStart({ touches: [{ clientX: 10, clientY: 100 }] });
-  root.props.onTouchEnd({ changedTouches: [{ clientX: 10, clientY: 10 }] }); assert.equal(dismissed, 2);
-  root.props.onOpenChange(false); assert.equal(dismissed, 3);
+  root.props.onTouchEnd({ changedTouches: [{ clientX: 10, clientY: 10 }] }); assert.equal(dismissed, 1);
+  root.props.onOpenChange(false); assert.equal(dismissed, 2);
   nodes.find(node => node.type === 'button' && node.props.children.includes('Ver día')).props.onClick();
-  assert.deepEqual(days, ['2026-11-04']); assert.equal(dismissed, 4);
+  assert.deepEqual(days, ['2026-11-04']); assert.equal(dismissed, 3);
   harness.cleanup(); assert.equal(events.size, 0);
 });
 
@@ -1498,14 +1506,24 @@ assert.equal(action.props.disabled, status !== 'searching');
 
 test('technical diagnostics are collapsed by default and rendering never calls the session', async () => {
   const harness = hooks();
+  let recoveryReason = 'initial';
   const { Vinca2Diagnostics } = await loadFrontend('src/components/Vinca2Diagnostics.jsx', {
     ...harness.bindings, Button: 'button', cn: (...values) => values.join(' '),
-    useFemometer: () => ({ sessionState: { status: 'stopped', devices: [], inspectionResult: { services: [{ uuid: 'service', characteristics: [{ uuid: 'characteristic', properties: ['indicate'] }] }] } }, readings: [], lifecycleStatus: 'unavailable',
+    useFemometer: () => ({ sessionState: { recoveryReason, foreground: { detectedAt: 0, reason: 'already_active' }, status: 'stopped', devices: [], inspectionResult: { services: [{ uuid: 'service', characteristics: [{ uuid: 'characteristic', properties: ['indicate'] }] }] } }, readings: [], lifecycleStatus: 'unavailable',
       sessionRef: { current: new Proxy({}, { get: () => { throw Error('Diagnostics must not access BLE'); } }) } }),
   }, ['Vinca2Diagnostics']);
   const tree = harness.render(() => ({ props: { value: Vinca2Diagnostics() } }));
   assert.equal(tree.type, 'details'); assert.equal(tree.props.open, undefined);
   assert.match(JSON.stringify(tree), /Diagnóstico técnico/); assert.match(JSON.stringify(tree), /characteristic/);
+  for (const [reason, label] of Object.entries({ initial: 'búsqueda automática inicial', automatic_retry: 'único reintento automático',
+    connected: 'conexión e indicaciones preparadas', window_exhausted: 'no encontrado tras las dos búsquedas',
+    manual: 'conexión solicitada manualmente', foreground: 'nueva oportunidad tras segundo plano',
+    connection_ready: 'conexión ya preparada; sin búsqueda', lifecycle_cancelled: 'cancelada por segundo plano',
+    unrecoverable_error: 'error no recuperable' })) {
+    recoveryReason = reason;
+    const rendered = JSON.stringify(harness.render(() => ({ props: { value: Vinca2Diagnostics() } })));
+    assert.ok(rendered.includes(label)); assert.ok(rendered.includes('la app ya estaba activa'));
+  }
   harness.cleanup();
 });
 
@@ -2873,7 +2891,7 @@ test('multiple bindings switch one connection, preserve preferences and reconnec
   assert.equal(h.native.calls.connections, 2); assert.equal(h.native.calls.peakListeners, 1);
   assert.equal(h.state().preferences.volume, 'high'); assert.equal(h.snapshot().bindings.length, 2);
   assert.equal(h.local.preferences('first').volume, 'low');
-  await h.session.stop(); await h.session.resume(); assert.equal(h.state().deviceKey, 'second');
+  await h.session.suspend(); await h.session.resume(); assert.equal(h.state().deviceKey, 'second');
   assert.equal(h.state().preferences.volume, 'high');
   await h.session.dispose();
 });
@@ -3469,30 +3487,37 @@ test('remembered supported profiles request bounded extended search and propagat
   }
 });
 
-test('Vinca recovery has one foreground timer, serializes reconnects and stops after three failures', async () => {
-  const native = bridge(); const timers = new Map(); let state;
-  native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
-  native.api.clearTimeout = fn => timers.delete(fn);
-  const session = native.factory('a', next => { state = next; }, () => {});
-  const tick = async () => { const [fn, delay] = [...timers][0]; timers.delete(fn); native.flags.now += delay; fn(); await flush(); };
-  try {
-    await session.start(); assert.equal(timers.size, 1); assert.equal([...timers.values()][0], 60000);
-    await tick(); assert.equal(native.calls.connections, 1); // No undocumented 2A21 polling or minute reconnects.
-    native.flags.now = 900001;
-    await Promise.all([session.recoverReadings(), session.recoverReadings('foreground')]);
-    assert.equal(native.calls.connections, 1); assert.equal(native.calls.disconnects, 0);
-    native.emit({ status: 'disconnected' }); await flush();
-    await tick();
-    assert.equal(native.calls.connections, 2); assert.equal(timers.size, 1);
-    await session.suspend(); assert.equal(timers.size, 0);
-    await session.recoverReadings('foreground'); assert.equal(native.calls.connections, 2);
-    native.flags.now += 10000; await session.resume(); assert.equal(native.calls.connections, 3);
-    native.flags.found = false;
-    native.emit({ status: 'disconnected' }); await flush();
-    for (let i = 0; i < 3; i++) await tick();
-    assert.equal(state.recoveryExhausted, true); assert.equal(timers.size, 0);
-    assert.equal(native.calls.peakListeners, 1);
-  } finally { await session.dispose(); assert.equal(timers.size, 0); }
+test('Vinca automatic windows allow two searches, preserve healthy transport and leave manual retry available', async () => {
+  for (const foundOn of [1, 2, Infinity]) {
+    const native = bridge(); const timers = new Map(); let state, searches = 0;
+    const modes = [];
+    native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
+    native.api.clearTimeout = fn => timers.delete(fn);
+    native.api.scanForFemometer = async (_user, _expanded, _remembered, limited) => {
+      modes.push(limited); return ++searches >= foundOn ? [{ id: 'target', isRemembered: true }] : [];
+    };
+    const session = native.factory('a', next => { state = next; }, () => {});
+    const tick = async () => { const [fn, delay] = [...timers][0]; assert.equal(delay, 8000); timers.delete(fn); native.flags.now += delay; fn(); await flush(); };
+    try {
+      await session.start(); assert.equal(searches, 1);
+      await session.resume(); assert.equal(searches, 1);
+      if (foundOn !== 1) await tick();
+      assert.equal(searches, foundOn === 1 ? 1 : 2); assert.equal(timers.size, 0);
+      assert.ok(modes.every(Boolean));
+      await session.recoverReadings(); assert.equal(timers.size, 0);
+      if (foundOn === Infinity) {
+        assert.equal(state.recoveryExhausted, true);
+        await session.start(); assert.equal(searches, 3); assert.equal(modes.at(-1), false);
+        await session.suspend(); await Promise.all([session.resume(), session.resume()]);
+        assert.equal(searches, 4); assert.equal(modes.at(-1), true);
+        await tick(); assert.equal(searches, 5); assert.equal(timers.size, 0);
+      } else {
+        assert.equal(state.status, 'listening'); assert.equal(native.calls.connections, 1);
+        assert.equal(native.calls.disconnects, foundOn === 1 ? 0 : 1);
+      }
+      assert.ok(native.calls.peakListeners <= 1);
+    } finally { await session.dispose(); assert.equal(timers.size, 0); }
+  }
 });
 
 test('automatic consent prepares a verified clock reference and preserves it on later connections', async () => {
@@ -3510,14 +3535,14 @@ test('automatic consent prepares a verified clock reference and preserves it on 
     const syncAt = owner.render().clockHistory.lastVerifiedSync.checkedAt;
     native.flags.now += 60000;
     native.emit({ status: 'disconnected' }); await flush();
-    await owner.foreground(); owner.render();
+    await owner.background(); await owner.background(); await owner.foreground(); owner.render();
     assert.equal(native.calls.sync, 1);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, syncAt);
     assert.ok(owner.render().clockHistory.lastValidCheck.checkedAt > syncAt);
     native.api.readFemometerClock = async () => { throw { code: 'CLOCK_INVALID_DATE' }; };
     native.flags.now += 60000;
     native.emit({ status: 'disconnected' }); await flush();
-    await owner.foreground(); owner.render();
+    await owner.background(); await owner.background(); await owner.foreground(); owner.render();
     assert.equal(native.calls.sync, 2);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, native.flags.now);
   } finally { owner.cleanup(); await flush(); }
@@ -3544,7 +3569,7 @@ test('a fixed connection clock requires review without interrupting reception or
     // Only a natural loss creates a new connection; never interrupt reception for CTS.
     native.emit({ status: 'disconnected' }); await flush();
     native.flags.now += 60000;
-    await owner.foreground(); owner.render();
+    await owner.background(); await owner.foreground(); owner.render();
     assert.equal(owner.render().clockHistory.staleCheck, null);
     assert.equal(owner.render().clockHistory.state, 'read_correct');
     assert.equal(native.calls.sync, 0);
@@ -3664,4 +3689,150 @@ test('a skipped posterior clock operation cannot reuse an earlier result', async
     await h.session.start(); await h.session.stop();
     await assert.rejects(h.session.checkAutomaticClock(), error => error.code === 'ble-auto-review');
   } finally { await h.session.dispose(); }
+});
+
+// Block A: bounded recovery, cancellation and serialized critical operations.
+test('automatic retry is retained during a critical save and cancelled by lifecycle, binding or account', async () => {
+  for (const action of ['unblock', 'suspend', 'stop', 'beginChange', 'unlink', 'account', 'dispose']) {
+    const native = bridge(); const timers = new Map(); let searches = 0;
+    native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
+    native.api.clearTimeout = fn => timers.delete(fn);
+    native.api.scanForFemometer = async () => { searches++; return []; };
+    native.api.forgetFemometer = async () => ({ remembered: false, bindings: [] });
+    const session = native.factory('a', () => {}, () => {});
+    await session.start(); assert.equal(searches, 1); assert.equal(timers.size, 1);
+    session.setRecoveryBlocked(true);
+    const [callback, delay] = [...timers][0]; timers.delete(callback); assert.equal(delay, 8000);
+    callback(); await flush(); assert.equal(searches, 1); assert.equal(timers.size, 0);
+    let replacement;
+    if (action === 'unblock') {
+      session.setRecoveryBlocked(false); await flush(); assert.equal(searches, 2);
+    } else {
+      if (action === 'account') replacement = native.factory('b', () => {}, () => {});
+      else await session[action]();
+      session.setRecoveryBlocked(false); await flush(); assert.equal(searches, 1);
+    }
+    await session.dispose(); await replacement?.dispose(); assert.equal(timers.size, 0);
+  }
+});
+
+test('denied permissions, disabled Bluetooth and failed GATT cleanup never arm another search', async () => {
+  for (const code of ['PERMISSION_NOT_GRANTED', 'BLUETOOTH_DISABLED', 'BLUETOOTH_UNAVAILABLE', 'GATT_CLOSE_FAILED']) {
+    const native = bridge(); const timers = new Map(); let searches = 0, state;
+    native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
+    native.api.clearTimeout = fn => timers.delete(fn);
+    native.api.scanForFemometer = async () => { searches++; throw { code }; };
+    const session = native.factory('a', next => { state = next; }, () => {});
+    await session.start(); await session.resume(); await session.recoverReadings();
+    assert.equal(searches, 1); assert.equal(timers.size, 0); assert.equal(state.recoveryReason, 'unrecoverable_error');
+    await session.dispose();
+  }
+});
+
+test('foreground recovery waits for a critical save and repeated active events do not duplicate it', async () => {
+  const native = bridge(); let searches = 0;
+  const scan = native.api.scanForFemometer;
+  native.api.scanForFemometer = async (...args) => { searches++; return scan(...args); };
+  const session = native.factory('a', () => {}, () => {});
+  await session.start(); await session.suspend(); session.setRecoveryBlocked(true);
+  await Promise.all([session.resume(), session.resume()]); assert.equal(searches, 1);
+  session.setRecoveryBlocked(false); await flush(); assert.equal(searches, 2);
+  assert.equal(native.calls.peakListeners, 1); await session.dispose();
+});
+
+// Block B: presentation does not change durable pending/saving/uncertain states.
+test('automatic processing and saving exclude only the active row from manual review and survive navigation', async () => {
+  for (const outcome of ['success', 'uncertain', 'clock', 'historical', 'consent', 'no-cycle']) {
+    const native = bridge(); const now = Date.now(); native.flags.now = now;
+    const clock = at => ({ deviceKey: 'bound-a', deviceLocalTime: localText(at), checkedAt: at,
+      phoneTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, phoneUtcOffsetMinutes: -new Date(at).getTimezoneOffset(), driftSeconds: 0 });
+    native.api.readFemometerClock = async () => clock(now);
+    const local = createFemometerLocalState(native.storage, 'a'); local.activate('bound-a');
+    local.saveClock('bound-a', { ...clock(now - 7200000), operation: 'sync', verified: true });
+    const preference = { incorporationMode: 'manual' };
+    const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch() {} };
+    const saving = deferred(); let saves = 0;
+    const cycle = { currentCycle: outcome === 'no-cycle' ? null : { id: 'c' }, isLoading: false,
+      incorporateBleMeasurement: async () => { saves++; return saving.promise; } };
+    const owner = await mountedOwner(native, 'a', cycle, metadata);
+    try {
+      native.emit({ temperatureC: 36.1, deviceTimestamp: localText(now - 4000000), deviceProtocol: 'vinca2', receptionValidated: true });
+      assert.equal(owner.render().pendingCount, 1);
+      preference.incorporationMode = 'automatic'; preference.automaticConsent = outcome === 'consent' ? undefined : 'v2';
+      if (outcome === 'clock') native.api.readFemometerClock = async () => { throw { code: 'CLOCK_READ_TIMEOUT' }; };
+      native.emit({ temperatureC: 36.5, deviceTimestamp: outcome === 'historical' ? '2024-01-01T08:00:00' : localText(now - 3600000), deviceProtocol: 'vinca2', receptionValidated: true });
+      if (outcome !== 'consent') assert.equal(owner.render().pendingCount, 1);
+      for (let i = 0; i < 4; i++) { owner.render(); await flush(); }
+      if (['success', 'uncertain'].includes(outcome)) {
+        assert.equal(saves, 1); assert.equal(owner.render().pendingCount, 1); assert.equal(owner.render().processingCount, 1);
+        const durable = createFemometerLocalState(native.storage, 'a').recover();
+        assert.equal(durable.length, 2); assert.equal(durable[1].importStatus, 'uncertain');
+        assert.equal(durable[1].automaticProcessing, undefined);
+        for (const route of ['chart', 'settings', 'records']) { owner.navigate(route); assert.equal(owner.render().pendingCount, 1); }
+        if (outcome === 'uncertain') saving.reject(Error('lost response'));
+        else saving.resolve({ isoDate: '2026-11-23', measurements: [{ time: '08:00' }] });
+        for (let i = 0; i < 3; i++) { owner.render(); await flush(); }
+        assert.equal(owner.render().pendingCount, outcome === 'success' ? 1 : 2);
+        assert.equal(owner.render().processingCount, 0);
+        owner.render().openReadingReview(1); assert.equal(owner.card().selected.uiId, 1);
+      } else {
+        assert.equal(saves, 0); assert.equal(owner.render().pendingCount, 2); assert.equal(owner.render().processingCount, 0);
+      }
+      await owner.changeAccount('b'); assert.equal(owner.render().pendingCount, 0);
+      await owner.changeAccount('a');
+      assert.equal(owner.render().pendingCount, outcome === 'success' ? 1 : 2);
+      assert.equal(owner.render().processingCount, 0);
+      assert.equal(saves, ['success', 'uncertain'].includes(outcome) ? 1 : 0);
+    } finally { owner.cleanup(); await flush(); }
+  }
+});
+
+test('a queued automatic row becomes reviewable after 30 seconds and old eligibility never hides restored work', async () => {
+  const native = bridge(); const clock = { now: Date.now(), delays: new Map() };
+  clock.Date = class extends Date { static now() { return clock.now; } };
+  native.flags.now = clock.now;
+  const preference = { incorporationMode: 'automatic', automaticConsent: 'v2' };
+  const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch() {} };
+  const owner = await mountedOwner(native, 'a', { isLoading: true }, metadata, clock);
+  try {
+    native.emit({ temperatureC: 36.4, deviceTimestamp: localText(clock.now - 60000), deviceProtocol: 'vinca2', receptionValidated: true });
+    assert.equal(owner.render().pendingCount, 0); assert.equal(owner.render().processingCount, 1);
+    const [callback, delay] = [...clock.delays][0]; assert.equal(delay, 30000);
+    clock.now += delay; owner.timers.delete(callback); clock.delays.delete(callback); callback();
+    assert.equal(owner.render().pendingCount, 1); assert.equal(owner.render().processingCount, 0);
+    assert.equal(owner.render().readings[0].automaticChecked, true);
+    native.emit({ temperatureC: 36.6, deviceTimestamp: localText(clock.now - 60000), deviceProtocol: 'vinca2', receptionValidated: true });
+    owner.render(); await owner.changeAccount('b'); await owner.changeAccount('a');
+    assert.equal(owner.render().pendingCount, 2); assert.equal(owner.render().processingCount, 0);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('a stalled automatic save becomes accessible after 120 seconds without unlocking or repeating the write', async () => {
+  const native = bridge(); const clock = { now: Date.now(), delays: new Map() };
+  clock.Date = class extends Date { static now() { return clock.now; } };
+  native.flags.now = clock.now;
+  const sample = at => ({ deviceKey: 'bound-a', deviceLocalTime: localText(at), checkedAt: at, driftSeconds: 0,
+    phoneTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, phoneUtcOffsetMinutes: -new Date(at).getTimezoneOffset() });
+  native.api.readFemometerClock = async () => sample(clock.now);
+  const local = createFemometerLocalState(native.storage, 'a'); local.activate('bound-a');
+  local.saveClock('bound-a', { ...sample(clock.now - 7200000), operation: 'sync', verified: true });
+  const preference = { incorporationMode: 'automatic', automaticConsent: 'v2' };
+  const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch() {} };
+  const saving = deferred(); let saves = 0;
+  const owner = await mountedOwner(native, 'a', { currentCycle: { id: 'c' }, isLoading: false,
+    incorporateBleMeasurement: () => { saves++; return saving.promise; } }, metadata, clock);
+  try {
+    native.emit({ temperatureC: 36.4, deviceTimestamp: localText(clock.now - 3600000), deviceProtocol: 'vinca2', receptionValidated: true });
+    for (let i = 0; i < 4; i++) { owner.render(); await flush(); }
+    assert.equal(owner.render().pendingCount, 0); assert.equal(saves, 1);
+    const [callback, delay] = [...clock.delays][0]; assert.equal(delay, 120000);
+    clock.now += delay; owner.timers.delete(callback); clock.delays.delete(callback); callback();
+    assert.equal(owner.render().pendingCount, 1); assert.equal(owner.render().processingCount, 0);
+    assert.equal(owner.render().readings[0].importStatus, 'saving');
+    await assert.rejects(owner.render().incorporateReading(1, () => { saves++; }), /Espera|espera/);
+    assert.equal(saves, 1);
+    saving.resolve({ isoDate: '2026-11-23', measurements: [{ time: '08:00' }] });
+    await flush(); assert.equal(owner.render().pendingCount, 0);
+    assert.equal(owner.render().readings[0].importStatus, 'incorporated');
+  } finally { owner.cleanup(); await flush(); }
 });

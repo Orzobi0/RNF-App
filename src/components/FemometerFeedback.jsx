@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { BleSavedNotice } from './BleSavedNotice';
 import { useClockIssue } from './useClockIssue';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,6 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
   const navigate = useNavigate();
   const savedIds = useRef(new Set());
   const [notice, setNotice] = useState(null);
-  const location = useLocation();
-  useEffect(() => { setNotice(null); }, [location.key]);
   const savedBatch = useRef({ time: 0, count: 0 });
   const { status, clockResult, clockError, clockBusy, capabilities } = sessionState;
   const { issue, verified } = useClockIssue(sessionState, clockHistory);

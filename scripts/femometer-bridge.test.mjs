@@ -28,13 +28,15 @@ test('panel automatic session uses the real bridge wrappers without requesting p
     session = ble.createFemometerPanelSession('account', state => states.push(state), () => {});
     await session.start();
     assert.deepEqual(calls.map(call => call.method), ['getRememberedDevice', 'scan', 'addListener', 'startTemperatureListener']);
-    assert.deepEqual(calls[1].options, { userId: 'account', rememberedDevice: true, rememberedVinca: true });
+    assert.deepEqual(calls[1].options, { userId: 'account', rememberedDevice: true, rememberedVinca: true, automaticRecovery: true });
     assert.deepEqual(calls[3].options, { deviceId: 'right', userId: 'account' });
     assert.equal(states.at(-1).status, 'listening');
     await session.dispose();
     assert.deepEqual(calls.slice(-2).map(call => call.method), ['disconnect', 'removeListener']);
     await ble.scanForFemometer('account', true);
     assert.deepEqual(calls.at(-1).options, { userId: 'account', expanded: true });
+    await ble.scanForFemometer('account', false, true);
+    assert.deepEqual(calls.at(-1).options, { userId: 'account', rememberedDevice: true, rememberedVinca: true });
   } finally {
     await session?.dispose();
     globalThis.window = oldWindow;

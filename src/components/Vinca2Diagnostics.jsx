@@ -148,10 +148,19 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
             <div className="text-xs text-slate-500" role="status">
               <p>Ciclo de vida Android: {lifecycleStatus === 'preview' ? 'simulado en laboratorio; sin listener nativo' : lifecycleStatus === 'registered' ? 'listener registrado (pendiente de comprobar eventos reales)' : lifecycleStatus === 'unavailable' ? 'no disponible; utiliza la búsqueda manual' : 'registrando listener'}.</p>
               <p>{sessionState.foreground ? `Regreso detectado a las ${new Date(sessionState.foreground.detectedAt).toLocaleTimeString()}: ${({
+                connection_active: 'conexión preparada; no se reconecta', already_active: 'la app ya estaba activa; no se abre otra búsqueda',
                 reconnecting: 'iniciando reconexión', listening_active: 'escucha vigente; no se reconecta',
                 operation_in_progress: 'ya hay una operación en curso', no_remembered_device: 'sin termómetro recordado',
                 brief_cooldown: 'espera breve de 5 segundos entre intentos de regreso',
               })[sessionState.foreground.reason]}.` : 'Todavía no se ha detectado ningún regreso a primer plano.'}</p>
+              {sessionState.recoveryReason && <p>Recuperación Bluetooth: {({
+                initial: 'búsqueda automática inicial', automatic_retry: 'único reintento automático',
+                connected: 'conexión e indicaciones preparadas', window_exhausted: 'no encontrado tras las dos búsquedas',
+                manual: 'conexión solicitada manualmente', foreground: 'nueva oportunidad tras segundo plano',
+                connection_ready: 'conexión ya preparada; sin búsqueda', lifecycle_cancelled: 'cancelada por segundo plano',
+                unrecoverable_error: 'error no recuperable; utiliza la conexión manual',
+              })[sessionState.recoveryReason] || sessionState.recoveryReason}.</p>}
+              {sessionState.recoveryExhausted && <p>Ventana automática agotada. Puedes pulsar Conectar.</p>}
             </div>
               {sessionState.clockResult ? (
                 <div role="status" className="text-sm text-slate-600">

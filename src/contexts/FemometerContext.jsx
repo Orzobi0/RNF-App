@@ -69,6 +69,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const promptClaim = useRef(false);
   const dismissedPrompts = useRef(new Set());
   const automaticBusy = useRef(false);
+  const automaticActiveId = useRef(null);
+  // Ephemeral presentation only: never restored from durable eligibility flags.
+  const needsReview = row => !row.automaticProcessing && !['incorporated', 'discarded'].includes(row.importStatus);
   const updateReadings = (next, requireDurable = false) => {
     try {
       if (requireDurable && !localRef.current) throw new Error('Almacenamiento local no disponible.');
@@ -89,7 +92,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     let recovered = [];
     try {
       localRef.current = createFemometerLocalState(globalThis.localStorage, userId, { get: key => metadataRef.current.get(key), patch: (...args) => metadataRef.current.patch(...args) });
-      recovered = localRef.current.recover();
+      recovered = localRef.current.recover().map(row => ({ ...row, automaticChecked: true, automaticProcessing: false }));
     } catch (error) { localRef.current = null; setStorageError('No se pueden recuperar los pendientes locales. No cierres la aplicación tras recibir lecturas nuevas.'); }
     readingsRef.current = recovered; setReadings(recovered);
     sequence = Math.max(0, ...recovered.map(row => row.uiId));
@@ -133,7 +136,8 @@ export const FemometerSessionOwner = ({ userId, children }) => {
         // UI-only sequence, never passed as a device identity or measurement key.
         const preference = metadataRef.current.get(normalized.device_key);
         const automaticEligible = normalized.device_protocol === 'vinca2' && preference.incorporationMode === 'automatic' && preference.automaticConsent === 'v2';
-        const row = { ...event, normalized, automaticEligible, deviceKey: normalized.device_key,
+        const row = { ...event, normalized, automaticEligible, automaticProcessing: automaticEligible,
+          automaticDeadline: automaticEligible ? Date.now() + 30_000 : null, deviceKey: normalized.device_key,
           localId: globalThis.crypto.randomUUID(), receivedOrder: receivedOrder = Math.max(Date.now(), receivedOrder + 1),
           dateReview: decideVinca2Reading(normalized, { deviceKey: normalized.device_key,
               nowMs: Date.now(), timeZone: localRef.current?.clock(normalized.device_key)?.lastValidCheck?.phoneTimeZone,
@@ -145,7 +149,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
         if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) {
           setReviewExpanded(false); setReviewReadingId(sequence);
         }
-        setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
+        setTemperatureListenerMessage(automaticEligible ? 'Procesando temperatura…' : normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
         return row;
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);
@@ -171,6 +175,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       clearTimeout(foregroundTimer);
       void lifecycle.then(handle => handle?.remove()).catch(() => {});
       sessionRef.current = null;
+      automaticBusy.current = false; automaticActiveId.current = null;
       readingsRef.current = [];
       localRef.current = null;
       void session.dispose();
@@ -192,7 +197,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus: 'saving', verificationCombinedSave: combinedVerification, attempt: attempt ?? item.attempt } : item), true);
     try {
       const result = await save();
-      status('incorporated', { savedIsoDate: result?.isoDate,
+      status('incorporated', { automaticProcessing: false, savedIsoDate: result?.isoDate,
         savedTime: result?.measurements?.at(-1)?.time });
       if (sessionRef.current === owner && row.normalized?.device_protocol === 'vinca2'
         && row.normalized.reception_validated === true && row.deviceKey) setAutomationCandidate(row.deviceKey);
@@ -203,6 +208,25 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       throw error;
     }
   };
+  // Waiting for a cycle or another critical operation must not hide a row forever.
+  useEffect(() => {
+    const waiting = readings.filter(row => row.automaticProcessing);
+    if (!waiting.length) return;
+    const owner = sessionRef.current;
+    const release = () => {
+      if (sessionRef.current !== owner) return;
+      updateReadings(readingsRef.current.map(row => row.automaticProcessing
+        && (row.automaticDeadline <= Date.now() || (row.uiId !== automaticActiveId.current && (sessionStateRef.current.status !== 'listening'
+          || (!cycleRef.current.isLoading && !cycleRef.current.currentCycle?.id))))
+        ? { ...row, automaticProcessing: false, automaticChecked: true,
+          reviewError: { code: 'ble-auto-review', message: row.importStatus === 'saving' ? 'El guardado sigue sin confirmar. La lectura se conserva y no se repetirá la escritura mientras siga en curso.' : 'No se pudo completar la incorporación automática. Revisa la temperatura conservada.' } } : row));
+    };
+    if (waiting.some(row => row.uiId !== automaticActiveId.current)
+      && (sessionState.status !== 'listening' || (!cycle.isLoading && !cycle.currentCycle?.id))) { release(); return; }
+    const timer = setTimeout(release, Math.max(0, Math.min(...waiting.map(row => row.automaticDeadline)) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [readings, sessionState.status, cycle.isLoading, cycle.currentCycle?.id]);
+
   // Each newly received row gets one bounded automatic attempt. Recovered attempts
   // and repeated packets with an uncertain result always require human review.
   useEffect(() => {
@@ -210,20 +234,20 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       || sessionState.configurationBusy || sessionState.clockBusy || sessionState.deviceInfoBusy
       || sessionState.volumeBusy || sessionState.measurementModeBusy || cycle.isLoading
       || !cycle.currentCycle?.id || readings.some(row => row.importStatus === 'saving')) return;
-    const row = readings.find(item => item.automaticEligible && !item.automaticChecked && item.importStatus === 'pending');
+    const row = readingsRef.current.find(item => item.automaticProcessing && item.automaticEligible && !item.automaticChecked && item.importStatus === 'pending');
     if (!row) return;
     const owner = sessionRef.current;
-    automaticBusy.current = true;
+    automaticBusy.current = true; automaticActiveId.current = row.uiId;
     const valid = () => {
       const preference = metadataRef.current.get(row.deviceKey);
-      if (sessionRef.current !== owner || sessionStateRef.current.deviceKey !== row.deviceKey
+      if (sessionRef.current !== owner || !readingsRef.current.find(item => item.uiId === row.uiId)?.automaticProcessing || sessionStateRef.current.deviceKey !== row.deviceKey
         || sessionStateRef.current.status !== 'listening' || cycleRef.current.currentCycle?.id !== cycle.currentCycle.id
         || preference.incorporationMode !== 'automatic' || preference.automaticConsent !== 'v2') {
         throw Object.assign(new Error('La cuenta, el ciclo o el modo han cambiado.'), { code: 'ble-auto-review' });
       }
     };
     (async () => {
-      updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true } : item), true);
+      updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true, automaticDeadline: Date.now() + 120_000 } : item), true);
       valid();
       if (sessionState.deviceKey !== row.deviceKey || reviewPresentation.current.expanded
         || readingsRef.current.some(item => item.uiId !== row.uiId && item.importStatus !== 'discarded'
@@ -256,7 +280,11 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true,
         reviewError: item.reviewError ?? { code: error.code, message: error.message } } : item));
       setReviewVisibleOn(locationKey.current);
-    }).finally(() => { automaticBusy.current = false; if (sessionRef.current === owner) setReadings([...readingsRef.current]); });
+    }).finally(() => {
+      if (sessionRef.current !== owner) return;
+      automaticBusy.current = false; automaticActiveId.current = null;
+      updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticProcessing: false } : item));
+    });
   }, [readings, sessionState, cycle.isLoading, cycle.currentCycle?.id]);
 
   // Recover an unanswered question after updates, navigation or a new session.
@@ -288,7 +316,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     setReviewReadingId(null);
   };
   const openReadingReview = id => {
-    const pending = readingsRef.current.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
+    const pending = readingsRef.current.filter(needsReview);
     setReviewReadingId(pending.find(row => row.uiId === (id ?? reviewReadingId))?.uiId ?? pending[0]?.uiId ?? null);
     setReviewVisibleOn(location.key);
     setReviewExpanded(true);
@@ -324,7 +352,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       return true;
     } finally { verificationBusy.current = false; }
   };
-  const pendingReadings = readings.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
+  const pendingReadings = readings.filter(needsReview);
   const reviewReading = pendingReadings.find(row => row.uiId === reviewReadingId) ?? pendingReadings[0];
   const reviewInProgress = Boolean(reviewReading && reviewVisibleOn === location.key && reviewExpanded)
     || readings.some(row => row.importStatus === 'saving') || clockDialogOpen;
@@ -343,7 +371,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   }, [automationCandidate, reviewInProgress]);
   const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...draft, confirmed: false } } : row));
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
-    completeVerification, pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
+    completeVerification, pendingCount: pendingReadings.length, processingCount: readings.filter(row => row.automaticProcessing).length, clockHistory, storageError, updateReadingDraft,
     listeningStartedAt, temperatureListenerMessage, incorporateReading, discardReading, lifecycleStatus, openReadingReview,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}

@@ -22,7 +22,7 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
     : state.configurationBusy ? 'Preparando ajustes…' : state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
     : searching ? 'Buscando / conectando' : unlinked ? 'Sin vincular' : 'Desconectado';
   const Icon = listening || searching || unlinked ? Bluetooth : BluetoothOff;
-  const description = `Bluetooth: ${label}. ${ble.pendingCount} lecturas pendientes.${issue ? ' El reloj requiere atención.' : ''} Abrir opciones`;
+  const description = `Bluetooth: ${label}. ${ble.pendingCount} lecturas pendientes.${ble.processingCount ? ' Procesando temperatura…' : ''}${issue ? ' El reloj requiere atención.' : ''} Abrir opciones`;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild><button type="button" aria-label={description} title={description}
       className={`relative flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 self-end items-center justify-center rounded-full transition-[transform,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-rose-300 motion-reduce:transition-none ${

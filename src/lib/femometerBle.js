@@ -258,8 +258,8 @@ export const requestBluetoothPermissions = async () => {
 };
 
 // Keep the legacy flag while installed Android versions receive the native update.
-export const scanForFemometer = async (userId, expanded = false, rememberedDevice = false) => {
-  const result = await callFemometerBle('scan', { userId, ...(expanded ? { expanded: true } : {}), ...(rememberedDevice ? { rememberedDevice: true, rememberedVinca: true } : {}) });
+export const scanForFemometer = async (userId, expanded = false, rememberedDevice = false, automaticRecovery = false) => {
+  const result = await callFemometerBle('scan', { userId, ...(expanded ? { expanded: true } : {}), ...(rememberedDevice ? { rememberedDevice: true, rememberedVinca: true } : {}), ...(rememberedDevice && automaticRecovery ? { automaticRecovery: true } : {}) });
   return Array.isArray(result?.devices) ? result.devices : [];
 };
 

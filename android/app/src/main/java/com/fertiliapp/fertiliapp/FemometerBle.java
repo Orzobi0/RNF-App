@@ -58,6 +58,7 @@ public class FemometerBle extends Plugin {
     private static final String LOCATION_ALIAS = "location";
     private static final long SCAN_TIMEOUT_MS = 8000L;
     private static final long REMEMBERED_SCAN_TIMEOUT_MS = 25000L;
+    private static final long AUTOMATIC_VINCA_SCAN_TIMEOUT_MS = 12000L;
     private String scanTargetAddress;
     private static final long CONNECT_TIMEOUT_MS = 15000L;
     private static final long DISCOVER_TIMEOUT_MS = 10000L;
@@ -448,15 +449,19 @@ public class FemometerBle extends Plugin {
         }
 
         scanTargetAddress = null;
+        boolean automaticVincaRecovery = false;
         if ((Boolean.TRUE.equals(call.getBoolean("rememberedDevice", false)) || Boolean.TRUE.equals(call.getBoolean("rememberedVinca", false))) && call.getString("userId") != null) {
             try {
                 FemometerIdentityStore.Binding binding = identities().get(call.getString("userId"));
+                automaticVincaRecovery = "vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model)
+                    && "compatible".equals(binding.compatibility) && Boolean.TRUE.equals(call.getBoolean("automaticRecovery", false));
                 if (("vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model) && "compatible".equals(binding.compatibility))
                     || ("experimental".equals(binding.compatibility) && (("easyhome-ebt300".equals(binding.protocol) && "EBT-300".equals(binding.model))
                     || "health-thermometer".equals(binding.protocol)))) scanTargetAddress = binding.address;
             } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
         }
-        final long scanTimeout = scanTargetAddress == null ? SCAN_TIMEOUT_MS : REMEMBERED_SCAN_TIMEOUT_MS;
+        final long scanTimeout = scanTargetAddress == null ? SCAN_TIMEOUT_MS
+            : automaticVincaRecovery ? AUTOMATIC_VINCA_SCAN_TIMEOUT_MS : REMEMBERED_SCAN_TIMEOUT_MS;
         devicesById.clear();
         idsByAddress.clear();
         scanCall = call;
