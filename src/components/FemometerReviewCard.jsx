@@ -28,6 +28,7 @@ const formatBleDateTime = timestamp => {
 };
 export default function FemometerReviewCard({
   visible = true,
+  noticeVersion = 0,
   onDismiss,
   readings,
   selected,
@@ -50,24 +51,56 @@ export default function FemometerReviewCard({
   const [dragging, setDragging] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [viewport, setViewport] = useState(null);
+const onDismissRef = useRef(onDismiss);
+onDismissRef.current = onDismiss;
 
-  useEffect(() => {
-    return () => window.clearTimeout(dismissTimer.current);
-  }, []);
+const hasReadings = readings.length > 0;
 
-  // Route changes or a new review must not leave a drag animation behind.
-  useEffect(() => {
-    if (!visible || expanded) {
-      window.clearTimeout(dismissTimer.current);
-      gesture.current = null;
-      exitingRef.current = false;
-      setOffset({ x: 0, y: 0 });
-      setDragging(false);
-      setExiting(false);
-    }
-  }, [visible, expanded]);
+// Limpiar el temporizador al desmontar.
+useEffect(() => {
+  return () => window.clearTimeout(dismissTimer.current);
+}, []);
 
-  useEffect(() => {
+// Restablecer los gestos y animaciones.
+useEffect(() => {
+  window.clearTimeout(dismissTimer.current);
+  gesture.current = null;
+  exitingRef.current = false;
+  suppressExpandClick.current = false;
+
+  setOffset({ x: 0, y: 0 });
+  setDragging(false);
+  setExiting(false);
+}, [visible, expanded, noticeVersion]);
+
+// Ocultar automáticamente el aviso compacto.
+useEffect(() => {
+  if (
+    !visible ||
+    expanded ||
+    !hasReadings ||
+    dragging ||
+    exiting ||
+    storageError
+  ) return;
+
+  const timer = window.setTimeout(() => {
+    onDismissRef.current?.();
+  }, 5000);
+
+  return () => window.clearTimeout(timer);
+}, [
+  visible,
+  expanded,
+  noticeVersion,
+  hasReadings,
+  dragging,
+  exiting,
+  storageError,
+]);
+
+// Mostrar completamente la medición seleccionada.
+useEffect(() => {
   if (!visible || !expanded) return;
 
   const list = listRef.current;
@@ -97,7 +130,6 @@ export default function FemometerReviewCard({
     });
   }
 }, [selected?.uiId, visible, expanded, readings.length]);
-
   useEffect(() => {
     const view = window.visualViewport;
     if (!view) return undefined;
@@ -210,7 +242,7 @@ suppressExpandClick.current = false;
       }}
       className={`fixed z-[60] max-w-sm overscroll-contain rounded-2xl text-slate-700
         ${expanded ? 'left-2 w-[calc(100%-16px)] overflow-y-auto border border-rose-300 bg-white p-3 shadow-[0_8px_24px_rgba(100,40,60,0.16)]'
-          : 'left-2 w-[calc(100%-80px)] overflow-visible border border-rose-300 bg-gradient-to-br from-white to-[#FFF7F9] p-3 shadow-[0_8px_22px_rgba(190,60,100,0.13)]'}
+          : 'left-2 w-[calc(100%-16px)] overflow-visible border border-rose-200 border-l-[4px] border-l-rose-400 bg-gradient-to-br from-white to-[#FFF7F9] px-3 py-2.5 shadow-[0_8px_24px_rgba(100,40,60,0.16)]'}
         transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none`}
       style={{
         top: `calc(${viewport?.top ?? 0}px + var(--ble-safe-top, env(safe-area-inset-top, 0px)))`,
@@ -222,12 +254,37 @@ maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-saf
     >
       {/* Compact header is the swipe target; buttons remain ordinary tap targets. */}
       <div className={`flex items-center gap-2 ${expanded ? 'pr-8' : 'pr-6'}`}>
-  <span className={`flex shrink-0 items-center justify-center h-9 w-9 rounded-xl ${uncertain || duplicate ? 'bg-amber-50' : 'bg-rose-100/70'}`}>
-    <HeaderIcon
-      className={`h-5 w-5 ${uncertain || duplicate ? 'text-amber-600' : 'text-fertiliapp-fuerte'}`}
+  <span
+  className={`relative flex h-9 w-9 shrink-0 items-center
+    justify-center rounded-xl ${
+      uncertain || duplicate
+        ? 'bg-amber-50'
+        : compact
+          ? 'border border-rose-200 bg-gradient-to-br from-white via-rose-50 to-rose-100 shadow-sm'
+          : 'bg-rose-100/70'
+    }`}
+>
+  <HeaderIcon
+    className={`h-5 w-5 ${
+      uncertain || duplicate
+        ? 'text-amber-600'
+        : 'text-fertiliapp-fuerte'
+    }`}
+    aria-hidden="true"
+  />
+
+  {compact && (
+    <span
       aria-hidden="true"
-    />
-  </span>
+      className="absolute -right-1.5 -top-1.5 flex h-5
+        min-w-5 items-center justify-center rounded-full
+        border-2 border-white bg-fertiliapp-fuerte
+        px-0.5 text-[10px] font-bold leading-none text-white"
+    >
+      {readings.length > 99 ? '99+' : readings.length}
+    </span>
+  )}
+</span>
 
   <div className="min-w-0 flex-1">
     <p
@@ -238,16 +295,15 @@ maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-saf
           : 'text-sm leading-5'
       }`}
     >
-      {title}
+      {compact && !uncertain && !duplicate
+  ? readings.length === 1
+    ? 'Temperatura pendiente'
+    : 'Temperaturas pendientes'
+  : title}
     </p>
 
     {expanded && (
       <span className="mt-0.5 block text-xs text-slate-500">Confirma la fecha y la hora</span>
-    )}
-    {compact && (
-      <span className="mt-1 block text-[12px] font-bold text-fertiliapp-fuerte">
-        Revisar
-      </span>
     )}
   </div>
 
@@ -293,10 +349,19 @@ maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-saf
           aria-label="Cerrar aviso"
           title="Cerrar aviso"
           onClick={() => compact ? animateDismiss('right') : onDismiss()}
-          className="absolute right-1 top-0 z-10 flex h-11 w-11 items-start justify-end rounded-tr-3xl text-slate-400 focus-visible:outline-2 focus-visible:outline-rose-400"
+          className={`absolute right-1 top-0 z-10 flex h-11 w-11
+  rounded-xl text-slate-400 focus-visible:outline-2
+  focus-visible:outline-rose-400 ${
+    compact
+      ? 'h-full items-center justify-center'
+      : 'items-start justify-end'
+  }`}
         >
           <span className="flex h-6 w-6 items-center justify-center rounded-bl-xl rounded-tr-3xl transition-colors hover:bg-rose-200">
-            <X aria-hidden="true" className="h-3 w-3" />
+            <X
+  aria-hidden="true"
+  className={compact ? 'h-4 w-4' : 'h-3 w-3'}
+/>
           </span>
         </button>
       )}

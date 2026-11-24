@@ -59,6 +59,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
   const [reviewReadingId, setReviewReadingId] = useState(null);
   const [reviewExpanded, setReviewExpanded] = useState(false);
+  const [pendingNoticeVersion, setPendingNoticeVersion] = useState(0);
   const reviewPresentation = useRef({});
   reviewPresentation.current = { visible: reviewVisibleOn === location.key, expanded: reviewExpanded };
   const [storageError, setStorageError] = useState('');
@@ -73,7 +74,18 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const automaticActiveId = useRef(null);
   // Ephemeral presentation only: never restored from durable eligibility flags.
   const needsReview = row => !row.automaticProcessing && !['incorporated', 'discarded'].includes(row.importStatus);
+  const showPendingNotice = () => {
+  if (
+    reviewPresentation.current.visible &&
+    reviewPresentation.current.expanded
+  ) return;
+
+  setReviewExpanded(false);
+  setReviewVisibleOn(locationKey.current);
+  setPendingNoticeVersion(version => version + 1);
+};
   const updateReadings = (next, requireDurable = false) => {
+    const previous = readingsRef.current;
     try {
       if (requireDurable && !localRef.current) throw new Error('Almacenamiento local no disponible.');
       localRef.current?.saveReadings(next);
@@ -82,7 +94,20 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       setStorageError('No se han podido conservar los pendientes en este dispositivo. No cierres la aplicación.');
       if (requireDurable) throw error;
     }
-    readingsRef.current = next; setReadings(next);
+    readingsRef.current = next;
+setReadings(next);
+
+const hasNewPending = next.some(row =>
+  needsReview(row) &&
+  !row.promotedVerification &&
+  !previous.some(old =>
+    old.uiId === row.uiId && needsReview(old)
+  )
+);
+
+if (hasNewPending) {
+  showPendingNotice();
+}
   };
 
   useEffect(() => {
@@ -146,7 +171,6 @@ export const FemometerSessionOwner = ({ userId, children }) => {
             uiId: ++sequence, importStatus: 'pending' };
         try { updateReadings([...readingsRef.current, row], event.promotedVerification === true); }
         catch (error) { readingsRef.current = [...readingsRef.current, row]; setReadings(readingsRef.current); setReviewVisibleOn(locationKey.current); throw error; }
-        if (!event.promotedVerification && !automaticEligible) setReviewVisibleOn(locationKey.current);
         if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) {
           setReviewExpanded(false); setReviewReadingId(sequence);
         }
@@ -262,7 +286,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     (async () => {
       updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true, automaticDeadline: Date.now() + 120_000 } : item), true);
       valid();
-      if (sessionState.deviceKey !== row.deviceKey || reviewPresentation.current.expanded
+      if (sessionState.deviceKey !== row.deviceKey ||
+    (reviewPresentation.current.visible &&
+     reviewPresentation.current.expanded)
         || readingsRef.current.some(item => item.uiId !== row.uiId && item.importStatus !== 'discarded'
           && isPossibleBleDuplicate(item.normalized, row.normalized))) {
         throw Object.assign(new Error('Posible temperatura duplicada. Comprueba esta lectura y los intentos anteriores.'), { code: 'ble-possible-duplicate' });
@@ -292,7 +318,6 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       if (sessionRef.current !== owner) return;
       updateReadings(readingsRef.current.map(item => item.uiId === row.uiId ? { ...item, automaticChecked: true,
         reviewError: item.reviewError ?? { code: error.code, message: error.message } } : item));
-      setReviewVisibleOn(locationKey.current);
     }).finally(() => {
       if (sessionRef.current !== owner) return;
       automaticBusy.current = false; automaticActiveId.current = null;
@@ -391,8 +416,11 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
     {automationPromptDevice && <Vinca2AutomationPrompt key={automationPromptDevice} deviceKey={automationPromptDevice}
       open={!reviewInProgress} onClose={() => { dismissedPrompts.current.add(automationPromptDevice); setAutomationPromptDevice(null); setAutomationCandidate(null); }} />}
-    <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
-      onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}
+    <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded} noticeVersion={pendingNoticeVersion}
+      onExpand={() => openReadingReview()} onMinimize={() => {
+  setReviewExpanded(false);
+  setReviewVisibleOn(null);
+}} onSelect={openReadingReview}
       storageError={storageError} deviceKey={sessionState.deviceKey}>
       {reviewReading && <BleReadingReview active={reviewVisibleOn === location.key && reviewExpanded} key={reviewReading.uiId} userId={userId} reading={reviewReading}
         onClose={() => setReviewVisibleOn(null)} onSaved={() => setReviewReadingId(null)} />}

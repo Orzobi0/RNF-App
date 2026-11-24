@@ -66,6 +66,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const [reviewVisibleOn, setReviewVisibleOn] = useState(null);
   useEffect(() => { setReviewVisibleOn(null); resetReview(); }, [location.key]);
   const [expanded, setExpanded] = useState(false);
+  const [pendingNoticeVersion, setPendingNoticeVersion] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState(null);
   const [checkedUncertain, setCheckedUncertain] = useState(false);
@@ -117,6 +118,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
     next.sessionState.preferences = preferencesByDevice.current['fictional-device'] ?? {};
     setScenario(value); setClockHistory(next.clockHistory); setReadings(next.readings); setSessionState(next.sessionState);
     setReviewVisibleOn(next.readings.length ? location.key : null);
+    setPendingNoticeVersion(version => version + 1);
     setExpanded(next.expanded); setSelectedId(null); setNotice(next.notice); setCheckedUncertain(false);
 
     setClockDialogOpen(false);
@@ -190,6 +192,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
     setReadings(rows => [...rows, { ...row, uiId }]);
     if (reviewVisibleOn !== location.key || !expanded) { setExpanded(false); setSelectedId(uiId); resetReview(); }
     setReviewVisibleOn(location.key);
+    setPendingNoticeVersion(version => version + 1);
   };
   const discard = () => {
     if (!selected || selected.importStatus === 'saving' || (selected.importStatus === 'uncertain' && check.status !== 'complete') || (!discardConfirm && !storedConfirm)) return;
@@ -495,7 +498,10 @@ export default function BluetoothVisualLab({ Provider, children }) {
       </div>}
     </aside>
     {enabled && <>
-      <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => { setReviewVisibleOn(null); resetReview(); }} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { if (id !== selected?.uiId) { setSelectedId(id); resetReview(); } }} deviceKey={sessionState.deviceKey}>
+      <FemometerReviewCard visible={reviewVisibleOn === location.key} noticeVersion={pendingNoticeVersion} onDismiss={() => { setReviewVisibleOn(null); resetReview(); }} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => {
+  setExpanded(false);
+  setReviewVisibleOn(null);
+}} onSelect={id => { if (id !== selected?.uiId) { setSelectedId(id); resetReview(); } }} deviceKey={sessionState.deviceKey}>
         {selected && <BleReadingReviewView measurement={{ temperature: selected.temperatureC, device_timestamp: selected.deviceTimestamp }} reading={selected}
           draft={draft} busy={selected.importStatus === 'saving'} error={error} checkedUncertain={checkedUncertain}
           check={check} canCheck={Boolean(selected.attempt)} onCheck={checkDay}
