@@ -599,8 +599,8 @@ const footerIconButtonClass =
         className={cn(
           footerIconButtonClass,
           hasRelations
-            ? 'border-rose-200 bg-rose-50 text-rose-500'
-            : 'border-slate-200 bg-white text-slate-300',
+  ? 'border-rose-200 bg-rose-50 text-fertiliapp-fuerte'
+  : 'border-slate-200 bg-white text-slate-400',
           isProcessing && 'cursor-not-allowed opacity-70'
         )}
         title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}

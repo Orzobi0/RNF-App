@@ -3,8 +3,6 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Plus,
-  FilePlus,
-  CalendarPlus,
   Edit,
   ChevronLeft,
   ChevronRight,
@@ -60,7 +58,6 @@ const CycleOverviewCard = ({
   currentPeakIsoDate,
   onEditStartDate = () => {},
   onAddRecord,
-  onAddCycle,
   handleOpenCpmDialog = () => {},
   handleOpenT8Dialog = () => {},
   cpmMetric = {},
@@ -1176,7 +1173,7 @@ const handleRingPointerCancel = useCallback(
         {bluetoothEnabled && <div className="absolute -top-1 right-0"><DashboardBluetoothStatus /></div>}
         </div>
         <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2">
-        <div aria-hidden="true" className="h-12 w-12" />
+        <div aria-hidden="true" className="h-8 w-12" />
         <div className="flex min-w-0 items-center justify-center gap-2">
             <button
               type="button"
@@ -1197,7 +1194,7 @@ const handleRingPointerCancel = useCallback(
               </Badge>
             )}
           </div>
-          <FloatingActionButton onAddRecord={onAddRecord} onAddCycle={onAddCycle} />
+          <div aria-hidden="true" />
         </div>
       </motion.div>
 
@@ -1594,23 +1591,53 @@ if (dot.peakStatus === 'P') {
             </svg>
             
             {/* Contenido central */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <motion.div
-                className="flex flex-col items-center gap-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.1, delay: 0.1, ease: 'easeOut' }}
-              >
-                <div className="flex items-center justify-center ">
-                  <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none tabular-nums">
-                    {cycleData.currentDay}
-                  </p>
-                </div>
-                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-fertiliapp-fuerte">
-                  DÍA DEL CICLO
-                </p>
-              </motion.div>
-            </div>
+            {/* Contenido central */}
+<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+  <motion.div
+    className="flex flex-col items-center gap-1.5"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{
+      duration: 0.1,
+      delay: 0.1,
+      ease: 'easeOut',
+    }}
+  >
+    <div className="flex items-center justify-center">
+      <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none tabular-nums">
+        {cycleData.currentDay}
+      </p>
+    </div>
+
+    <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-fertiliapp-fuerte">
+      DÍA DEL CICLO
+    </p>
+
+    <motion.button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onAddRecord();
+      }}
+      whileTap={{ scale: 0.96 }}
+      className="
+        pointer-events-auto mt-2
+        inline-flex h-9 items-center justify-center gap-1
+        rounded-full bg-fertiliapp-fuerte px-2
+        text-sm font-semibold text-white
+        shadow-[0_4px_12px_rgba(216,92,112,0.24)]
+        transition-colors hover:brightness-95
+        focus-visible:outline-none
+        focus-visible:ring-2
+        focus-visible:ring-fertiliapp-fuerte
+        focus-visible:ring-offset-2
+      "
+    >
+      <Plus className="h-4 w-4" aria-hidden="true" />
+      Añadir registro
+    </motion.button>
+  </motion.div>
+</div>
 
           </motion.div>
           
@@ -1771,96 +1798,6 @@ if (dot.peakStatus === 'P') {
 
 
       </motion.div>
-    </div>
-  );
-};
-
-const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const handlePointerDownOutside = (event) => {
-      if (!containerRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDownOutside);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDownOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [open]);
-
-  const handleAddRecord = () => {
-    setOpen(false);
-    onAddRecord();
-  };
-
-  const handleAddCycle = () => {
-    setOpen(false);
-    onAddCycle();
-  };
-
-  return (
-    <div ref={containerRef} className="relative z-30 shrink-0">
-      {open && (
-  <div className="absolute right-0 top-full mt-2 flex w-max max-w-[calc(100vw-32px)] flex-col gap-2">
-    <motion.button
-      onClick={handleAddRecord}
-      className="flex items-center gap-1 px-4 h-10 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
-      whileTap={{ scale: 0.80 }}
-      whileHover={{ scale: 1.05 }}
-      initial={{ opacity: 0, y: 20, scale: 0.8 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(244, 114, 182, 0.28))' }}
-    >
-      <FilePlus className="h-5 w-5" />
-      <span className="text-sm font-medium tracking-tight">Añadir registro</span>
-    </motion.button>
-    <motion.button
-      onClick={handleAddCycle}
-      className="flex items-center gap-3 px-4 h-10 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
-      whileTap={{ scale: 0.95 }}
-      whileHover={{ scale: 1.05 }}
-      initial={{ opacity: 0, y: 20, scale: 0.8 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(244, 114, 182, 0.2))' }}
-    >
-      <CalendarPlus className="h-5 w-5" />
-      <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
-    </motion.button>
-
-    
-  </div>
-)}
-
-      <motion.button
-        type="button"
-        aria-label="Añadir"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-fertiliapp-fuerte text-white hover:brightness-95 shadow-[0_4px_12px_rgba(216,92,112,0.16)] w-12 h-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
-        whileTap={{ scale: 0.95 }}
-        whileHover={{ scale: 1.05 }}
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-      >
-        <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
-          <Plus className="h-5 w-5" />
-        </motion.span>
-      </motion.button>
     </div>
   );
 };
@@ -2697,7 +2634,6 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     setInitialSectionKey(null);
     setShowForm(true);
   }}
-  onAddCycle={() => handleOpenNewCycleDialog()}
   handleOpenCpmDialog={handleOpenCpmDialog}
   handleOpenT8Dialog={handleOpenT8Dialog}
   cpmMetric={cpmMetric}

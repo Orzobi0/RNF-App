@@ -715,10 +715,10 @@ const [activeSection, setActiveSection] = useState(() => {
 };
 
   const relationsButtonClasses = cn(
-  'inline-flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
+  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60',
   hadRelations
-    ? 'border border-transparent bg-rose-50/90 text-rose-600 shadow-none hover:bg-rose-50/90'
-    : 'border border-transparent bg-transparent text-slate-500 shadow-none hover:bg-transparent'
+    ? 'border-rose-200 bg-rose-50 text-fertiliapp-fuerte hover:bg-rose-100'
+    : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50'
 );
 
 
@@ -1484,15 +1484,17 @@ const [activeSection, setActiveSection] = useState(() => {
                     : 'Selecciona la fecha del registro'
                 }
                 className={cn(
-                  'h-11 min-w-0 flex-1 justify-start gap-2 rounded-2xl border-slate-200/70 bg-white px-3 text-left text-[13px] font-semibold text-slate-700 shadow-sm hover:bg-white hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-fertiliapp-suave',
+                  'h-11 min-w-0 flex-1 justify-start gap-2 rounded-2xl border-slate-300 bg-white px-3 text-left text-[14px] font-semibold text-slate-700 shadow-sm hover:bg-white hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-fertiliapp-suave',
                   !date && 'text-muted-foreground'
                 )}
                 disabled={isProcessing}
               >
-                <CalendarDays className="h-4 w-4 shrink-0 text-titulo" aria-hidden="true" />
+                <CalendarDays className="h-5 w-5 shrink-0 text-titulo" aria-hidden="true" />
 
                 <span className="min-w-0 flex-1 truncate">
-                  {date ? format(date, 'PPP', { locale: es }) : 'Selecciona una fecha'}
+                  {date
+                  ? format(date, 'd MMMM yyyy', { locale: es })
+                  : 'Selecciona una fecha'}
                 </span>
               </Button>
             </PopoverTrigger>
@@ -1528,20 +1530,41 @@ const [activeSection, setActiveSection] = useState(() => {
           </Popover>
 
           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenNewCycle?.(selectedIsoDate)}
-            disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-            className="h-11 w-[76px] shrink-0 rounded-2xl border-slate-200/70 bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-sm hover:border-fertiliapp-suave hover:bg-white"
-            aria-label="Iniciar nuevo ciclo"
-          >
-            <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
-            <span className="flex flex-col text-left leading-[11px]">
-              <span>Nuevo</span>
-              <span>ciclo</span>
-            </span>
-          </Button>
+  type="button"
+  variant="outline"
+  size="sm"
+  onClick={() => onOpenNewCycle?.(selectedIsoDate)}
+  disabled={
+    isProcessing ||
+    !selectedIsoDate ||
+    typeof onOpenNewCycle !== 'function'
+  }
+  className="
+    h-11 shrink-0 gap-1.5 rounded-2xl
+    border-fertiliapp-fuerte
+    bg-white 
+    px-1.5 pr-2.5
+    text-[11px] font-semibold text-fertiliapp-fuerte
+    hover:bg-rose-50
+    hover:text-fertiliapp-fuerte
+    active:scale-[0.97]
+  "
+  aria-label="Iniciar nuevo ciclo"
+>
+  <span className="
+    flex h-7 w-7 shrink-0 items-center justify-center
+    rounded-[10px]
+    border border-fertiliapp-fuerte
+    bg-fertiliapp-fuerte
+    text-white
+  ">
+    <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+  </span>
+
+  <span className="whitespace-nowrap">
+    Nuevo ciclo
+  </span>
+</Button>
         </div>
 
     <div className="mt-1.5 px-2 sm:px-3">
@@ -1703,12 +1726,12 @@ const [activeSection, setActiveSection] = useState(() => {
           }
         >
           <Heart
-            className={cn(
-              'h-5 w-5',
-              hadRelations ? 'fill-current text-rose-500' : 'text-slate-500'
-            )}
-            aria-hidden="true"
-          />
+  className={cn(
+    'h-6 w-6 shrink-0',
+    hadRelations && 'fill-current'
+  )}
+  aria-hidden="true"
+/>
         </button>
       </div>
 
