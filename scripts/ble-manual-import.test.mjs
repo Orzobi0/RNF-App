@@ -46,6 +46,7 @@ async function fixture() {
   const flags = { enabled: true, android: true, offline: false, cached: false, pendingWrites: false, beforeTransaction: null,
     afterMeasurementQuery: null, reorderTransactionMaps: false };
   const transactionReads = [];
+  const collectionReads = [];
   let commits = 0, serial = 0;
   const ref = (...parts) => {
     const path = parts.filter(part => part !== db).map(part => part.path ?? part).join('/');
@@ -72,6 +73,7 @@ async function fixture() {
     prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, measurementsFromRecord, selectedMeasurementSummary, hasMeasurementTemperature,
     isFemometerBleAndroidNative: () => flags.android, isFemometerBlePrototypeEnabled: () => flags.enabled,
     getDocsFromServer: async reference => {
+      collectionReads.push(reference.path);
       if (flags.offline) throw Error('offline');
       const result = { docs: [...store.keys()].filter(path => path.startsWith(reference.path + '/')
         && !path.slice(reference.path.length + 1).includes('/')).map(snap),
@@ -104,7 +106,7 @@ async function fixture() {
     },
   }, ['incorporateBleMeasurementDB', 'incorporateAutomaticBleMeasurementDB', 'updateCycleEntry', 'fetchBleAttemptDayDB']);
   const draft = prepareManualBleDraft(measurement, confirmation);
-  return { flags, store, root, day, draft, api, transactionReads, commits: () => commits,
+  return { flags, store, root, day, draft, api, transactionReads, collectionReads, commits: () => commits,
     readings: () => [...store.entries()].filter(([path]) => path.startsWith(day + '/measurements/')).map(([, data]) => data),
     save: (options) => api.incorporateBleMeasurementDB(draft, options) };
 }
@@ -331,7 +333,7 @@ test('B: automatic authorization never borrows manual confirmation or duplicate 
   await h.save(); assert.equal(h.commits(), 1); // Manual route remains operational.
 });
 
-test('automatic transaction appends, preserves selection and checks historical duplicates and consent', async () => {
+test('automatic transaction checks only target-day duplicates, preserves selection, serializes writes and checks consent', async () => {
   const h = await fixture();
   const nowMs = Date.now();
   const date = new Date(nowMs - 3600000);
@@ -358,19 +360,34 @@ test('automatic transaction appends, preserves selection and checks historical d
   assert.equal(appended.measurements[0].selected, true);
   assert.equal(appended.measurements[1].selected, false);
   assert.equal(h.store.get(`${h.root}/entries/${saved.isoDate}`).temperature_raw, 36.42);
-  // A non-selected reading in an archived cycle must also prevent a write.
+  // Accepted limitation: a reading moved manually to another day is not searched.
   h.store.set('users/u/cycles/old', { start_date: '2018-01-01', end_date: '2019-12-31' });
   h.store.set('users/u/cycles/old/entries/2019-01-01', { iso_date: '2019-01-01' });
   const third = { ...reading, temperature: 36.46, temperature_original: 36.46 };
   h.store.set('users/u/cycles/old/entries/2019-01-01/measurements/t', third);
-  await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB({ ...draft, measurements: [third] }, context), error => error.code === 'ble-possible-duplicate');
+  h.store.set('users/u/cycles/older', { start_date: '2016-01-01', end_date: '2017-12-31' });
+  h.store.set('users/u/cycles/older/entries/2017-01-01', { iso_date: '2017-01-01' });
+  h.store.set('users/u/cycles/older/entries/2017-01-01/measurements/t', third);
+  // Even an advisory summary on another day of the current cycle is out of scope.
+  h.store.set(h.root + '/entries/moved', { iso_date: '2020-01-02', ...selectedMeasurementSummary([third]) });
+  h.collectionReads.length = 0; h.transactionReads.length = 0;
+  await h.api.incorporateAutomaticBleMeasurementDB({ ...draft, measurements: [third] }, context);
+  assert.deepEqual(h.collectionReads, [
+    'users/u/cycles', h.root + '/entries', 'users/u/cycles',
+    h.root + '/entries/' + saved.isoDate + '/measurements',
+  ]);
+  assert.ok(!h.transactionReads.some(path => /cycles\/(old|older)\/entries/.test(path)
+    || path === h.root + '/entries/moved'));
+  // A later connection with that same reading on its original day requires review.
+  await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB({ ...draft, measurements: [third] }, context),
+    error => error.code === 'ble-possible-duplicate');
   const concurrent = { ...draft, measurements: [{ ...reading, temperature: 36.48, temperature_original: 36.48 }] };
   const outcomes = await Promise.allSettled([h.api.incorporateAutomaticBleMeasurementDB(concurrent, context), h.api.incorporateAutomaticBleMeasurementDB(concurrent, context)]);
   assert.equal(outcomes.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(outcomes.filter(result => result.status === 'rejected').length, 1);
   h.store.set(preference, { fields: { ...fields, automaticConsent: undefined } });
   await assert.rejects(h.api.incorporateAutomaticBleMeasurementDB(second, context), error => error.code === 'ble-import-conflict');
-  assert.equal(h.commits(), 3);
+  assert.equal(h.commits(), 4);
 });
 
 test('the first validated manual Vinca save durably queues its unanswered mode question', async () => {

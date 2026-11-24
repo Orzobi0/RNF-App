@@ -1564,11 +1564,13 @@ const bleDayTemperatureState = data => Object.fromEntries(Object.entries(data ??
   key.startsWith('temperature_') || ['timestamp', 'iso_date', 'use_corrected', 'measurements_revision'].includes(key)));
 
 // Append only. Server queries discover document IDs; transaction reads supply
-// the values used for the write. Automatic imports also check the full history.
+// the values used for the write. Automatic duplicates are checked only on the target day.
 export const incorporateAutomaticBleMeasurementDB = (draft, context) =>
   incorporateBleMeasurementDB(draft, { automaticContext: context ?? {}, allowPossibleDuplicate: false });
 
 export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicate = false, automaticContext } = {}) => {
+  const startedAt = performance.now();
+  let dayChecksMs = 0;
   const review = (message, check = 'validation') => createAppError('ble-import-conflict', 'Requiere revisión',
     `${message} [${check}]`, { check });
   if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()) throw review('Disponible solo en Android Staging.');
@@ -1618,10 +1620,11 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
   const entry = dayEntries[0] ?? requireServer(await getDocFromServer(entryRef));
   if (!dayEntries.length && entry.exists()) throw review('El documento del día ya existe con otra fecha.', 'entry-date');
   const measurementsRef = collection(entryRef, 'measurements');
-  const otherSummaryMatch = entries.some(item => item.id !== entryRef.id
+  const otherSummaryMatch = !automaticContext && entries.some(item => item.id !== entryRef.id
     && measurementsFromRecord(item.data(), []).some(value => isPossibleBleDuplicate(value, incoming)));
 
-  return runTransaction(db, async transaction => {
+  const transactionStartedAt = performance.now();
+  const result = await runTransaction(db, async transaction => {
     let automaticPreferenceWrite;
     // Read the parent BEFORE discovering measurement IDs. All app measurement
     // saves also write this parent. Firestore retries if it changes after this
@@ -1645,38 +1648,22 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
       automaticContext.assertCurrent?.();
       prepareAutomaticBleDraft(incoming, { ...automaticContext, userId, cycleId, nowMs: Date.now() });
       // This preference document also serializes automatic imports for this device
-      // across app instances; a retry repeats the complete server duplicate search.
+      // across app instances; a retry checks the target day again.
       const preferenceRef = doc(db, `users/${userId}/preferences/thermometer_${encodeURIComponent(incoming.device_key)}`);
       const preference = await transaction.get(preferenceRef);
       const fields = preference.data()?.fields;
       if (fields?.incorporationMode?.value !== 'automatic' || fields?.automaticConsent?.value !== 'v2') {
         throw review('Confirma el modo Automático en los ajustes.', 'automatic-consent');
       }
-      const historyCycles = await readCollection(collection(db, `users/${userId}/cycles`));
-      if (!equalBleValue(historyCycles.map(item => item.id).sort(), cycles.map(item => item.id).sort())) {
+      // Recheck only cycle ranges/identity; never load other days or their measurements.
+      const currentCycles = await readCollection(collection(db, `users/${userId}/cycles`));
+      if (!equalBleValue(currentCycles.map(item => item.id).sort(), cycles.map(item => item.id).sort())) {
         throw review('Los ciclos han cambiado.', 'cycles-changed');
       }
-      for (const historicCycle of historyCycles) {
-        const lockedCycle = await transaction.get(historicCycle.ref);
-        if (!equalBleValue(lockedCycle.data(), cycles.find(item => item.id === historicCycle.id)?.data())) {
+      for (const cycle of currentCycles) {
+        const lockedCycle = await transaction.get(cycle.ref);
+        if (!equalBleValue(lockedCycle.data(), cycles.find(item => item.id === cycle.id)?.data())) {
           throw review('Los ciclos han cambiado.', 'cycles-changed');
-        }
-        const historyEntries = await readCollection(collection(historicCycle.ref, 'entries'));
-        for (const historicEntry of historyEntries) {
-          const lockedEntry = await transaction.get(historicEntry.ref);
-          if (!lockedEntry.exists() || !equalBleValue(lockedEntry.data(), historicEntry.data())) {
-            throw review('El historial ha cambiado.', 'history-changed');
-          }
-          const historyMembers = await readCollection(collection(historicEntry.ref, 'measurements'));
-          const values = [];
-          for (const member of historyMembers) {
-            const locked = await transaction.get(member.ref);
-            if (!locked.exists() || !equalBleValue(locked.data(), member.data())) throw review('El historial ha cambiado.', 'history-changed');
-            values.push(locked.data());
-          }
-          if ([...values, ...measurementsFromRecord(lockedEntry.data(), [])].some(value => isPossibleBleDuplicate(value, incoming))) {
-            throw createAppError('ble-possible-duplicate', 'Posible duplicado', 'Hay una coincidencia en el historial del servidor. Revisa la lectura.');
-          }
         }
       }
       // Defer this write until all transaction reads have completed.
@@ -1686,6 +1673,7 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     if (!currentCycle.exists() || !range.start_date || range.end_date || isoDate < range.start_date) {
       throw review('El rango del ciclo ha cambiado. Revisa la fecha.', 'cycle-range-changed');
     }
+    const dayChecksStartedAt = performance.now();
     if (currentIndex.exists() !== index.exists() || currentIndex.data()?.entryId !== index.data()?.entryId) {
       throw review('El índice diario ha cambiado. Vuelve a intentarlo.', 'day-index-changed');
     }
@@ -1712,7 +1700,9 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     }
     if (!allowPossibleDuplicate && (otherSummaryMatch || previous.some(item => isPossibleBleDuplicate(item, incoming)))) {
       throw createAppError('ble-possible-duplicate', 'Posible duplicado',
-        'Hay una coincidencia en las mediciones del día o en los resúmenes consultados del ciclo. No es una identificación única. Cancela o confirma que es otra medición.');
+        automaticContext
+          ? 'Hay una coincidencia en las mediciones del día. No es una identificación única. Revisa la lectura.'
+          : 'Hay una coincidencia en las mediciones del día o en los resúmenes consultados del ciclo. No es una identificación única. Cancela o confirma que es otra medición.');
     }
     const hasSelected = loaded.length ? selectedCount === 1 : previous.length > 0;
     const added = { ...incoming, selected: !hasSelected };
@@ -1745,6 +1735,7 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
       automaticContext.assertCurrent?.();
       prepareAutomaticBleDraft(incoming, { ...automaticContext, userId, cycleId, nowMs: Date.now() });
     }
+    dayChecksMs += performance.now() - dayChecksStartedAt;
     if (automaticPreferenceWrite) transaction.set(automaticPreferenceWrite.ref, automaticPreferenceWrite.data, { merge: true });
     transaction.set(entryRef, patch, { merge: true });
     transaction.set(indexRef, { entryId: entryRef.id }, { merge: true });
@@ -1752,6 +1743,15 @@ export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicat
     return { ...currentEntry.data(), ...patch, id: entryRef.id, isoDate, cycleId, measurements,
       measurementsLoaded: true, measurementsComplete: true };
   });
+  // Development only, durations without account/device/clinical data. Transaction
+  // time includes its reads and SDK retries; dayChecksMs is a subset, not additive.
+  if (automaticContext && import.meta.env.DEV) console.debug('[BLE automatic timing]', {
+    validationAndQueriesMs: transactionStartedAt - startedAt,
+    dayChecksMs,
+    transactionMs: performance.now() - transactionStartedAt,
+    totalUntilConfirmationMs: performance.now() - startedAt,
+  });
+  return result;
 };
 
 const protectIncompleteTemperatures = (data, payload) => {
