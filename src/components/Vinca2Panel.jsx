@@ -10,12 +10,16 @@ import { useFemometer } from '@/contexts/FemometerContext';
 import Vinca2Diagnostics from '@/components/Vinca2Diagnostics';
 import { Vinca2IncorporationSettings } from '@/components/Vinca2Automation';
 
-export const vinca2StatusText = (status, session = {}) => status === 'listening' && (!session.listenerResult?.connectionReady || !session.listenerResult?.indicationsActive) ? 'Conectando…' : ({
+export const vinca2StatusText = (status, session = {}) => {
+  const otherProfile = session.boundProtocol && session.boundProtocol !== 'vinca2';
+  return status === 'listening' && (!session.listenerResult?.connectionReady || !session.listenerResult?.indicationsActive) ? 'Conectando…' : ({
   checking: 'Conectando…', idle: 'Desconectado', stopped: 'Desconectado',
-  searching: 'Buscando termómetro…', inspecting: 'Conectando…',
+  searching: otherProfile ? 'Buscando termómetro…' : 'Conectando…', inspecting: 'Conectando…',
   binding: 'Conectando…', connecting: 'Conectando…', listening: 'Conectado', stopping: 'Desconectado',
-  missing: 'Termómetro no encontrado', error: session.error?.code === 'CONNECTION_LOST' ? 'Desconectado' : 'No se pudo conectar',
+  missing: otherProfile ? 'Termómetro no encontrado' : 'Desconectado',
+  error: otherProfile && session.error?.code !== 'CONNECTION_LOST' ? 'No se pudo conectar' : 'Desconectado',
 })[status] || 'Desconectado';
+};
 
 const Vinca2Panel = ({ deviceKey } = {}) => {
   const { sessionRef, sessionState: sharedState, pendingCount, openReadingReview, openClockDialog, clockHistory: sharedClock } = useFemometer();

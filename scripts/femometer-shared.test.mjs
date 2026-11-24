@@ -193,9 +193,15 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
     ...harness.bindings, ...(metadata ? { useThermometerMetadata: () => metadata } : {}), clearVinca2Capture: async () => { native.calls.captureClears = (native.calls.captureClears ?? 0) + 1; }, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
-    CapacitorApp: { addListener: async (name, callback) => {
-      assert.equal(name, 'appStateChange'); lifecycle.add(callback);
-      return { remove: async () => lifecycle.delete(callback) };
+    CapacitorApp: { addListener: (name, callback) => {
+      assert.equal(name, 'appStateChange');
+      if (native.flags.lifecycleThrow) throw native.flags.lifecycleThrow;
+      return (async () => {
+        if (native.flags.lifecycleWait) await native.flags.lifecycleWait.promise;
+        if (native.flags.lifecycleReject) throw native.flags.lifecycleReject;
+        lifecycle.add(callback);
+        return { remove: async () => lifecycle.delete(callback) };
+      })();
     } },
     ...(presentationClock ? { Date: presentationClock.Date } : {}),
     setTimeout: (callback, delay) => { timers.add(callback); presentationClock?.delays.set(callback, delay); return callback; },
@@ -1509,11 +1515,13 @@ test('technical diagnostics are collapsed by default and rendering never calls t
   let recoveryReason = 'initial';
   const { Vinca2Diagnostics } = await loadFrontend('src/components/Vinca2Diagnostics.jsx', {
     ...harness.bindings, Button: 'button', cn: (...values) => values.join(' '),
-    useFemometer: () => ({ sessionState: { recoveryReason, foreground: { detectedAt: 0, reason: 'already_active' }, status: 'stopped', devices: [], inspectionResult: { services: [{ uuid: 'service', characteristics: [{ uuid: 'characteristic', properties: ['indicate'] }] }] } }, readings: [], lifecycleStatus: 'unavailable',
+    useFemometer: () => ({ sessionState: { recoveryReason, foreground: { detectedAt: 0, reason: 'already_active' }, status: 'stopped', devices: [], inspectionResult: { services: [{ uuid: 'service', characteristics: [{ uuid: 'characteristic', properties: ['indicate'] }] }] } }, readings: [], lifecycleStatus: 'unavailable', lifecycleError: { code: 'UNIMPLEMENTED', message: 'App plugin unavailable in test' },
       sessionRef: { current: new Proxy({}, { get: () => { throw Error('Diagnostics must not access BLE'); } }) } }),
   }, ['Vinca2Diagnostics']);
   const tree = harness.render(() => ({ props: { value: Vinca2Diagnostics() } }));
   assert.equal(tree.type, 'details'); assert.equal(tree.props.open, undefined);
+  assert.match(JSON.stringify(tree), /Error al registrar App.appStateChange/);
+  assert.match(JSON.stringify(tree), /UNIMPLEMENTED/); assert.match(JSON.stringify(tree), /App plugin unavailable in test/);
   assert.match(JSON.stringify(tree), /Diagnóstico técnico/); assert.match(JSON.stringify(tree), /characteristic/);
   for (const [reason, label] of Object.entries({ initial: 'búsqueda automática inicial', automatic_retry: 'único reintento automático',
     connected: 'conexión e indicaciones preparadas', window_exhausted: 'no encontrado tras las dos búsquedas',
@@ -2702,10 +2710,16 @@ test('presentation: readiness requires active indications and connection, and pr
   const { vinca2StatusText } = await loadFrontend('src/components/Vinca2Panel.jsx', {}, ['vinca2StatusText']);
   assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true } }), 'Conectando…');
   assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true, indicationsActive: true } }), 'Conectado');
+  assert.equal(vinca2StatusText('listening', { listenerResult: { indicationsActive: true } }), 'Conectando…');
+  for (const boundProtocol of ['easyhome-ebt300', 'health-thermometer']) {
+    assert.equal(vinca2StatusText('missing', { boundProtocol }), 'Termómetro no encontrado');
+    assert.equal(vinca2StatusText('error', { boundProtocol }), 'No se pudo conectar');
+    assert.equal(vinca2StatusText('searching', { boundProtocol }), 'Buscando termómetro…');
+  }
   assert.equal(vinca2StatusText('stopped'), 'Desconectado');
-  assert.equal(vinca2StatusText('error'), 'No se pudo conectar');
-  assert.equal(vinca2StatusText('missing'), 'Termómetro no encontrado');
-  assert.equal(vinca2StatusText('searching'), 'Buscando termómetro…');
+  assert.equal(vinca2StatusText('error'), 'Desconectado');
+  assert.equal(vinca2StatusText('missing'), 'Desconectado');
+  assert.equal(vinca2StatusText('searching'), 'Conectando…');
   assert.equal(vinca2StatusText('error', { error: { code: 'CONNECTION_LOST' } }), 'Desconectado');
   const h = await devicesFixture();
   for (const remembered of [false, true]) {
@@ -3835,4 +3849,72 @@ test('a stalled automatic save becomes accessible after 120 seconds without unlo
     await flush(); assert.equal(owner.render().pendingCount, 0);
     assert.equal(owner.render().readings[0].importStatus, 'incorporated');
   } finally { owner.cleanup(); await flush(); }
+});
+
+
+test('lifecycle registration failures retain the exact reason without claiming a foreground recovery', async () => {
+  for (const failure of ['lifecycleReject', 'lifecycleThrow']) {
+    const native = bridge(); native.flags.found = false;
+    native.flags[failure] = { code: 'UNIMPLEMENTED', message: 'App.addListener unavailable in this test' };
+    const owner = await mountedOwner(native);
+    try {
+      const state = owner.render();
+      assert.equal(state.lifecycleStatus, 'unavailable');
+      assert.deepEqual(state.lifecycleError, native.flags[failure]);
+      assert.equal(owner.lifecycle.size, 0);
+      assert.equal(state.sessionState.foreground, undefined);
+      await owner.background(); await owner.foreground();
+      assert.equal(owner.render().sessionState.foreground, undefined);
+      assert.equal(native.calls.connections, 0);
+      // Account replacement registers afresh and does not retain the old failure.
+      delete native.flags[failure];
+      await owner.changeAccount('b');
+      assert.equal(owner.render().lifecycleStatus, 'registered');
+      assert.equal(owner.render().lifecycleError, null);
+      assert.equal(owner.lifecycle.size, 1);
+    } finally { owner.cleanup(); await flush(); }
+    assert.equal(owner.lifecycle.size, 0);
+  }
+});
+
+test('late lifecycle registration is removed after unmount and cannot resume the old session', async () => {
+  const native = bridge(); native.flags.lifecycleWait = deferred();
+  const owner = await mountedOwner(native);
+  assert.equal(owner.render().lifecycleStatus, 'registering');
+  owner.cleanup(); await flush();
+  const connections = native.calls.connections;
+  native.flags.lifecycleWait.resolve(); await flush();
+  assert.equal(owner.lifecycle.size, 0);
+  await owner.foreground();
+  assert.equal(native.calls.connections, connections);
+});
+
+test('registered Android events reopen exactly one bounded window after both initial searches fail', async () => {
+  const native = bridge(); const timers = new Map(); let searches = 0;
+  native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
+  native.api.clearTimeout = fn => timers.delete(fn);
+  native.api.scanForFemometer = async (_user, _expanded, _remembered, limited) => {
+    assert.equal(limited, true); searches++; return [];
+  };
+  const owner = await mountedOwner(native);
+  const tick = async () => {
+    assert.equal(timers.size, 1);
+    const [fn, delay] = [...timers][0]; assert.equal(delay, 8000);
+    timers.delete(fn); fn(); await flush();
+  };
+  try {
+    assert.equal(owner.render().lifecycleStatus, 'registered');
+    assert.equal(searches, 1); await tick(); assert.equal(searches, 2);
+    assert.equal(owner.render().sessionState.recoveryExhausted, true);
+    owner.navigate('devices'); await owner.foreground();
+    assert.equal(searches, 2);
+    await owner.background(); await owner.foreground();
+    assert.equal(searches, 3);
+    await Promise.all([owner.foreground(), owner.foreground()]);
+    owner.navigate('records'); assert.equal(searches, 3);
+    await tick(); assert.equal(searches, 4); assert.equal(timers.size, 0);
+    await owner.foreground(); assert.equal(searches, 4);
+    assert.equal(owner.render().sessionState.recoveryExhausted, true);
+  } finally { owner.cleanup(); await flush(); }
+  assert.equal(timers.size, 0); assert.equal(owner.lifecycle.size, 0);
 });

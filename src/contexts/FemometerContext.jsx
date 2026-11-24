@@ -64,6 +64,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [storageError, setStorageError] = useState('');
   const [clockHistory, setClockHistory] = useState(null);
   const [lifecycleStatus, setLifecycleStatus] = useState('registering');
+  const [lifecycleError, setLifecycleError] = useState(null);
   const [automationCandidate, setAutomationCandidate] = useState(null);
   const [automationPromptDevice, setAutomationPromptDevice] = useState(null);
   const promptClaim = useRef(false);
@@ -159,16 +160,28 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     let foregroundTimer;
     // One deferred check lets queued native terminal events run first. This is
     // not a polling timer; the manager also checks the native listening deadline.
-    const lifecycle = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+    setLifecycleStatus('registering');
+    setLifecycleError(null);
+    // Capture synchronous bridge failures as well as rejected registration promises.
+    const lifecycle = Promise.resolve().then(() => CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       clearTimeout(foregroundTimer);
       if (alive && !isActive) void session.suspend();
       if (alive && isActive) foregroundTimer = setTimeout(() => {
         if (alive) void session.resume();
       }, 250);
-    }).then(handle => {
+    })).then(handle => {
       if (alive) setLifecycleStatus('registered');
       return handle;
-    }).catch(() => { if (alive) setLifecycleStatus('unavailable'); return null; });
+    }).catch(error => {
+      if (alive) {
+        setLifecycleStatus('unavailable');
+        setLifecycleError({
+          code: String(error?.code ?? error?.name ?? 'UNKNOWN'),
+          message: String(error?.message ?? (typeof error === 'string' ? error : 'El puente no proporcionó un motivo.')),
+        });
+      }
+      return null;
+    });
     return () => {
       alive = false;
       void clearVinca2Capture().catch(() => {});
@@ -372,7 +385,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...draft, confirmed: false } } : row));
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     completeVerification, pendingCount: pendingReadings.length, processingCount: readings.filter(row => row.automaticProcessing).length, clockHistory, storageError, updateReadingDraft,
-    listeningStartedAt, temperatureListenerMessage, incorporateReading, discardReading, lifecycleStatus, openReadingReview,
+    listeningStartedAt, temperatureListenerMessage, incorporateReading, discardReading, lifecycleStatus, lifecycleError, openReadingReview,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
