@@ -119,7 +119,7 @@ export function BleReadingReviewView({
           {!discardConfirm && !storedConfirm && showFields && (
       <footer
         aria-label="Acciones de revisión"
-        className="grid grid-cols-2 items-start gap-4 border-t border-slate-100 pt-2 pb-[env(safe-area-inset-bottom,0px)]"
+        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)] items-stretch gap-2 border-t border-slate-100 pt-2 pb-[env(safe-area-inset-bottom,0px)]"
       >
         {/* Acción secundaria: descartar */}
         {!uncertain && !duplicate ? (
@@ -127,12 +127,12 @@ export function BleReadingReviewView({
             <Button
               type="button"
               variant="ghost"
-              className="min-h-11 h-auto w-[80%] min-w-0 gap-2 whitespace-normal rounded-2xl border border-slate-200 bg-slate-50 px-2 py-2 text-center text-sm leading-snug text-slate-700 hover:bg-slate-100"
+              className="min-h-11 h-full w-full min-w-0 gap-2 whitespace-normal rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-center text-sm leading-snug text-slate-700 hover:bg-slate-100"
               disabled={busy || reading.importStatus !== 'pending'}
               onClick={onRequestDiscard}
             >
               <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Descartar temperatura</span>
+              <span>Descartar</span>
             </Button>
           </div>
         ) : (
@@ -143,7 +143,7 @@ export function BleReadingReviewView({
         <div className="min-w-0">
           <Button
             type="button"
-            className="min-h-11 h-auto w-full min-w-0 whitespace-normal rounded-2xl bg-fertiliapp-fuerte px-3 py-2 text-center text-sm font-semibold leading-snug text-white hover:brightness-95"
+            className="min-h-11 h-full w-full min-w-0 gap-2 whitespace-normal rounded-xl bg-fertiliapp-fuerte px-3 py-2 text-center text-sm font-semibold leading-snug text-white hover:brightness-95"
             disabled={
               busy ||
               !draft.isoDate ||
