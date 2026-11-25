@@ -115,12 +115,29 @@ final class FemometerGattSession {
         }
     }
     public void getReceptionState(PluginCall call) {
-        String user = requireUser(call); if (user == null) return;
-        expireIfDue();
-        if (temperatureGatt != null && getBlockedOperationCode() != null) serviceFailed();
+        boolean diagnosticOnly = Boolean.TRUE.equals(call.getBoolean("diagnosticOnly", false));
+        if (diagnosticOnly) {
+            // requireUser may cancel an old account's transport: a diagnostic must not mutate it.
+            String user = call.getString("userId");
+            if (!isStaging()) { call.reject("Solo disponible en Android Staging.", "UNAVAILABLE_PLATFORM"); return; }
+            if (user == null || user.trim().isEmpty()) { call.reject("Se requiere una sesion autenticada.", "USER_REQUIRED"); return; }
+            if (currentUser != null && !currentUser.equals(user)) { call.reject("La sesion nativa pertenece a otra cuenta.", "SESSION_CHANGED"); return; }
+        } else {
+            String user = requireUser(call); if (user == null) return;
+            expireIfDue();
+            if (temperatureGatt != null && getBlockedOperationCode() != null) serviceFailed();
+        }
         JSObject state = new JSObject();
         state.put("visible", visible); state.put("serviceActive", receptionService != null && serviceRequested);
         state.put("connectionReady", temperatureReady && temperatureGatt != null);
+        state.put("indicationsActive", temperatureReady && temperatureGatt != null && readyResult != null && readyResult.optBoolean("indicationsActive", false));
+        state.put("searchPending", scanCall != null);
+        state.put("connectPending", connectCall != null);
+        state.put("preparationPending", temperatureListenerCall != null);
+        state.put("gattBusy", clockOperation.busy() || identityOperation.busy() || deviceInfoOperation.busy()
+            || volumeOperation.busy() || measurementModeOperation.busy() || easyOperation.busy());
+        state.put("cleanupPending", !gattCleanup.complete());
+        state.put("backgroundSession", !visible && temperatureGatt != null);
         state.put("deviceKey", temperatureDeviceKey); state.put("listenerResult", readyResult);
         call.resolve(state);
     }

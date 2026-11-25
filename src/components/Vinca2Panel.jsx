@@ -3,6 +3,7 @@ import { ThermometerName } from '@/components/ThermometerName';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Clock3, Info, Thermometer, Link2, Unlink, Bluetooth, RefreshCw } from 'lucide-react';
+import { femometerBlockingReason } from '@/lib/femometerSession';
 import { thermometerName } from '@/lib/thermometerCatalog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -42,15 +43,17 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
   const model = sessionState.boundModel ?? (remembered && !sessionState.boundProtocol ? 'BM-Vinca2' : capabilities?.model);
   const vinca = model === 'BM-Vinca2';
   const listening = status === 'listening';
-  const busy = sessionState.configurationBusy || sessionState.bindingBusy || working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.volumeBusy || sessionState.measurementModeBusy || sessionState.restarting
+  const busy = (vinca && sessionState.diagnosticBackground) || sessionState.configurationBusy || sessionState.bindingBusy || working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.volumeBusy || sessionState.measurementModeBusy || sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'binding', 'stopping'].includes(status);
   useEffect(() => {
     if (window.location.hash !== '#bluetooth-readings') return undefined;
     const frame = requestAnimationFrame(() => document.getElementById('bluetooth-readings')?.scrollIntoView({ block: 'start' }));
     return () => cancelAnimationFrame(frame);
   }, []);
+  const blockingReason = femometerBlockingReason(sessionState) || (working ? 'Acción de la interfaz pendiente' : null);
   const run = async (operation, argument) => {
-    if (operation !== 'stop' && (operation === 'unlink' ? sessionState.bindingBusy : operationLock.current || busy)) return;
+    if (operation !== 'stop' && (operation === 'unlink' ? sessionState.bindingBusy : operationLock.current || busy)) { setActionError(blockingReason || 'Otra acción está en curso.'); return; }
+    if (operation === 'stop' && busy && status !== 'searching') { setActionError(blockingReason || 'Espera a que termine la operación antes de detener.'); return; }
     if (listening && !['restart', 'stop', 'readClock', 'syncClock', 'readDeviceInfo', 'setVolume', 'setMeasurementMode', 'setTemperatureUnit', 'unlink'].includes(operation)) return;
     operationLock.current = true;
     setWorking(true); setActionError(null);
@@ -183,6 +186,7 @@ const canReadDeviceInfo =
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
       </div>
     </div>
+    {busy && <p role="status" className="py-2 text-xs text-slate-600">{blockingReason}. {searching ? 'Puedes cancelar la búsqueda.' : 'Conectar, Reconectar y Detener esperan a que termine; no se interrumpen escrituras pendientes.'}</p>}
     {metadata.error && <p role="status" className="text-xs text-amber-800">{metadata.error}</p>}
     {vinca && remembered && <Vinca2IncorporationSettings key={deviceKey ?? sharedState.deviceKey} deviceKey={deviceKey ?? sharedState.deviceKey} />}
     {(actionError || sessionState.error) && <div role="alert" className="mb-4 text-sm text-amber-800">

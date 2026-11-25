@@ -1,5 +1,31 @@
 import { thermometerCapabilities } from './thermometerCapabilities.js';
 
+export const femometerBlockingReason = (state = {}) => {
+  if (state.status === 'stopping') return 'Cierre y limpieza pendientes';
+  if (state.configurationBusy) return 'Configuración pendiente; un comando enviado podría haberse aplicado';
+  if (state.clockBusy) return 'Operación de reloj pendiente';
+  if (state.volumeBusy || state.measurementModeBusy) return 'Escritura de ajustes pendiente; resultado todavía incierto';
+  if (state.deviceInfoBusy) return 'Consulta de datos pendiente';
+  if (state.bindingBusy) return 'Cambio de vinculación pendiente';
+  if (state.restarting) return 'Reconexión pendiente';
+  if (state.diagnosticBackground) return 'Sesión React suspendida; pendiente de detectar el regreso a primer plano';
+  return ({ checking: 'Comprobación inicial pendiente', searching: 'Búsqueda pendiente', connecting: 'Conexión y preparación pendientes',
+    inspecting: 'Comprobación de compatibilidad pendiente', binding: 'Vinculación pendiente' })[state.status]
+    || (state.busy ? 'Operación de transporte pendiente' : null);
+};
+
+// Only fixed vocabulary and booleans enter this bounded, session-only record.
+const diagnosticCodes = new Set(['CONNECTION_LOST', 'CONNECTION_CANCELLED', 'CONNECTION_TIMEOUT', 'SCAN_FAILED',
+  'DEVICE_NOT_FOUND', 'LISTENER_NOT_READY', 'LISTENER_ERROR', 'BLUETOOTH_DISABLED', 'PERMISSION_NOT_GRANTED',
+  'NATIVE_BRIDGE_UNAVAILABLE', 'UNIMPLEMENTED', 'UNAVAILABLE_PLATFORM', 'USER_REQUIRED', 'SESSION_CHANGED',
+  'CLOCK_TIMEOUT', 'CLOCK_OPERATION_FAILED', 'DEVICE_INFO_READ_FAILED',
+  'VOLUME_TIMEOUT', 'MEASUREMENT_MODE_TIMEOUT', 'GATT_CLOSE_FAILED', 'CLOCK_READ_FAILED', 'CLOCK_WRITE_FAILED',
+  'DEVICE_INFO_TIMEOUT', 'VOLUME_FIRST_WRITE_FAILED', 'VOLUME_CONFIRM_WRITE_FAILED',
+  'MEASUREMENT_MODE_FIRST_WRITE_FAILED', 'MEASUREMENT_MODE_CONFIRM_WRITE_FAILED', 'BACKGROUND_SERVICE_FAILED']);
+const diagnosticCode = error => diagnosticCodes.has(error?.code) ? error.code : 'UNKNOWN';
+const nativeDiagnosticFields = ['visible', 'serviceActive', 'connectionReady', 'indicationsActive', 'searchPending',
+  'connectPending', 'preparationPending', 'gattBusy', 'cleanupPending', 'backgroundSession'];
+
 // Only these five session-scoped values cross into the UI; never retain identifiers.
 export const normalizeFemometerDeviceInfo = value => {
   const text = input => {
@@ -116,11 +142,26 @@ export const createFemometerSessionManager = (api) => {
       deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null,
       capabilities: thermometerCapabilities(), clockBusy: false, clockResult: null, clockError: null,
     };
-    const publish = (patch) => {
+    const publish = (patch, diagnosticOnly = false) => {
+      const previous = state;
       state = { ...state, ...patch };
-      armRecovery();
+      state.diagnosticBackground = suspended;
+      const operation = femometerBlockingReason(state);
+      const changes = [];
+      if (state.status !== previous.status) changes.push({ kind: 'state', code: state.status });
+      if (operation !== femometerBlockingReason(previous)) changes.push({ kind: 'operation', code: operation ?? 'Disponible' });
+      if (previous.diagnosticBackground !== suspended) changes.push({ kind: 'lifecycle', code: suspended ? 'background' : 'foreground' });
+      for (const field of ['error', 'clockError', 'volumeError', 'measurementModeError', 'deviceInfoError', 'diagnosticQueryError', 'diagnosticLifecycleError']) {
+        if (patch[field] && patch[field] !== previous[field]) {
+          const entry = { kind: 'error', code: diagnosticCode(patch[field]), at: now() };
+          changes.push(entry); state.diagnosticLastError = entry;
+        }
+      }
+      if (changes.length) state.diagnosticHistory = [...(previous.diagnosticHistory ?? []),
+        ...changes.map(entry => ({ at: now(), ...entry }))].slice(-40);
+      if (!diagnosticOnly) armRecovery();
       if (!disposed) onState(state);
-      if (foregroundRecoveryPending && !recoveryWakeQueued && !disposed && !suspended) {
+      if (!diagnosticOnly && foregroundRecoveryPending && !recoveryWakeQueued && !disposed && !suspended) {
         recoveryWakeQueued = true;
         void Promise.resolve().then(() => {
           recoveryWakeQueued = false;
@@ -527,6 +568,23 @@ export const createFemometerSessionManager = (api) => {
         publish({ status: 'trial', trial: { ...state.trial, verificationId: result.verificationId, status: 'listening' } });
     };
     const session = {
+      recordDiagnosticLifecycleError: error => {
+        if (!disposed) publish({ diagnosticLifecycleError: { code: diagnosticCode(error), at: now() } }, true);
+      },
+      refreshDiagnostic: async () => {
+        if (disposed) return;
+        const epoch = version;
+        try {
+          const value = await api.getFemometerReceptionState?.(userId, { diagnosticOnly: true });
+          if (disposed || epoch !== version) return;
+          const native = Object.fromEntries(nativeDiagnosticFields.map(field => [field,
+            typeof value?.[field] === 'boolean' ? value[field] : null]));
+          publish({ diagnosticNative: { at: now(), ...native }, diagnosticQueryError: null }, true);
+        } catch (error) {
+          if (!disposed && epoch === version) publish({ diagnosticNative: null,
+            diagnosticQueryError: { at: now(), code: diagnosticCode(error) } }, true);
+        }
+      },
       reconcileNative: (initial = false) => {
         if (!api.getFemometerReceptionState || disposed) return Promise.resolve();
         if (nativeReconcileJob) return nativeReconcileJob;

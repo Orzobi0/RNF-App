@@ -1,7 +1,7 @@
 import test from 'node:test';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
+import { createFemometerSessionManager, femometerBlockingReason, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { thermometerName } from '../src/lib/thermometerCatalog.js';
 import { createThermometerMetadataStore, mergeThermometerFields, sanitizeThermometerMetadata } from '../src/lib/thermometerMetadata.js';
 import { normalizeBleMeasurement, authorizedBleMeasurement, prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge, vinca2DateNeedsReview, recoveredVinca2DateMessage } from '../src/lib/bleMeasurements.js';
@@ -10,7 +10,7 @@ import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks as baseHooks, deferred, flush } from './helpers/load-frontend.mjs';
 
-const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, vinca2DateNeedsReview, recoveredVinca2DateMessage }); return harness; };
+const hooks = () => { const harness = baseHooks(); Object.assign(harness.bindings, { femometerBlockingReason, Vinca2ThermometerDrawing: 'thermometer-drawing', Vinca2IncorporationSettings: 'incorporation-settings', Vinca2AutomationPrompt: 'automation-prompt', clearVinca2Capture: async () => {}, isVinca2CaptureAvailable: () => false, useThermometerMetadata: () => ({ devices: {}, get: () => ({}), patch: () => {} }), ThermometerName: 'device-name', useNavigate: () => () => {}, measurementSourceLabel, thermometerName, useCycleData: () => ({ currentCycle: null, isLoading: false }), prepareManualBleDraft, prepareAutomaticBleDraft, isPossibleBleDuplicate, vinca2DateNeedsReview, recoveredVinca2DateMessage }); return harness; };
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -657,7 +657,7 @@ test('quick review preserves the original date, cancels without saving and requi
   let nodes = treeNodes(render());
   assert.equal(nodes.find(node => node.type === 'input' && node.props.type === 'date').props.value, '2020-01-02');
   const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
-    ...harness.bindings, Button: 'button', PlusCircle: 'plus', Copy: 'copy', AlertTriangle: 'alert', ChevronDown: 'down', X: 'close',
+    ...harness.bindings, Button: 'button', ClipboardList: 'readings', Clock: 'clock', Bluetooth: 'bluetooth', PlusCircle: 'plus', Copy: 'copy', AlertTriangle: 'alert', ChevronDown: 'down', X: 'close',
     window: { clearTimeout() {} },
   }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
   const card = FemometerReviewCard({ readings: [reading], selected: reading, expanded: true, onDismiss: () => closed++ });
@@ -780,9 +780,9 @@ test('persistent review card selects readings, minimizes explicitly and advances
   const harness = hooks(); const selected = []; let minimized = 0; let dismissed = 0; let expanded = 0;
   const timers = new Map();
   const window = { innerWidth: 390, matchMedia: () => ({ matches: false }),
-    setTimeout: (fn, ms) => { assert.equal(ms, 200); timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn) };
+    setTimeout: (fn, ms) => { assert.ok([200, 5000].includes(ms)); timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn) };
   const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
-    ...harness.bindings, window, Button: 'button', PlusCircle: 'plus', Copy: 'copy', AlertTriangle: 'warning', ChevronDown: 'chevron', X: 'x',
+    ...harness.bindings, window, Button: 'button', ClipboardList: 'readings', Clock: 'clock', Bluetooth: 'bluetooth', PlusCircle: 'plus', Copy: 'copy', AlertTriangle: 'warning', ChevronDown: 'chevron', X: 'x',
   }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
   const rows = [1, 2].map(uiId => ({ uiId, deviceKey: 'device', temperatureC: 36 + uiId / 10, importStatus: 'pending' }));
   const props = { visible: true, onDismiss: () => { dismissed++; props.visible = false; }, readings: rows, selected: rows[0], expanded: true,
@@ -810,7 +810,7 @@ test('persistent review card selects readings, minimizes explicitly and advances
   props.expanded = false; assert.ok(treeNodes(render()).some(node => node.type === 'warning')); props.expanded = true;
   assert.ok(treeNodes(render()).some(node => node.props.role === 'status' && node.props.children.includes('Guardado sin confirmar')));
   delete rows[1].reviewError; rows[1].importStatus = 'pending';
-  assert.ok(treeNodes(render()).some(node => node.type === 'plus'));
+  assert.ok(treeNodes(render()).some(node => node.type === 'readings'));
   nodes.find(node => node.type === 'button' && node.props['aria-expanded'] === true).props.onClick();
   assert.equal(minimized, 1); assert.equal(rows.length, 2);
   props.readings = [rows[1]]; props.selected = rows[1];
@@ -825,9 +825,9 @@ test('persistent review card selects readings, minimizes explicitly and advances
     region.props.onPointerMove({ ...pointer, clientX: x, clientY: y });
     region.props.onPointerUp({ ...pointer, clientX: x, clientY: y });
   };
-  const finish = () => { for (const fn of timers.keys()) { timers.delete(fn); fn(); } render(); props.visible = true; render(); };
-  swipe(110, 90); assert.equal(dismissed, 0); assert.equal(timers.size, 0);
-  swipe(190, 100); assert.equal(dismissed, 0); assert.equal(timers.size, 1);
+  const finish = () => { for (const [fn, ms] of [...timers]) { if (ms === 200) { timers.delete(fn); fn(); } } render(); props.visible = true; render(); };
+  swipe(110, 90); assert.equal(dismissed, 0); assert.equal([...timers.values()].filter(ms => ms === 200).length, 0);
+  swipe(190, 100); assert.equal(dismissed, 0); assert.equal([...timers.values()].filter(ms => ms === 200).length, 1);
   area().props.onClick(); assert.equal(expanded, 1); finish(); assert.equal(dismissed, 1);
   swipe(100, 20); finish(); assert.equal(dismissed, 2);
   swipe(10, 100); finish(); assert.equal(dismissed, 3);
@@ -898,7 +898,7 @@ test('Bluetooth success presentation has no expiry and ignores outside clicks an
   const harness = hooks(); const events = new Map(); let dismissed = 0; const days = [];
   const { BleSavedNotice } = await loadFrontend('src/components/BleSavedNotice.jsx', {
     ...harness.bindings, Toast: { Provider: 'provider', Root: 'notice', Title: 'title', Description: 'description', Close: 'close', Viewport: 'viewport' },
-    Thermometer: 'thermometer', Link2: 'icon', Check: 'check', X: 'x', Button: 'button',
+    Clock: 'clock', CalendarDays: 'calendar', Thermometer: 'thermometer', Link2: 'icon', Check: 'check', X: 'x', Button: 'button',
     document: { addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name), documentElement: { style: { setProperty() {}, removeProperty() {} } } },
   }, ['BleSavedNotice']);
   const props = { notice: { count: 1, temperature: 36.4, time: '08:00', isoDate: '2026-11-04' }, onDismiss: () => dismissed++, onViewDay: date => days.push(date) };
@@ -910,7 +910,11 @@ test('Bluetooth success presentation has no expiry and ignores outside clicks an
   root.props.onTouchStart({ touches: [{ clientX: 10, clientY: 100 }] });
   root.props.onTouchEnd({ changedTouches: [{ clientX: 10, clientY: 10 }] }); assert.equal(dismissed, 1);
   root.props.onOpenChange(false); assert.equal(dismissed, 2);
-  nodes.find(node => node.type === 'button' && node.props.children.includes('Ver día')).props.onClick();
+  const viewDay = nodes.find(node => node.type === 'button' && node.props['aria-label']?.startsWith('Ver registro del día:'));
+  viewDay.props.onClick(); assert.deepEqual(days, []); // A swipe must not also navigate.
+  root.props.onTouchStart({ touches: [{ clientX: 10, clientY: 100 }] });
+  root.props.onTouchEnd({ changedTouches: [{ clientX: 10, clientY: 100 }] });
+  viewDay.props.onClick();
   assert.deepEqual(days, ['2026-11-04']); assert.equal(dismissed, 3);
   harness.cleanup(); assert.equal(events.size, 0);
 });
@@ -1533,18 +1537,13 @@ test('technical diagnostics are collapsed by default and rendering never calls t
   }, ['Vinca2Diagnostics']);
   const tree = harness.render(() => ({ props: { value: Vinca2Diagnostics() } }));
   assert.equal(tree.type, 'details'); assert.equal(tree.props.open, undefined);
-  assert.match(JSON.stringify(tree), /Error del ciclo de vida nativo/);
-  assert.match(JSON.stringify(tree), /UNIMPLEMENTED/); assert.match(JSON.stringify(tree), /App plugin unavailable in test/);
-  assert.match(JSON.stringify(tree), /Diagnóstico técnico/); assert.match(JSON.stringify(tree), /characteristic/);
-  for (const [reason, label] of Object.entries({ initial: 'búsqueda automática inicial', automatic_retry: 'único reintento automático',
-    connected: 'conexión e indicaciones preparadas', window_exhausted: 'no encontrado tras las dos búsquedas',
-    manual: 'conexión solicitada manualmente', foreground: 'nueva oportunidad tras segundo plano',
-    connection_ready: 'conexión ya preparada; sin búsqueda', lifecycle_cancelled: 'cancelada por segundo plano',
-    unrecoverable_error: 'error no recuperable' })) {
-    recoveryReason = reason;
-    const rendered = JSON.stringify(harness.render(() => ({ props: { value: Vinca2Diagnostics() } })));
-    assert.ok(rendered.includes(label)); assert.ok(rendered.includes('la app ya estaba activa'));
-  }
+  assert.match(JSON.stringify(tree), /Ciclo de vida Android/);
+  assert.match(JSON.stringify(tree), /unavailable/);
+  assert.match(JSON.stringify(tree), /Diagnóstico técnico/);
+  assert.doesNotMatch(JSON.stringify(tree), /characteristic|App plugin unavailable in test/);
+  assert.match(JSON.stringify(tree), /No disponible en esta versión de Android/);
+  assert.match(JSON.stringify(tree), /Actualizar diagnóstico/);
+  assert.match(JSON.stringify(tree), /Copiar diagnóstico/);
   harness.cleanup();
 });
 
@@ -2559,7 +2558,7 @@ test('UI: stored preferences remain selected when disconnected, and normal revie
     ...harness.bindings, measurementDisplay, measurementSourceLabel, CheckCircle2: 'check', Trash2: 'trash', PlusCircle: 'plus', Button: 'button', Input: 'input',
   }, ['BleReadingReviewView']);
   const nodes = treeNodes(BleReadingReviewView({ reading: { importStatus: 'pending' }, draft: { isoDate: '2026-11-10', time: '08:00' } }));
-  const discard = nodes.findIndex(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Descartar temperatura'));
+  const discard = nodes.findIndex(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Descartar'));
   const incorporate = nodes.findIndex(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Confirmar e incorporar'));
   assert.ok(discard >= 0 && incorporate > discard);
   assert.equal(nodes[discard].props.variant, 'ghost'); assert.match(nodes[discard].props.className, /min-h-11/);
@@ -2705,8 +2704,8 @@ test('presentation: review footer has discard on the left and incorporation on t
   const rows = footer.props.children;
   assert.equal(rows.length, 2);
   const labels = row => treeNodes(row).filter(n => n.type === 'button').map(n => JSON.stringify(n.props.children));
-  assert.match(footer.props.className, /grid grid-cols-2/);
-  assert.equal(labels(rows[0]).length, 1); assert.match(labels(rows[0])[0], /Descartar temperatura/);
+  assert.match(footer.props.className, /grid grid-cols-\[minmax\(0,1fr\)_minmax\(0,1\.7fr\)\]/);
+  assert.equal(labels(rows[0]).length, 1); assert.match(labels(rows[0])[0], /Descartar/);
   assert.equal(labels(rows[1]).length, 1); assert.match(labels(rows[1])[0], /Confirmar e incorporar/);
   const buttons = treeNodes(footer).filter(n => n.type === 'button');
   assert.equal(buttons.length, 2);
@@ -4166,4 +4165,70 @@ test('BLE-12: fixed initial clock survives redundant sync, saves once, and reche
       assert.equal(native.calls.connections, 1);
     } finally { owner.cleanup(); await flush(); }
   }
+});
+
+
+test('BLE-13: explicit diagnosis only queries reception, filters private fields and retains bounded errors', async () => {
+  const native = bridge(); let state; let queries = 0;
+  native.api.getFemometerReceptionState = async (user, options) => {
+    assert.deepEqual(options, { diagnosticOnly: true }); queries++;
+    return { visible: true, connectionReady: false, cleanupPending: true, deviceKey: 'PRIVATE-MAC',
+      listenerResult: { temperatureC: 36.42, deviceTimestamp: 'PRIVATE-DATE' }, unexpected: 'PRIVATE-ACCOUNT' };
+  };
+  const session = native.factory('private-user', next => { state = next; }, () => {});
+  const before = JSON.stringify(native.calls);
+  await session.refreshDiagnostic();
+  assert.equal(queries, 1); assert.equal(JSON.stringify(native.calls), before);
+  assert.equal(state.diagnosticNative.connectionReady, false);
+  assert.equal(state.diagnosticNative.cleanupPending, true);
+  assert.equal(state.diagnosticNative.indicationsActive, null);
+  assert.doesNotMatch(JSON.stringify(state.diagnosticNative), /PRIVATE|36.42/);
+  for (let i = 0; i < 25; i++) await session.stop('error', { code: 'CONNECTION_LOST', message: 'PRIVATE-MAC' });
+  assert.equal(state.diagnosticHistory.length, 40);
+  assert.equal(state.diagnosticLastError.code, 'CONNECTION_LOST');
+  assert.equal(typeof state.diagnosticLastError.at, 'number');
+  assert.doesNotMatch(JSON.stringify(state.diagnosticHistory), /PRIVATE/);
+  native.api.getFemometerReceptionState = async () => { throw { code: 'PRIVATE-ACCOUNT', message: 'PRIVATE-MAC' }; };
+  await session.refreshDiagnostic();
+  assert.equal(state.diagnosticNative, null);
+  assert.equal(state.diagnosticQueryError.code, 'UNKNOWN');
+  await session.dispose();
+});
+
+test('BLE-13: diagnosis shows snapshot mismatch and copy excludes readings and identifiers', async () => {
+  const harness = hooks(); let queries = 0; let copied;
+  const state = { status: 'listening', configurationBusy: true, listenerResult: { indicationsActive: true },
+    diagnosticNative: { at: 10, visible: true, connectionReady: false, indicationsActive: false },
+    deviceKey: 'PRIVATE-MAC', error: { message: 'PRIVATE-ACCOUNT' } };
+  const { Vinca2Diagnostics } = await loadFrontend('src/components/Vinca2Diagnostics.jsx', {
+    ...harness.bindings, Button: 'button', navigator: { clipboard: { writeText: async text => { copied = text; } } },
+    useFemometer: () => ({ sessionState: state, readings: [{ temperatureC: 36.42, deviceTimestamp: 'PRIVATE-DATE' }],
+      sessionRef: { current: { refreshDiagnostic: async () => { queries++; } } } }),
+  }, ['Vinca2Diagnostics']);
+  const render = () => harness.render(() => ({ props: { value: Vinca2Diagnostics() } }));
+  let tree = render(); assert.equal(queries, 0);
+  assert.match(JSON.stringify(tree), /React y Android difieren/);
+  assert.match(JSON.stringify(tree), /Configuración pendiente/);
+  const button = label => treeNodes(render()).find(n => n.type === 'button' && n.props.children.includes(label));
+  await button('Actualizar diagnóstico').props.onClick(); assert.equal(queries, 1);
+  await button('Copiar diagnóstico').props.onClick(); assert.equal(queries, 1);
+  assert.doesNotMatch(copied, /PRIVATE|36.42/);
+  assert.match(copied, /GATT preparado: No/);
+  harness.cleanup();
+});
+
+test('BLE-13: busy writes explain and block stop; repeated connect cannot race', async () => {
+  const h = await vincaPanelFixture({ remembered: true, boundModel: 'BM-Vinca2', status: 'listening', configurationBusy: true });
+  let stops = 0;
+  h.ble.sessionRef.current.stop = async () => { stops++; };
+  assert.equal(h.button('Desconectar').props.disabled, true);
+  await h.button('Desconectar').props.onClick(); assert.equal(stops, 0);
+  assert.match(JSON.stringify(h.render()), /Configuración pendiente/);
+  h.ble.sessionState.configurationBusy = false; h.ble.sessionState.status = 'stopped';
+  let starts = 0; const pending = deferred();
+  h.ble.sessionRef.current.start = async () => { starts++; await pending.promise; };
+  const button = h.button('Conectar');
+  const first = button.props.onClick(); await button.props.onClick();
+  assert.equal(starts, 1); pending.resolve(); await first;
+  h.cleanup();
 });

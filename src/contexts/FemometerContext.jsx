@@ -202,6 +202,7 @@ if (hasNewPending) {
     }).catch(error => {
       if (alive) {
         setLifecycleStatus('unavailable');
+        session.recordDiagnosticLifecycleError?.(error);
         setLifecycleError({ code: String(error?.code ?? 'UNKNOWN'), message: String(error?.message ?? error) });
       }
       return null;

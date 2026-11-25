@@ -385,7 +385,7 @@ export const readFemometerClock = () => callFemometerBle('readClock');
 export const setFemometerTemperatureUnit = unit => callFemometerBle('setTemperatureUnit', { unit });
 export const syncFemometerClock = () => callFemometerBle('syncClock');
 
-export const getFemometerReceptionState = userId => callFemometerBle('getReceptionState', { userId });
+export const getFemometerReceptionState = (userId, options = {}) => callFemometerBle('getReceptionState', { userId, diagnosticOnly: options.diagnosticOnly === true });
 export const getPendingFemometerTemperatures = userId => callFemometerBle('getPendingTemperatures', { userId });
 export const acknowledgeFemometerTemperature = (userId, deviceKey, deliveryId) =>
   callFemometerBle('acknowledgeTemperature', { userId, deviceKey, deliveryId });
