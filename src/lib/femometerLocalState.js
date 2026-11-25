@@ -75,7 +75,7 @@ export const createFemometerLocalState = (storage, userId, metadata = null) => {
 };
 
 export const updateFemometerClockHistory = (previous, observation) => {
-  if (observation.errorCode === 'CLOCK_SNAPSHOT_STALE') return { ...previous, pendingCheck: null, staleCheck: observation };
+  if (observation.snapshot || observation.errorCode === 'CLOCK_SNAPSHOT_STALE') return { ...previous, pendingCheck: null, staleCheck: observation };
   if (observation.errorCode === 'CLOCK_PENDING') return { ...previous, pendingCheck: observation,
     lastIncidentAt: previous?.pendingCheck?.checkedAt ?? previous?.lastIncidentAt ?? null };
   const valid = !observation.errorCode && !observation.phoneZoneChanged && Number.isFinite(observation.driftSeconds);
@@ -90,12 +90,18 @@ export const updateFemometerClockHistory = (previous, observation) => {
   // A redundant verified write must not erase an already established clock interval.
   // A correction, incident, zone change or invalidation always starts a new one.
   const priorSync = previous?.confidenceStart ?? previous?.lastVerifiedSync;
-  const continues = priorSync?.continuityTracked === true && previous?.state === 'read_correct'
-    && last?.operation === 'read' && last.checkedAt > priorSync.checkedAt && !incident && !previous?.invalidatedAt
-    && !previous?.staleCheck && (previous?.lastIncidentAt ?? 0) <= priorSync.checkedAt
+  const continues = priorSync?.continuityTracked === true && !incident && !previous?.invalidatedAt
+    && (previous?.lastIncidentAt ?? 0) <= priorSync.checkedAt
     && (previous?.lastSignificantChange?.checkedAt ?? 0) <= priorSync.checkedAt;
+  // An attributed initial read is operational evidence for today's/yesterday's
+  // takes too. A later good read cannot erase an observed clock incident.
+  const initialRead = state === 'read_correct' && observation.operation === 'read'
+    && observation.deviceKey && Number.isFinite(observation.connectedAt)
+    && observation.checkedAt >= observation.connectedAt && !priorSync
+    && !previous?.lastIncidentAt && !previous?.invalidatedAt && !incident;
   return { ...previous, confidenceStart: syncVerified
-      ? (continues ? priorSync : { ...observation, continuityTracked: true }) : previous?.confidenceStart ?? null,
+      ? (continues ? priorSync : { ...observation, continuityTracked: true })
+      : initialRead ? { ...observation, continuityTracked: true } : previous?.confidenceStart ?? null,
     state, historyVersion: 2, pendingCheck: null, staleCheck: null, lastCheck: observation,
     invalidatedAt: syncVerified ? null : previous?.invalidatedAt ?? null,
     lastIncidentAt: incident ? Math.max(observation.checkedAt, previous?.lastIncidentAt ?? 0) : previous?.lastIncidentAt ?? null,

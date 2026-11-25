@@ -74,6 +74,7 @@ export const createFemometerSessionManager = (api) => {
     let disconnectJob;
     let recoveryTimer, recoveryJob, recoveryEnabled = false, recoveryAttempts = 0, recoveryBlocked = false;
     let connectionClockSample = null;
+    let initialConnectionClockSample = null;
     let restoredWithoutClockEvidence = false;
     let automaticMode = false, foregroundRecoveryPending = false, recoveryWakeQueued = false;
     const schedule = api.setTimeout ?? globalThis.setTimeout;
@@ -242,7 +243,7 @@ export const createFemometerSessionManager = (api) => {
       }
       if (!thermometerCapabilities(result?.capabilities).temperatureReceive) throw { code: 'DEVICE_NOT_VERIFIED', message: 'El perfil de este termómetro no está validado.' };
       foregroundRecoveryPending = false;
-      clearRecovery(); connectionClockSample = null;
+      clearRecovery(); connectionClockSample = null; initialConnectionClockSample = null;
       restoredWithoutClockEvidence = false;
       const configure = result.capabilities?.protocol === 'vinca2';
       publish({ recoveryReason: 'connected', status: 'listening', configurationBusy: configure, listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
@@ -296,23 +297,30 @@ export const createFemometerSessionManager = (api) => {
         return sync ? api.syncFemometerClock() : api.readFemometerClock();
       }).then(result => {
         if (current()) {
+          if (result?.deviceKey && result.deviceKey !== state.deviceKey) throw Object.assign(new Error('Clock device mismatch'), { code: 'CLOCK_DEVICE_MISMATCH' });
           // Some Vinca firmware returns a connection-time snapshot. Do not turn
           // its age into a clock incident or rewrite a correct clock.
-          if (!sync && connectionClockSample && connectionClockSample.deviceLocalTime === result?.deviceLocalTime
-            && now() - connectionClockSample.checkedAt > 5000) {
-            publish({ clockResult: null, clockError: { code: 'CLOCK_SNAPSHOT_STALE', operation: 'read',
-              deviceKey: state.deviceKey, checkedAt: now(), message: 'El termómetro devuelve una hora fija en esta conexión. No se puede verificar de nuevo aquí. Revisa la temperatura pendiente; cuando hayas terminado todas las mediciones, puedes reconectar para comprobar el reloj.' } });
+          const snapshot = !sync && [initialConnectionClockSample, connectionClockSample].find(sample => sample
+            && sample.deviceLocalTime === result?.deviceLocalTime
+            && sample.phoneTimeZone === Intl.DateTimeFormat().resolvedOptions().timeZone
+            && sample.phoneUtcOffsetMinutes === -new Date(now()).getTimezoneOffset());
+          if (snapshot) {
+            publish({ clockResult: { ...snapshot, snapshot: true }, clockError: null });
             return;
           }
           const driftSeconds = femometerClockDriftSeconds(result?.deviceLocalTime, now());
-          if (sync || connectionClockSample?.deviceLocalTime !== result?.deviceLocalTime) connectionClockSample = { deviceLocalTime: result?.deviceLocalTime, checkedAt: now() };
           const phone = new Date(now());
           const pad = value => String(value).padStart(2, '0');
           const phoneLocalTime = `${phone.getFullYear()}-${pad(phone.getMonth() + 1)}-${pad(phone.getDate())}T${pad(phone.getHours())}:${pad(phone.getMinutes())}:${pad(phone.getSeconds())}`;
-          publish({ clockResult: { ...result, verified: sync && result?.verified === true && result?.phoneZoneChanged !== true && driftSeconds !== null && Math.abs(driftSeconds) <= FEMOMETER_CLOCK_TOLERANCE_SECONDS, operation: sync ? 'sync' : 'read', driftSeconds,
+          const observation = { ...result, deviceKey: state.deviceKey, connectedAt: restoredWithoutClockEvidence ? null : state.listenerResult?.connectedAt ?? null,
+            phoneTimeZone: result?.phoneTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+            phoneUtcOffsetMinutes: result?.phoneUtcOffsetMinutes ?? -new Date(now()).getTimezoneOffset(), verified: sync && result?.verified === true && result?.phoneZoneChanged !== true && driftSeconds !== null && Math.abs(driftSeconds) <= FEMOMETER_CLOCK_TOLERANCE_SECONDS, operation: sync ? 'sync' : 'read', driftSeconds,
             checkedAt: result?.checkedAt ?? now(),
             phoneLocalTime,
-            significantDrift: driftSeconds !== null && Math.abs(driftSeconds) > FEMOMETER_CLOCK_TOLERANCE_SECONDS } });
+            significantDrift: driftSeconds !== null && Math.abs(driftSeconds) > FEMOMETER_CLOCK_TOLERANCE_SECONDS };
+          if (!initialConnectionClockSample && !sync && driftSeconds !== null) initialConnectionClockSample = observation;
+          connectionClockSample = observation;
+          publish({ clockResult: observation });
         }
       }).catch(error => {
         if (current()) publish({ gattReconnectRequired: state.gattReconnectRequired || requiresReconnect(error?.code), clockError: { ...error, message: error.message, operation: sync ? 'sync' : 'read',
@@ -454,14 +462,10 @@ export const createFemometerSessionManager = (api) => {
         if (!safe()) return;
         if (state.capabilities.clockRead) {
           await clock(false, true);
-          const history = localState?.clock?.(state.deviceKey);
-          const sync = history?.lastVerifiedSync;
-          const needsReference = automaticMode && (sync?.continuityTracked !== true || sync?.verified !== true || !Number.isFinite(sync?.checkedAt)
-            || history?.invalidatedAt || history?.lastIncidentAt > sync.checkedAt);
           const invalidDate = state.clockError?.code === 'CLOCK_INVALID_DATE'
             || (!state.clockError && state.clockResult?.driftSeconds === null);
           if (safe() && state.listenerResult?.captureObserveClock !== true && state.capabilities.clockSync
-            && (invalidDate || (!state.clockError && (needsReference || Math.abs(state.clockResult?.driftSeconds ?? 0) > FEMOMETER_AUTO_CLOCK_SYNC_SECONDS)))) {
+            && (invalidDate || (!state.clockError && (Math.abs(state.clockResult?.driftSeconds ?? 0) > FEMOMETER_AUTO_CLOCK_SYNC_SECONDS)))) {
             publish({ automationClockMessage: 'Preparando el reloj automáticamente. Esta referencia servirá para las próximas mediciones.' });
             // Exactly one attempt per connection. Native sync includes a read-back.
             await clock(true, true);
@@ -548,8 +552,11 @@ export const createFemometerSessionManager = (api) => {
               // snapshot as a new reference just because JS memory was lost.
               const sample = localState?.clock(saved.deviceKey)?.lastValidCheck;
               const sameSession = sample?.deviceLocalTime && Number.isFinite(native.listenerResult?.connectedAt)
-                && sample.checkedAt >= native.listenerResult.connectedAt;
+                && sample.connectedAt === native.listenerResult.connectedAt && sample.deviceKey === saved.deviceKey;
               connectionClockSample = sameSession ? sample : null;
+              const reference = localState?.clock(saved.deviceKey)?.confidenceStart;
+              initialConnectionClockSample = sameSession && reference?.connectedAt === sample.connectedAt
+                && reference.deviceKey === saved.deviceKey && reference.operation === 'read' ? reference : connectionClockSample;
               restoredWithoutClockEvidence = !sameSession;
             }
             acquired = true; started = true;

@@ -136,6 +136,7 @@ if (hasNewPending) {
           lastClockObservation = observation;
           if (observation.deviceKey && observation.deviceKey === next.listenerResult?.deviceKey) {
             localRef.current?.saveClock(observation.deviceKey, {
+              deviceKey: observation.deviceKey, connectedAt: observation.connectedAt, snapshot: observation.snapshot === true,
               operation: observation.operation, checkedAt: observation.checkedAt, verified: observation.verified === true,
               writeAccepted: observation.writeAccepted === true, driftSeconds: observation.driftSeconds ?? null,
               deviceLocalTime: observation.deviceLocalTime ?? null, phoneTimeZone: observation.phoneTimeZone ?? null,
@@ -302,17 +303,17 @@ if (hasNewPending) {
       await (owner.checkAutomaticClock?.() ?? owner.readClock());
       valid();
       const latest = sessionStateRef.current;
-      if (latest.clockBusy || latest.clockError || latest.clockResult?.checkedAt !== localRef.current?.clock(row.deviceKey)?.lastValidCheck?.checkedAt) {
-        throw Object.assign(new Error(latest.clockError?.code === 'CLOCK_SNAPSHOT_STALE'
-          ? 'El termómetro devuelve una hora fija en esta conexión. No podemos verificar esta toma: revisa su fecha y hora. La recepción sigue activa.'
-          : 'No se pudo comprobar el reloj después de la toma. La temperatura está conservada: revisa su fecha y hora y reintenta la comprobación del reloj.'), { code: 'ble-auto-review' });
+      if (latest.clockBusy || latest.clockError || (!latest.clockResult?.snapshot && latest.clockResult?.checkedAt !== localRef.current?.clock(row.deviceKey)?.lastValidCheck?.checkedAt)) {
+        throw Object.assign(new Error('No se pudo comprobar el reloj. La temperatura está conservada para revisar su fecha y hora.'), { code: 'ble-auto-review' });
       }
-      const context = { userId, cycleId: cycle.currentCycle.id, deviceKey: row.deviceKey,
+      const context = { userId, cycleId: cycle.currentCycle.id, deviceKey: row.deviceKey, connectedAt: latest.listenerResult?.connectedAt ?? null,
         incorporationMode: 'automatic', automaticConsent: 'v2', nowMs: Date.now(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, clockHistory: localRef.current?.clock(row.deviceKey),
+        get timeZone() { return Intl.DateTimeFormat().resolvedOptions().timeZone; },
+        get phoneUtcOffsetMinutes() { return -new Date().getTimezoneOffset(); }, get clockHistory() { return localRef.current?.clock(row.deviceKey); },
         assertCurrent: () => {
           valid();
-          prepareAutomaticBleDraft(row.normalized, { ...context, nowMs: Date.now(), clockHistory: localRef.current?.clock(row.deviceKey) });
+          if (sessionStateRef.current.listenerResult !== latest.listenerResult) throw Object.assign(new Error('La conexión ha cambiado.'), { code: 'ble-auto-review' });
+          prepareAutomaticBleDraft(row.normalized, { ...context, nowMs: Date.now(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, clockHistory: localRef.current?.clock(row.deviceKey) });
         } };
       const draft = prepareAutomaticBleDraft(row.normalized, context);
       const attempt = { id: crypto.randomUUID(), userId, cycleId: draft.cycleId, isoDate: draft.isoDate, time: draft.measurements[0].time };

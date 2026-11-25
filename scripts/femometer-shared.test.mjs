@@ -150,7 +150,7 @@ const bridge = () => {
       deviceKey = 'bound-' + user;
       calls.connections++;
       if (flags.listenerWait) await flags.listenerWait.promise;
-      return { deviceKey, connectionReady: flags.listenerReady !== false, indicationsActive: flags.indicationsActive !== false, timeoutSeconds: 360,
+      return { deviceKey, connectedAt: flags.now, connectionReady: flags.listenerReady !== false, indicationsActive: flags.indicationsActive !== false, timeoutSeconds: 360,
         capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible', clockRead: true, clockSync: true, volumeWrite: flags.volumeSupported !== false, modeConfiguration: flags.measurementModeSupported !== false } };
     },
     disconnectFemometer: async () => { calls.disconnects++; if (flags.disconnectWait) await flags.disconnectWait.promise; },
@@ -3360,7 +3360,7 @@ test('B: calendar policy accepts yesterday with tracked operational clock confid
   for (const patch of [{ phoneTimeZone: 'UTC' }, { phoneUtcOffsetMinutes: 120 }])
     assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: { ...check, ...patch } } }), 'clock-time-zone-changed');
   assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, invalidatedAt: nowMs - 1 } }), 'clock-trust-interrupted');
-  assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: sync } }), 'clock-check-not-after-measurement');
+  assert.equal(reason('2026-11-20T08:00:00', { clockHistory: { ...clockHistory, lastValidCheck: sync } }), 'operational-clock-confidence');
   assert.equal(reason('2026-11-20T08:00:00', { deviceKey: 'other' }), 'device-identity-unavailable');
   assert.throws(() => prepareAutomaticBleDraft(reading('2026-11-20T08:00:00'), { ...context, clockHistory }), error => error.code === 'ble-auto-review');
   const draft = prepareAutomaticBleDraft(reading('2026-11-20T08:00:00'), { ...context, clockHistory, userId: 'u', cycleId: 'c', incorporationMode: 'automatic', automaticConsent: 'v2' });
@@ -3558,26 +3558,26 @@ test('automatic consent prepares a verified clock reference and preserves it on 
   const owner = await mountedOwner(native, 'a', undefined, metadata);
   try {
     for (let i = 0; i < 3; i++) { owner.render(); await flush(); }
-    assert.equal(native.calls.sync, 1);
-    const syncAt = owner.render().clockHistory.lastVerifiedSync.checkedAt;
+    assert.equal(native.calls.sync, 0);
+    const syncAt = owner.render().clockHistory.confidenceStart.checkedAt;
     native.flags.now += 60000;
     native.emit({ status: 'disconnected' }); await flush();
     await owner.background(); await owner.background(); await owner.foreground();
     await owner.render().sessionRef.current.start(); owner.render();
-    assert.equal(native.calls.sync, 1);
-    assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, syncAt);
+    assert.equal(native.calls.sync, 0);
+    assert.equal(owner.render().clockHistory.confidenceStart.checkedAt, syncAt);
     assert.ok(owner.render().clockHistory.lastValidCheck.checkedAt > syncAt);
     native.api.readFemometerClock = async () => { throw { code: 'CLOCK_INVALID_DATE' }; };
     native.flags.now += 60000;
     native.emit({ status: 'disconnected' }); await flush();
     await owner.background(); await owner.background(); await owner.foreground();
     await owner.render().sessionRef.current.start(); owner.render();
-    assert.equal(native.calls.sync, 2);
+    assert.equal(native.calls.sync, 1);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, native.flags.now);
   } finally { owner.cleanup(); await flush(); }
 });
 
-test('a fixed connection clock requires review without interrupting reception or writing time', async () => {
+test('a fixed connection clock preserves confidence without interrupting reception or writing time', async () => {
   const native = bridge(); native.flags.now = Date.now();
   let snapshot = native.flags.now;
   const listen = native.api.startFemometerTemperatureListener;
@@ -3589,11 +3589,13 @@ test('a fixed connection clock requires review without interrupting reception or
     native.flags.now += 180000;
     const session = owner.render().sessionRef.current;
     await session.readClock();
-    assert.equal(owner.render().sessionState.clockError.code, 'CLOCK_SNAPSHOT_STALE');
+    assert.equal(owner.render().sessionState.clockError, null);
+    assert.equal(owner.render().sessionState.clockResult.snapshot, true);
     assert.equal(owner.render().clockHistory.lastIncidentAt, null);
     await session.checkAutomaticClock();
     assert.equal(native.calls.connections, 1); assert.equal(native.calls.sync, 0);
-    assert.equal(owner.render().sessionState.clockError.code, 'CLOCK_SNAPSHOT_STALE');
+    assert.equal(owner.render().sessionState.clockError, null);
+    assert.equal(owner.render().sessionState.clockResult.snapshot, true);
     assert.ok(owner.render().clockHistory.staleCheck);
     // Only a natural loss creates a new connection; never interrupt reception for CTS.
     native.emit({ status: 'disconnected' }); await flush();
@@ -4067,7 +4069,7 @@ test('BLE-10: restored GATT cannot invent clock confidence or forget a fixed sam
   for (const hasEvidence of [false, true]) {
     const native = bridge(); native.flags.now = 120000; let state;
     const local = createFemometerLocalState(native.storage, 'a'); local.activate('bound-a');
-    if (hasEvidence) local.saveClock('bound-a', { operation: 'read', checkedAt: 10000, deviceLocalTime: '2026-11-25T07:30:00', driftSeconds: 0 });
+    if (hasEvidence) local.saveClock('bound-a', { deviceKey: 'bound-a', connectedAt: 5000, phoneTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, phoneUtcOffsetMinutes: -new Date(120000).getTimezoneOffset(), operation: 'read', checkedAt: 10000, deviceLocalTime: '2026-11-25T07:30:00', driftSeconds: 0 });
     native.api.getFemometerReceptionState = async () => ({ visible: true, connectionReady: true, deviceKey: 'bound-a',
       listenerResult: { connectedAt: 5000, connectionReady: true, indicationsActive: true, deviceKey: 'bound-a',
         capabilities: { protocol: 'vinca2', compatibility: 'compatible', model: 'BM-Vinca2', clockRead: true } } });
@@ -4077,8 +4079,91 @@ test('BLE-10: restored GATT cannot invent clock confidence or forget a fixed sam
     try {
       await session.reconcileNative(true);
       if (!hasEvidence) await assert.rejects(session.checkAutomaticClock(), { code: 'ble-auto-review' });
-      else { await session.checkAutomaticClock(); assert.equal(state.clockError.code, 'CLOCK_SNAPSHOT_STALE'); }
+      else { await session.checkAutomaticClock(); assert.equal(state.clockError, null); assert.equal(state.clockResult.snapshot, true); }
       assert.equal(native.calls.connections, 0); assert.equal(native.calls.sync, 0);
     } finally { await session.dispose(); }
+  }
+});
+
+
+test('BLE-12: initial attributed clock accepts both physical takes and delayed calendar days', async () => {
+  const { assessVinca2AutomaticDate } = await import('../src/lib/bleMeasurements.js');
+  const at = value => Date.parse(`${value}+01:00`);
+  const initial = { deviceKey: 'v', connectedAt: at('2026-11-25T22:59:50'), checkedAt: at('2026-11-25T22:59:50'),
+    operation: 'read', driftSeconds: -6, deviceLocalTime: '2026-11-25T22:59:44', phoneTimeZone: 'Europe/Madrid', phoneUtcOffsetMinutes: 60 };
+  const history = updateFemometerClockHistory(null, initial);
+  const fixed = updateFemometerClockHistory(history, { ...initial, snapshot: true });
+  const decide = (date, clockHistory = fixed, nowMs = at('2026-11-25T23:03:08'), extra = {}) => assessVinca2AutomaticDate(
+    normalizeBleMeasurement({ temperatureC: date.endsWith('22:58:31') ? 35.94 : 36.10, deviceTimestamp: date,
+      deviceModel: 'BM-Vinca2', deviceProtocol: 'vinca2', deviceKey: 'v', receptionValidated: true }),
+    { deviceKey: 'v', connectedAt: initial.connectedAt, timeZone: 'Europe/Madrid', nowMs, clockHistory, ...extra });
+  for (const date of ['2026-11-25T22:58:31', '2026-11-25T23:01:13']) assert.equal(decide(date).status, 'ready');
+  const evening = { ...initial, connectedAt: at('2026-11-25T21:00:00'), checkedAt: at('2026-11-25T21:00:00') };
+  for (const date of ['2026-11-25T07:00:00', '2026-11-24T07:00:00'])
+    assert.equal(decide(date, updateFemometerClockHistory(null, evening), evening.checkedAt, { connectedAt: evening.connectedAt }).status, 'ready');
+  const redundant = updateFemometerClockHistory(fixed, { ...initial, operation: 'sync', verified: true, checkedAt: at('2026-11-25T23:00:00'), driftSeconds: 0 });
+  assert.equal(redundant.confidenceStart.checkedAt, initial.checkedAt);
+  assert.equal(decide('2026-11-25T22:58:31', redundant).status, 'ready');
+  const bad = updateFemometerClockHistory(null, { ...initial, driftSeconds: -3600 });
+  const corrected = updateFemometerClockHistory(bad, { ...initial, operation: 'sync', verified: true, checkedAt: at('2026-11-25T23:00:00'), driftSeconds: 0 });
+  assert.equal(decide('2026-11-25T22:58:31', corrected).reason, 'measurement-before-clock-sync');
+  for (const patch of [{ connectedAt: null }, { deviceKey: 'other' }])
+    assert.equal(decide('2026-11-25T22:58:31', updateFemometerClockHistory(null, { ...initial, ...patch })).status, 'review');
+  assert.equal(decide('2026-11-25T22:58:31', null).status, 'review');
+  assert.equal(decide('2026-11-25T22:58:31', fixed, undefined, { connectedAt: initial.connectedAt + 1 }).status, 'review');
+  for (const date of ['2026-11-26T07:00:00', '2026-11-23T07:00:00', '2026-11-31T07:00:00']) assert.equal(decide(date).status, 'review');
+  for (const errorCode of ['CLOCK_FAILED', 'CLOCK_PENDING'])
+    assert.equal(decide('2026-11-25T22:58:31', updateFemometerClockHistory(fixed, { ...initial, checkedAt: initial.checkedAt + 1, errorCode })).status, 'review');
+  assert.equal(decide('2026-11-25T22:58:31', fixed, undefined, { timeZone: 'UTC' }).status, 'review');
+});
+
+
+test('BLE-12: fixed initial clock survives redundant sync, saves once, and rechecks live trust', async () => {
+  for (const invalidate of [false, true]) {
+    const native = bridge(); const connected = Date.now() - 240000; native.flags.now = connected;
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const sample = at => ({ deviceKey: 'bound-a', checkedAt: native.flags.now, deviceLocalTime: localText(at),
+      phoneTimeZone: zone, phoneUtcOffsetMinutes: -new Date(at).getTimezoneOffset() });
+    native.api.readFemometerClock = async () => sample(connected - 6000);
+    native.api.syncFemometerClock = async () => ({ ...sample(native.flags.now), verified: true });
+    const preference = { incorporationMode: 'automatic', automaticConsent: 'v2' };
+    const metadata = { devices: { 'bound-a': preference }, get: () => preference, patch: () => {} };
+    let owner, saves = 0;
+    const cycle = { currentCycle: { id: 'c' }, isLoading: false, incorporateBleMeasurement: async (draft, { automaticContext }) => {
+      automaticContext.assertCurrent();
+      if (invalidate) {
+        native.flags.now++;
+        native.api.readFemometerClock = async () => { throw { code: 'CLOCK_READ_TIMEOUT' }; };
+        await owner.render().sessionRef.current.readClock();
+        assert.throws(() => automaticContext.assertCurrent(), { code: 'ble-auto-review' });
+        const { prepareAutomaticBleDraft } = await import('../src/lib/bleMeasurements.js');
+        assert.throws(() => prepareAutomaticBleDraft(draft.measurements[0], automaticContext), { code: 'ble-auto-review' });
+        throw Object.assign(new Error('clock invalidated before write'), { code: 'ble-auto-review' });
+      }
+      saves++;
+      return { isoDate: draft.isoDate, measurements: draft.measurements };
+    } };
+    owner = await mountedOwner(native, 'a', cycle, metadata);
+    try {
+      native.flags.now += 10000;
+      await owner.render().sessionRef.current.syncClock();
+      native.flags.now = Date.now();
+      const first = { temperatureC: 35.94, deviceTimestamp: localText(connected - 79000), deviceProtocol: 'vinca2', receptionValidated: true };
+      native.emit(first);
+      for (let i = 0; i < 8; i++) { owner.render(); await flush(); }
+      assert.equal(saves, invalidate ? 0 : 1);
+      assert.equal(owner.render().readings[0].importStatus, invalidate ? 'pending' : 'incorporated');
+      if (!invalidate) {
+        native.emit({ ...first, temperatureC: 36.10, deviceTimestamp: localText(connected + 83000) });
+        for (let i = 0; i < 8; i++) { owner.render(); await flush(); }
+        assert.equal(saves, 2);
+        assert.equal(owner.render().sessionState.clockError, null);
+        assert.equal(owner.render().clockHistory.confidenceStart.checkedAt, connected);
+      }
+      native.emit(first);
+      for (let i = 0; i < 8; i++) { owner.render(); await flush(); }
+      assert.equal(saves, invalidate ? 0 : 2);
+      assert.equal(native.calls.connections, 1);
+    } finally { owner.cleanup(); await flush(); }
   }
 });

@@ -106,7 +106,7 @@ export const classifyBleMeasurementAge = (measurement, { nowMs, timeZone, calend
 };
 
 // Operational confidence requires a history that retains clock incidents.
-export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZone, clockHistory } = {}) => {
+export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZone, clockHistory, connectedAt, phoneUtcOffsetMinutes } = {}) => {
   const review = reason => ({ status: 'review', reason });
   if (measurement?.device_protocol !== 'vinca2' || measurement.device_model !== 'BM-Vinca2'
     || measurement.reception_validated !== true || !deviceKey || measurement.device_key !== deviceKey) return review('device-identity-unavailable');
@@ -114,15 +114,18 @@ export const assessVinca2AutomaticDate = (measurement, { deviceKey, nowMs, timeZ
   const age = classifyBleMeasurementAge(measurement, { nowMs, timeZone, calendarDays: true });
   if (!age.candidate) return age;
   const sync = clockHistory?.confidenceStart ?? clockHistory?.lastVerifiedSync, check = clockHistory?.lastValidCheck;
-  if (clockHistory?.historyVersion !== 2 || sync?.continuityTracked !== true || sync?.operation !== 'sync' || sync.verified !== true || !Number.isFinite(sync.checkedAt)
+  if (clockHistory?.historyVersion !== 2 || sync?.continuityTracked !== true || !(['read', 'sync'].includes(sync?.operation)) || (sync.operation === 'sync' && sync.verified !== true) || !Number.isFinite(sync.checkedAt)
     || !Number.isFinite(check?.checkedAt)) return review('clock-history-insufficient');
-  if (sync.checkedAt >= age.epochMs) return review('measurement-before-clock-sync');
-  if (check.checkedAt < age.epochMs || check.checkedAt > nowMs) return review('clock-check-not-after-measurement');
+  if (connectedAt !== undefined && (!Number.isFinite(connectedAt) || check.connectedAt !== connectedAt || check.deviceKey !== deviceKey)) return review('clock-history-insufficient');
+  if (sync.operation === 'read' && (!sync.deviceKey || sync.deviceKey !== deviceKey || !Number.isFinite(sync.connectedAt))) return review('clock-history-insufficient');
+  if (sync.operation === 'sync' && sync.checkedAt >= age.epochMs) return review('measurement-before-clock-sync');
+  if (sync.checkedAt > nowMs || check.checkedAt > nowMs) return review('clock-check-not-after-measurement');
   if (![sync, check].every(value => !value.errorCode && !value.phoneZoneChanged
     && Number.isFinite(value.phoneUtcOffsetMinutes) && Number.isFinite(value.driftSeconds) && Math.abs(value.driftSeconds) <= 120)) return review('clock-misaligned');
   if (sync.phoneTimeZone !== timeZone || check.phoneTimeZone !== timeZone
-    || sync.phoneUtcOffsetMinutes !== check.phoneUtcOffsetMinutes) return review('clock-time-zone-changed');
-  if (clockHistory.staleCheck || clockHistory.pendingCheck || clockHistory.invalidatedAt || clockHistory.lastIncidentAt > sync.checkedAt || clockHistory.lastSignificantChange?.checkedAt > sync.checkedAt
+    || sync.phoneUtcOffsetMinutes !== check.phoneUtcOffsetMinutes
+    || (phoneUtcOffsetMinutes !== undefined && phoneUtcOffsetMinutes !== check.phoneUtcOffsetMinutes)) return review('clock-time-zone-changed');
+  if (clockHistory.pendingCheck || clockHistory.invalidatedAt || clockHistory.lastIncidentAt > sync.checkedAt || clockHistory.lastSignificantChange?.checkedAt > sync.checkedAt
     || !['read_correct', 'synchronized_verified'].includes(clockHistory.state)) return review('clock-trust-interrupted');
   return { status: 'ready', reason: 'operational-clock-confidence', epochMs: age.epochMs };
 };
