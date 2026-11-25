@@ -1,4 +1,9 @@
-import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
+import {
+  measurementPayloadForRecord,
+  loadRecordMeasurements,
+  measurementsFromRecord,
+  hasMeasurementTemperature,
+} from '@/lib/temperatureMeasurements';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
@@ -7,6 +12,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Baby,
+  Thermometer,
+  Droplets,
+  Circle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
@@ -46,6 +54,7 @@ import {
 const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
 
 const CycleOverviewCard = ({
+  centralSavePulse = 0,
   onLoadMeasurements,
   onSaveMeasurements,
   onSaveMucus,
@@ -103,8 +112,64 @@ const suppressDotClickRef = useRef(false);
 const recentSignaturesRef = useRef(new Map());
   const splashTimeoutRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
+  const [visibleSavePulse, setVisibleSavePulse] = useState(null);
+const seenSavePulseRef = useRef(centralSavePulse);
+
+useEffect(() => {
+  if (prefersReducedMotion) {
+    seenSavePulseRef.current = centralSavePulse;
+    setVisibleSavePulse(null);
+    return;
+  }
+
+  if (
+    !centralSavePulse ||
+    centralSavePulse === seenSavePulseRef.current ||
+    isDetailInteractionModalOpen
+  ) {
+    return;
+  }
+
+  seenSavePulseRef.current = centralSavePulse;
+  setVisibleSavePulse(centralSavePulse);
+}, [
+  centralSavePulse,
+  prefersReducedMotion,
+  isDetailInteractionModalOpen,
+]);
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
   const today = startOfDay(new Date());
+  const todayIsoDate = format(today, 'yyyy-MM-dd');
+
+const todayRecord = records.find(
+  (record) =>
+    record?.isoDate === todayIsoDate &&
+    record?.id &&
+    !String(record.id).startsWith('placeholder-')
+) ?? null;
+
+const hasTodayTemperature =
+  measurementsFromRecord(todayRecord).length > 0;
+
+const hasTodaySensation = Boolean(
+  String(
+    todayRecord?.mucusSensation ??
+    todayRecord?.mucus_sensation ??
+    ''
+  ).trim()
+);
+
+const hasTodayAppearance = Boolean(
+  String(
+    todayRecord?.mucusAppearance ??
+    todayRecord?.mucus_appearance ??
+    ''
+  ).trim()
+);
+
+const centralActionLabel = todayRecord
+  ? 'Editar registro'
+  : 'Añadir registro';
   const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
   const resolvedActivePoint = useMemo(() => {
   if (!activePoint?.isoDate) return null;
@@ -474,9 +539,6 @@ const EMPTY_DAY_COLORS = {
   glow: 'rgba(212, 194, 206, 0.16)',
   border: '#c1b6bd',
 };
-
-
-
 
   const createProgressDots = () => {
     return Array.from({ length: totalDots }, (_, index) => {
@@ -1244,15 +1306,6 @@ const handleRingPointerCancel = useCallback(
                   <rect width="6" height="6" fill="#fb7185" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
-              <radialGradient id="ringGlow" cx="50%" cy="50%" r="78%" fx="30%" fy="20%">
-                <stop offset="0%" stopColor="#FFE7E8" stopOpacity="0.98" />
-                <stop offset="60%" stopColor="#FFC0C1" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#FFB5B3" stopOpacity="0.95" />
-              </radialGradient>
-                <filter id="circleDepthShadow">
-                  <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="rgba(221,86,101,0.22)" floodOpacity="1" />
-                  <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="rgba(221,86,101,0.18)" floodOpacity="1" />
-                </filter>
                 <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
                 <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
               </filter>
@@ -1277,16 +1330,7 @@ const handleRingPointerCancel = useCallback(
                   </defs>
 
               {/* Círculo base sutil */}
-              <circle
-  cx={center}
-  cy={center}
-  r={radius - 28}
-  fill="url(#ringGlow)"
-  stroke="rgba(255,225,228,0.8)"
-  strokeWidth={1.2}
-  filter="url(#circleDepthShadow)"
-  pointerEvents="none"
-/>
+
               <circle
   cx={center}
   cy={center}
@@ -1590,54 +1634,171 @@ if (dot.peakStatus === 'P') {
             
             </svg>
             
-            {/* Contenido central */}
-            {/* Contenido central */}
-<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-  <motion.div
-    className="flex flex-col items-center gap-1.5"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{
-      duration: 0.1,
-      delay: 0.1,
-      ease: 'easeOut',
+            
+{/* Círculo central interactivo */}
+<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+  <div
+    className="pointer-events-none"
+    style={{
+      width: `${((radius - 28) * 2 / viewBoxSize) * 100}%`,
+      height: `${((radius - 28) * 2 / viewBoxSize) * 100}%`,
+      filter: 'drop-shadow(0 6px 16px rgba(190,81,111,0.10))',
     }}
   >
-    <div className="flex items-center justify-center">
-      <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none tabular-nums">
-        {cycleData.currentDay}
-      </p>
-    </div>
-
-    <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-fertiliapp-fuerte">
-      DÍA DEL CICLO
-    </p>
-
-    <motion.button
+    <button
       type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        onAddRecord();
+      aria-label={`${centralActionLabel} de hoy, día ${cycleData.currentDay} del ciclo`}
+onClick={(event) => {
+  event.stopPropagation();
+
+  if (todayRecord) {
+    onEdit(todayRecord);
+  } else {
+    onAddRecord();
+  }
+}}
+      style={{
+        clipPath: 'circle(50%)',
+        touchAction: 'pan-y',
+        background:
+          'radial-gradient(ellipse at 35% 23%, #FFF8FA 0%, #FCE9EF 58%, #F7D9E3 100%)',
+        boxShadow:
+          'inset 0 1px 2px rgba(255,255,255,0.9)',
       }}
-      whileTap={{ scale: 0.96 }}
-      className="
-        pointer-events-auto mt-2
-        inline-flex h-9 items-center justify-center gap-1
-        rounded-full bg-fertiliapp-fuerte px-2
-        text-sm font-semibold text-white
-        shadow-[0_4px_12px_rgba(216,92,112,0.24)]
-        transition-colors hover:brightness-95
-        focus-visible:outline-none
-        focus-visible:ring-2
-        focus-visible:ring-fertiliapp-fuerte
-        focus-visible:ring-offset-2
-      "
+      
+className="
+  pointer-events-auto relative
+  flex h-full w-full flex-col
+  items-center justify-center gap-1.5
+  overflow-hidden rounded-full
+  border border-[#efd0da]
+  p-0
+  text-fertiliapp-fuerte
+  cursor-pointer select-none
+  transition-transform duration-150 ease-out
+  active:scale-95 active:duration-0
+  before:pointer-events-none
+  before:absolute before:inset-0
+  before:rounded-full
+  before:bg-[var(--color-fertiliapp-fuerte)]
+  before:opacity-0
+  active:before:opacity-10
+  motion-reduce:transition-none
+  motion-reduce:active:scale-100
+  focus-visible:outline-none
+  focus-visible:ring-2
+  focus-visible:ring-inset
+  focus-visible:ring-fertiliapp-fuerte
+"
+
     >
-      <Plus className="h-4 w-4" aria-hidden="true" />
-      Añadir registro
-    </motion.button>
-  </motion.div>
+      
+{/* Ondas de confirmación de guardado */}
+{visibleSavePulse !== null && !prefersReducedMotion && (
+  <svg
+    key={visibleSavePulse}
+    viewBox="0 0 216 216"
+    className="pointer-events-none absolute inset-0 h-full w-full"
+    aria-hidden="true"
+  >
+    <motion.circle
+      cx={108}
+      cy={108}
+      fill="none"
+      stroke="#d95676"
+      strokeWidth={1.6}
+      initial={{ r: 8, opacity: 0 }}
+      animate={{
+        r: 120,
+        opacity: [0, 0.42, 0],
+      }}
+      transition={{
+        duration: 1.2,
+        ease: 'easeOut',
+        opacity: {
+          duration: 1.2,
+          times: [0, 0.23, 1],
+        },
+      }}
+    />
+
+    <motion.circle
+      cx={108}
+      cy={108}
+      fill="none"
+      stroke="#e18ca5"
+      strokeWidth={1.2}
+      initial={{ r: 8, opacity: 0 }}
+      animate={{
+        r: 120,
+        opacity: [0, 0.32, 0],
+      }}
+      transition={{
+        duration: 1.05,
+        delay: 0.15,
+        ease: 'easeOut',
+      }}
+      onAnimationComplete={() => {
+        setVisibleSavePulse((current) =>
+          current === visibleSavePulse ? null : current
+        );
+      }}
+    />
+  </svg>
+)}
+
+{/* Número y título del día */}
+<span className="relative z-10 flex translate-y-1.5 flex-col items-center gap-1.5">
+  <span className="text-[clamp(2.75rem,17vw,3.75rem)] font-semibold leading-none tabular-nums">
+    {cycleData.currentDay}
+  </span>
+
+  <span className="text-[13px] font-medium uppercase tracking-wide">
+    DÍA DEL CICLO
+  </span>
+</span>
+
+{/* Indicadores de datos registrados hoy */}
+<span className="relative z-10 flex h-5 shrink-0 translate-y-1.5 items-center justify-center gap-2.5">
+  {hasTodayTemperature && (
+    <Thermometer
+      className="h-4 w-4 text-temp"
+      aria-label="Temperatura registrada"
+    />
+  )}
+
+  {hasTodaySensation && (
+    <Droplets
+      className="h-4 w-4 text-sensacion"
+      aria-label="Sensación registrada"
+    />
+  )}
+
+  {hasTodayAppearance && (
+    <Circle
+      className="h-4 w-4 text-apariencia"
+      aria-label="Apariencia registrada"
+    />
+  )}
+</span>
+
+{/* Acción principal en posición estable */}
+<span className="relative z-10 mt-1 flex h-7 shrink-0 items-center justify-center gap-0.5 text-[13px] font-semibold">
+  <span className="flex h-6 w-6 items-center justify-center 0">
+    {todayRecord ? (
+      <Edit className="h-3.5 w-3.5" aria-hidden="true" />
+    ) : (
+      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+    )}
+  </span>
+
+  {centralActionLabel}
+</span>
+
+    </button>
+  </div>
 </div>
+
 
           </motion.div>
           
@@ -2044,6 +2205,7 @@ const ModernFertilityDashboard = () => {
   ]);
 
   const [showForm, setShowForm] = useState(false);
+  const [centralSavePulse, setCentralSavePulse] = useState(0);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
@@ -2296,6 +2458,39 @@ const handleConfirmDeleteRecord = useCallback(async () => {
 
   try {
     await addOrUpdateDataPoint(data, editingRecord);
+
+const isToday =
+  data.isoDate === format(new Date(), 'yyyy-MM-dd');
+
+const existingRecord = currentCycle?.data?.some(
+  (record) =>
+    record.isoDate === data.isoDate &&
+    record.id &&
+    !String(record.id).startsWith('placeholder-')
+);
+
+const symbol =
+  data.fertility_symbol ?? data.fertilitySymbol;
+
+const hasContent = Boolean(
+  data.measurements?.some(hasMeasurementTemperature) ||
+  String(data.mucusSensation ?? data.mucus_sensation ?? '').trim() ||
+  String(data.mucusAppearance ?? data.mucus_appearance ?? '').trim() ||
+  String(data.observations ?? '').trim() ||
+  (symbol && symbol !== 'none') ||
+  data.had_relations ||
+  data.hadRelations ||
+  data.peak_marker === 'peak'
+);
+
+if (
+  isToday &&
+  !keepFormOpen &&
+  (existingRecord || hasContent)
+) {
+  setCentralSavePulse((previous) => previous + 1);
+}
+
 
     toast({
       title: toastMessage,
@@ -2617,6 +2812,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
           className="flex flex-1 flex-col gap-3"
         >
           <CycleOverviewCard
+  centralSavePulse={centralSavePulse}
   cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
   onEdit={handleEdit}
   onLoadMeasurements={loadDayMeasurements}
