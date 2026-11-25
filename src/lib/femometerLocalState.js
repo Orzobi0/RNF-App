@@ -37,18 +37,23 @@ export const createFemometerLocalState = (storage, userId, metadata = null) => {
       ...row, deviceKey, importStatus: row.importStatus === 'saving' ? 'uncertain' : row.importStatus,
       reviewError: row.importStatus === 'saving' ? { code: 'ble-result-uncertain', message: 'El guardado se interrumpió. Comprueba el día en Mis registros antes de volver a incorporar.' } : row.reviewError,
     }))).sort((a, b) => a.receivedOrder - b.receivedOrder),
-    saveReadings: readings => {
+    hasNativeDelivery: id => Boolean(id && state.nativeDeliveries?.includes(id)),
+    saveReadings: (readings, nativeDeliveryId = null) => {
       const devices = Object.fromEntries(Object.entries(state.devices).map(([id, device]) => [id, { ...device, pending: [] }]));
       for (const row of readings) {
         if (!row.deviceKey || row.importStatus === 'incorporated' || row.importStatus === 'discarded') continue;
         devices[row.deviceKey] ??= { clock: null, pending: [] };
         // Retain only minimal transport provenance, never raw packets or MAC addresses.
-        const { uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC, deviceTimestamp, receivedAt,
+        const { nativeDeliveryId, uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC, deviceTimestamp, receivedAt,
           normalized, transport, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked } = row;
-        devices[row.deviceKey].pending.push({ uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC,
+        devices[row.deviceKey].pending.push({ nativeDeliveryId, uiId, localId, receivedOrder, deviceKey, deviceModel, temperatureC,
           deviceTimestamp, receivedAt, normalized, transport, importStatus, draft, reviewError, dateReview, attempt, automaticEligible, automaticChecked });
       }
-      commit({ ...state, devices });
+      // Receipt and pending row commit together. Receipt survives incorporation:
+      // an interrupted native ACK must never replay a Firestore attempt on reload.
+      const nativeDeliveries = nativeDeliveryId && !state.nativeDeliveries?.includes(nativeDeliveryId)
+        ? [...(state.nativeDeliveries ?? []), nativeDeliveryId] : state.nativeDeliveries ?? [];
+      commit({ ...state, devices, nativeDeliveries });
     },
     activate: deviceKey => {
       if (deviceKey === state.activeDeviceKey) return;

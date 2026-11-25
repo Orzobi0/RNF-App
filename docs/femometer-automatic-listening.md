@@ -1,5 +1,66 @@
 # Recepción automática Vinca 2 — Android Staging
 
+## BLE-10 — implementación local del 25/11/2026; validación física pendiente
+
+Esta sección describe el comportamiento actual y sustituye, para Vinca 2 validado, las referencias antiguas al cierre al suspender. BLE-11 sigue pendiente e independiente. No se ha hecho commit, push, merge ni despliegue.
+
+### Propiedad nativa y ciclo de vida
+
+`FemometerGattSession` es el único propietario de GATT, callbacks, estado de preparación, operaciones y cierre. Usa contexto de aplicación; no hereda de Plugin ni retiene Activity/WebView como propietarias. `FemometerBle` conserva la API Capacitor, el diálogo de permisos y una suscripción de eventos que se desprende al destruir el puente. Las operaciones ya compartían identidad, exclusión y cierre con la recepción: se han trasladado con sus dependencias a este propietario sin reescribir sus secuencias. No se ha cambiado el decodificador (incluido `recoverDate ? 0x78 : 0xf8`), UUID, comandos, operaciones de reloj, EBT-300 o perfil estándar.
+
+`MainActivity.onStart/onStop` comunican visibilidad directamente al propietario nativo. La recepción Vinca preparada inicia `FemometerReceptionService` estando visible, antes de resolver la preparación a React. El servicio nunca escanea ni conecta: mantiene la sesión existente y devuelve `START_NOT_STICKY`. Si no hay sesión Vinca validada, cuenta y vinculación, no se prepara el servicio. Escaneos/conexiones incompletas se cancelan al suspender y las nuevas peticiones se rechazan si la actividad no está visible. Otros perfiles mantienen sus límites anteriores.
+
+Con actividad visible no hay vencimiento de seis minutos. Al primer `onStop`, `VincaBackgroundWindow` fija un plazo de 360.000 ms con `SystemClock.elapsedRealtime()`. Un `PARTIAL_WAKE_LOCK` acotado a 361 segundos mantiene la CPU disponible para procesar callbacks y ejecutar el cierre a los 360 segundos, sin encender la pantalla; el segundo adicional es solo un límite de seguridad de liberación, no amplía la recepción. La tarea programada se cancela al volver y se comprueba también el plazo antes de recibir o recuperar estado. Los eventos repetidos no lo renuevan. Una lectura no lo modifica. Al volver antes del límite se conserva GATT; al volver después se cierra antes de informar del estado. Un nuevo segundo plano obtiene una nueva ventana solo si sigue preparada la misma sesión.
+
+Desconexión, error, Bluetooth apagado, cierre explícito o cambio de cuenta pasan por el cierre existente y detienen servicio/notificación/plazo. Las operaciones pendientes se cancelan por las mismas rutas. Destruir la actividad no destruye una sesión preparada dentro de su ventana. Un cierre forzoso o muerte del proceso termina GATT: no hay reinicio automático; solo sobreviven las lecturas ya escritas. La revocación de permisos puede matar el proceso según Android; no se promete conservar la conexión en ese caso.
+
+Permisos nuevos normales: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE` y `WAKE_LOCK`. Se mantienen los permisos Bluetooth ya existentes; no se solicita `POST_NOTIFICATIONS`, ubicación adicional ni permisos de alarmas exactas. La notificación obligatoria utiliza un canal de importancia baja, sin sonido/vibración, texto «FertiliApp · Recepción Bluetooth activa» y ningún dato clínico. Puede aparecer también con la aplicación visible. Si Android oculta las notificaciones por decisión de la usuaria, el servicio sigue sujeto a la presentación del sistema correspondiente. No hay notificación por lectura. Se conserva minSdk 26 y compile/targetSdk 34.
+
+Referencias oficiales consultadas: [BLE en segundo plano](https://developer.android.com/develop/connectivity/bluetooth/ble/background) y [tipos de servicio Android 14](https://developer.android.com/about/versions/14/changes/fgs-types-required). El servicio no garantiza supervivencia tras muerte del proceso ni elimina límites particulares del fabricante.
+
+### Persistencia y entrega
+
+`FemometerDeliveryQueue` guarda como máximo 256 eventos pendientes en `noBackupFilesDir/vinca-deliveries.json`, almacenamiento privado excluido de copias de seguridad. Usa `AtomicFile`, sincronización del descriptor, sustitución y comprobación de lectura antes de publicar el identificador. Conserva cuenta, clave opaca del dispositivo, campos normalizados de transporte/temperatura y UUID de entrega; no guarda MAC, paquetes crudos ni historial de Firestore. El UUID identifica la entrega local, nunca una medición inequívoca del firmware. Ante cola llena o fallo de escritura no expulsa lecturas anteriores: termina la escucha con error. La lectura cuya escritura falla no se puede prometer conservada.
+
+Se usa el mismo decodificador/filtro `Vinca2Reception`; un paquete idéntico ya filtrado no produce otra entrada. Varias lecturas legítimas conservan entradas individuales. Se persisten también las indicaciones en primer plano para cerrar la carrera entre entrega, suspensión y destrucción de WebView. En segundo plano no se entregan temperaturas a React: esperan en la cola. Java no incorpora en Firebase ni emite éxito clínico.
+
+React se suscribe al evento propio `femometerReceptionState`, consulta `getReceptionState` y recupera `getPendingTemperatures` tras registrar la suscripción o volver. `visibilitychange` solo solicita otra consulta, nunca controla el plazo ni crea conexiones. La cola se recupera aunque GATT haya expirado. El retorno adopta una conexión sana o muestra desconectado; no introduce una estrategia de reconexión BLE-11. La apertura inicial conserva la búsqueda existente cuando no hay conexión nativa que adoptar.
+
+Cada entrega pasa por `normalizeBleMeasurement`, autorización y `decideVinca2Reading`. La fila pendiente y un recibo de entrega se conservan juntos en el documento local de la cuenta; solo entonces se llama `acknowledgeTemperature(userId, deviceKey, deliveryId)`. El recibo contiene únicamente el UUID y sobrevive a incorporación/descarte para que una confirmación nativa perdida no recree la lectura después de reiniciar la interfaz. Estos recibos no son un historial clínico; crecen con las entregas de la cuenta. Un fallo de localStorage no confirma la entrada nativa. Un fallo de ACK deja la entrada recuperable, pero el recibo evita una segunda pendiente incluso si llega simultáneamente por evento y consulta. Se confirma individualmente; ninguna operación borra toda la cola. Otra cuenta no recibe sus filas, y cambiar de dispositivo conserva la clave original para revisión.
+
+La incorporación automática y las comprobaciones de fecha/reloj/Firebase siguen en el flujo habitual. Las lecturas sin comprobación posterior suficiente quedan en revisión, también después de expirar GATT. Al reconstruir una interfaz sobre GATT existente se recupera únicamente una muestra de reloj conservada de esa conexión; si falta, no se permite crear confianza automática nueva por haber perdido memoria JS. Un resultado Firestore incierto no se reintenta y las filas restauradas mantienen la protección anterior.
+
+### Validación técnica y límites
+
+- Compilación directa de todas las fuentes Java de la aplicación y tests contra SDK 34/clases locales Capacitor: correcta. JUnit: **57 pruebas**, incluidas cuatro nuevas del plazo monotónico. No equivale a ejecutar Android ni al ensamblado Gradle.
+- Nuevos casos JavaScript BLE-10: recuperación múltiple y acuse individual, mismo GATT sin nuevos listeners, evento más consulta, fallo de localStorage, ACK perdido/reinicio después de incorporar, cuentas/dispositivos, fecha inválida, Firestore incierto, vencimiento con cola, adopción de GATT al reconstruir UI y respuesta tardía tras suspensión.
+- La suite solicitada también incluye cinco fallos anteriores de presentación: mocks de iconos ausentes (`ClipboardList`, `Clock`) y expectativas antiguas de texto/grid del pie de revisión. Reproducidos con los tests de HEAD sobre los componentes sin modificar. No se cambia el diseño para corregir estos tests ajenos a BLE-10.
+- `npm run check:staging` y `npm run build`: correctos, incluidos hashes/aislamiento.
+- Gradle `testDebugUnitTest assembleDebug`: el intento inicial encontró acceso denegado a la caché externa y se rechazó su elevación. No atribuir a esta revisión la APK antigua del 24/11.
+- ADB inicialmente no veía dispositivos en el sandbox; fuera de él se detecta el Pixel 7 autorizado (API 37). Detectar el teléfono no valida BLE. La APK configurada usa `server.url=https://fertiliapp-staging.web.app`; los assets/build locales no actualizan ese frontend remoto. No se ha desplegado.
+
+### Matriz física pendiente (no validada mediante simulación)
+
+| Casos del encargo | Comprobación en APK real |
+| --- | --- |
+| A1–A3 | Bloquear con Vinca preparado, recibir una y varias tomas; retransmitir el mismo paquete y conservar el filtrado real. |
+| A4–A6 | Sin conexión no arrancar servicio/escaneo; una sola conexión y sin listeners duplicados al bloquear/volver. |
+| A7 | Más de seis minutos visible sin corte, incluidas navegaciones. |
+| B8–B9 | Sin lectura: cierre a 360 s; lectura a 120 s: seguir escuchando hasta 360 s. |
+| B10–B11 | Retorno a 180 s conserva GATT; stops repetidos no renuevan; nuevo bloqueo sí obtiene nueva ventana. |
+| B12–B13 | Desconexión real libera recursos; cambio de hora no mueve el vencimiento. |
+| C14–C19 | WebView suspendida/destruida, retorno temprano/tardío, evento más consulta, error local, reinicio, entregas individuales. Inyectar fallo real de almacenamiento sin destruir los datos previos. |
+| C20–C21 | Cambiar cuenta/dispositivo sin mezclar, interrupción de Firestore conservada como incierta y sin reintento automático. |
+| D22–D24 | Apagar Bluetooth, revocar permisos, finalizar actividad con servicio activo. |
+| D25 | Forzar cierre del proceso: GATT termina, no reinicia; lo ya persistido se recupera al abrir. |
+| D26–D27 | Notificación/cierre y permiso denegado de notificaciones; repetir en Android 8/API 26 y versiones posteriores, además del Pixel conectado. |
+
+**BLE-10 sigue abierto hasta probar la APK y el frontend de esta revisión con el Vinca 2 real.**
+
+---
+
+## Diseño y verificaciones anteriores
+
 La sesión pertenece a la cuenta autenticada y se comparte entre páginas. La búsqueda automática del Vinca 2 vinculado admite hasta 12 segundos y termina al encontrar la identidad correcta; la búsqueda dirigida manual conserva hasta 25 segundos. No se amplía la compatibilidad ni se solicitan permisos automáticamente. Web/PWA y producción mantienen sus barreras actuales.
 
 ## Evidencia y preparación
@@ -19,7 +80,7 @@ Se mantienen la recepción de temperatura final por UUID 0x2A1C, la suscripción
 7. Tras agotar la ventana, encender el termómetro más tarde no provoca nuevos escaneos. «Conectar»/«Reconectar» sigue disponible y conserva el plazo manual. Los eventos repetidos de app activa y la navegación no reinician el presupuesto.
 8. Suspensión, desconexión explícita, cambio de cuenta/vinculación, desvinculación y desmontaje invalidan el trabajo pendiente. Bluetooth/permisos no disponibles y errores no recuperables detienen la recuperación. Si una incorporación u operación GATT bloquea temporalmente el reintento, este queda pendiente hasta liberar el bloqueo, sin consumir intentos ni solapar operaciones. Los diagnósticos de sesión distinguen inicio, reintento, éxito, agotamiento, petición manual, primer plano y cancelación, sin nuevos identificadores sensibles.
 
-Se conservan los timeouts de conexión, descubrimiento, preparación y operaciones GATT. Suspender la app sigue cerrando GATT y cancela los temporizadores; al volver se recupera. No hay servicio de escucha permanente en segundo plano. El apagado/encendido del termómetro requiere validar físicamente los callbacks y la recuperación; no se promete detección instantánea de un apagado sin aviso BLE.
+Se conservan los timeouts de conexión, descubrimiento, preparación y operaciones GATT. Para Vinca 2 preparado, la suspensión utiliza ahora la ventana nativa temporal descrita en BLE-10; no existe escucha permanente en segundo plano. El apagado/encendido del termómetro requiere validar físicamente los callbacks y la recuperación; no se promete detección instantánea de un apagado sin aviso BLE.
 
 ## Trazabilidad y duplicados
 
@@ -107,9 +168,9 @@ En desarrollo (`import.meta.env.DEV`), después de la confirmación, `[BLE autom
 
 La prueba de Firestore simulado con dos ciclos archivados y otro día en el ciclo actual verifica exactamente cuatro consultas de colección por incorporación sin reintentos: ciclos, registros actuales, revalidación de ciclos, mediciones del destino. Verifica además ausencia de lecturas transaccionales de los días ajenos, retransmisión del mismo día, concurrencia y consentimiento. No se han medido tiempos de Firestore real ni se promete una duración de guardado.
 
-## Bloque B — revisión detenida; recepción bloqueada aún no implementada (24/11/2026)
+## Bloque B — análisis histórico del 24/11/2026, sustituido por BLE-10 arriba
 
-El comportamiento actual sigue cerrando la conexión al suspender. No existe todavía ventana nativa de seis minutos, cola nativa duradera ni notificación de recepción temporal. No considerar esta documentación una implementación o validación física de B.
+En la revisión del 24/11, el comportamiento seguía cerrando la conexión al suspender. No existe todavía ventana nativa de seis minutos, cola nativa duradera ni notificación de recepción temporal. No considerar esta documentación una implementación o validación física de B.
 
 El proyecto usa Capacitor 5, minSdk 26 y compile/targetSdk 34. Android documenta el servicio en primer plano `connectedDevice` iniciado mientras la app es visible para conservar una conexión BLE. Requiere `FOREGROUND_SERVICE`, y con target 34 `FOREGROUND_SERVICE_CONNECTED_DEVICE`, además del permiso Bluetooth correspondiente ya concedido. Su notificación obligatoria tendría que aparecer desde su preparación en primer plano; no se puede esconder hasta `handleOnStop`. Referencias: [BLE en segundo plano](https://developer.android.com/develop/connectivity/bluetooth/ble/background) y [tipos de servicio Android 14](https://developer.android.com/about/versions/14/changes/fgs-types-required).
 

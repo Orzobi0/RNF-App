@@ -5,7 +5,7 @@ import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { createContext, useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { clearVinca2Capture, createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
+import { addFemometerReceptionStateListener, clearVinca2Capture, createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { normalizeBleMeasurement, decideVinca2Reading, authorizedBleMeasurement, vinca2DateNeedsReview, recoveredVinca2DateMessage } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
 import BleReadingReview from '@/components/BleReadingReview';
@@ -13,7 +13,6 @@ import { createFemometerLocalState } from '@/lib/femometerLocalState';
 import FemometerReviewCard from '@/components/FemometerReviewCard';
 import { isBleVisualLabEnabled } from '@/lib/bleVisualLab';
 import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
 import { Vinca2AutomationPrompt } from '@/components/Vinca2Automation';
 
 const inactive = { enabled: false, readings: [], pendingCount: 0 };
@@ -84,11 +83,11 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   setReviewVisibleOn(locationKey.current);
   setPendingNoticeVersion(version => version + 1);
 };
-  const updateReadings = (next, requireDurable = false) => {
+  const updateReadings = (next, requireDurable = false, nativeDeliveryId = null) => {
     const previous = readingsRef.current;
     try {
       if (requireDurable && !localRef.current) throw new Error('Almacenamiento local no disponible.');
-      localRef.current?.saveReadings(next);
+      localRef.current?.saveReadings(next, nativeDeliveryId);
     }
     catch (error) {
       setStorageError('No se han podido conservar los pendientes en este dispositivo. No cierres la aplicación.');
@@ -156,6 +155,10 @@ if (hasNewPending) {
       previousStatus = next.status;
     }, event => {
       if (!alive || event?.experimental === true) return;
+      if (event.nativeDeliveryId) {
+        if (event.nativeUserId !== userId || !localRef.current) return;
+        if (localRef.current.hasNativeDelivery(event.nativeDeliveryId)) return { conserved: true };
+      }
       const normalized = normalizeBleMeasurement({ ...event, deviceCustomName: metadataRef.current.get(event.deviceKey).customName ?? null });
       if (normalized?.device_protocol && !authorizedBleMeasurement(normalized)) return;
       if (normalized) {
@@ -169,8 +172,8 @@ if (hasNewPending) {
               nowMs: Date.now(), timeZone: localRef.current?.clock(normalized.device_key)?.lastValidCheck?.phoneTimeZone,
               clockHistory: localRef.current?.clock(normalized.device_key) }),
             uiId: ++sequence, importStatus: 'pending' };
-        try { updateReadings([...readingsRef.current, row], event.promotedVerification === true); }
-        catch (error) { readingsRef.current = [...readingsRef.current, row]; setReadings(readingsRef.current); setReviewVisibleOn(locationKey.current); throw error; }
+        try { updateReadings([...readingsRef.current, row], event.promotedVerification === true || Boolean(event.nativeDeliveryId), event.nativeDeliveryId); }
+        catch (error) { if (event.nativeDeliveryId) throw error; readingsRef.current = [...readingsRef.current, row]; setReadings(readingsRef.current); setReviewVisibleOn(locationKey.current); throw error; }
         if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) {
           setReviewExpanded(false); setReviewReadingId(sequence);
         }
@@ -180,36 +183,36 @@ if (hasNewPending) {
       else if (event?.message) setTemperatureListenerMessage(event.message);
     }, localRef.current);
     sessionRef.current = session;
-    void session.start();
-    let foregroundTimer;
-    // One deferred check lets queued native terminal events run first. This is
-    // not a polling timer; the manager also checks the native listening deadline.
     setLifecycleStatus('registering');
     setLifecycleError(null);
-    // Capture synchronous bridge failures as well as rejected registration promises.
-    const lifecycle = Promise.resolve().then(() => CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      clearTimeout(foregroundTimer);
-      if (alive && !isActive) void session.suspend();
-      if (alive && isActive) foregroundTimer = setTimeout(() => {
-        if (alive) void session.resume();
-      }, 250);
-    })).then(handle => {
-      if (alive) setLifecycleStatus('registered');
+    // MainActivity emits this independently of the App plugin.
+    // Query after registration covers resume before JS startup too.
+    const lifecycle = Promise.resolve().then(() => addFemometerReceptionStateListener(({ visible }) => {
+      if (!alive) return;
+      if (!visible) void session.suspend();
+      else void session.reconcileNative().catch(() => {});
+    })).then(async handle => {
+      if (alive) {
+        setLifecycleStatus('registered');
+        try { await session.reconcileNative(true); }
+        catch (error) { if (alive) setStorageError('No se pudo recuperar el estado o las lecturas Android. Vuelve a abrir la app para reintentarlo.'); }
+      }
       return handle;
     }).catch(error => {
       if (alive) {
         setLifecycleStatus('unavailable');
-        setLifecycleError({
-          code: String(error?.code ?? error?.name ?? 'UNKNOWN'),
-          message: String(error?.message ?? (typeof error === 'string' ? error : 'El puente no proporcionó un motivo.')),
-        });
+        setLifecycleError({ code: String(error?.code ?? 'UNKNOWN'), message: String(error?.message ?? error) });
       }
       return null;
     });
+    const reconcileVisible = () => {
+      if (alive && document.visibilityState === 'visible') void session.reconcileNative().catch(() => {});
+    };
+    document.addEventListener('visibilitychange', reconcileVisible);
     return () => {
       alive = false;
       void clearVinca2Capture().catch(() => {});
-      clearTimeout(foregroundTimer);
+      document.removeEventListener('visibilitychange', reconcileVisible);
       void lifecycle.then(handle => handle?.remove()).catch(() => {});
       sessionRef.current = null;
       automaticBusy.current = false; automaticActiveId.current = null;

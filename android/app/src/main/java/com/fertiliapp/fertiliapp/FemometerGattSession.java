@@ -1,0 +1,1877 @@
+package com.fertiliapp.fertiliapp;
+
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
+import com.getcapacitor.PluginCall;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
+
+final class FemometerGattSession {
+
+    interface Events { void emit(String name, JSObject data); }
+    private static FemometerGattSession instance;
+    static synchronized FemometerGattSession get(Context context) {
+        if (instance == null) instance = new FemometerGattSession(context.getApplicationContext());
+        return instance;
+    }
+    private final Context context;
+    private final FemometerDeliveryQueue queue;
+    private Events events;
+    private boolean visible, serviceRequested;
+    private FemometerReceptionService receptionService;
+    private JSObject readyResult;
+    private final VincaBackgroundWindow backgroundWindow = new VincaBackgroundWindow();
+    private android.os.PowerManager.WakeLock wakeLock;
+    private final Runnable expiry = this::expireIfDue;
+    private FemometerGattSession(Context context) { this.context = context; queue = new FemometerDeliveryQueue(context); }
+    private Context getContext() { return context; }
+    void attach(Events listener) { events = listener; }
+    void detach(Events listener) { if (events == listener) events = null; clearCapture(); }
+    private void notifyListeners(String name, JSObject data) { if (events != null) events.emit(name, data); }
+    private PermissionState getPermissionState(String alias) {
+        String permission = LOCATION_ALIAS.equals(alias) ? Manifest.permission.ACCESS_FINE_LOCATION
+            : BLUETOOTH_SCAN_ALIAS.equals(alias) ? Manifest.permission.BLUETOOTH_SCAN : Manifest.permission.BLUETOOTH_CONNECT;
+        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED ? PermissionState.GRANTED : PermissionState.DENIED;
+    }
+    private boolean backgroundEligible() {
+        return temperatureGatt != null && temperatureReady && temperatureProfileValidated && receptionValidated
+            && !experimentalReception && currentUser != null && temperatureDeviceKey != null;
+    }
+    boolean serviceNeeded() { expireIfDue(); return serviceRequested && backgroundEligible(); }
+    void serviceStarted(FemometerReceptionService service) { receptionService = service; }
+    void serviceDestroyed(FemometerReceptionService service) {
+        if (receptionService != service) return;
+        receptionService = null;
+        serviceFailed();
+    }
+    void serviceFailed() {
+        if (serviceRequested) {
+            notifyTemperatureListenerState("error", "La recepción Android se ha detenido.");
+            stopTemperatureListenerInternal(false, null, null);
+        }
+    }
+    void activityVisible(boolean value) {
+        // Test expiry before cancelling: returning after the deadline cannot revive GATT.
+        expireIfDue();
+        if (visible == value) return;
+        visible = value;
+        if (value) cancelDeadline();
+        else {
+            cancelScan(); rejectPendingConnect("Actividad suspendida.", "CONNECTION_CANCELLED"); closeActiveGatt();
+            if (backgroundEligible() && serviceRequested) {
+                if (backgroundWindow.enter(android.os.SystemClock.elapsedRealtime())) {
+                    android.os.PowerManager power = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                    wakeLock = power.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "FertiliApp:VincaReception");
+                    // Bounded CPU lease: Handler deadlines must run while the screen sleeps.
+                    wakeLock.acquire(VincaBackgroundWindow.DURATION_MS + 1000);
+                    mainHandler.postDelayed(expiry, VincaBackgroundWindow.DURATION_MS);
+                }
+            } else rejectTemperatureStart("Actividad suspendida.", "CONNECTION_CANCELLED");
+        }
+        JSObject state = new JSObject(); state.put("visible", visible);
+        notifyListeners("femometerReceptionState", state);
+    }
+    private void cancelDeadline() {
+        backgroundWindow.cancel(); mainHandler.removeCallbacks(expiry);
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        wakeLock = null;
+    }
+    private void expireIfDue() {
+        if (backgroundWindow.expired(android.os.SystemClock.elapsedRealtime())) {
+            notifyTemperatureListenerState("timeout", "Ha finalizado la recepción en segundo plano.");
+            stopTemperatureListenerInternal(false, null, null);
+        }
+    }
+    public void getReceptionState(PluginCall call) {
+        String user = requireUser(call); if (user == null) return;
+        expireIfDue();
+        if (temperatureGatt != null && getBlockedOperationCode() != null) serviceFailed();
+        JSObject state = new JSObject();
+        state.put("visible", visible); state.put("serviceActive", receptionService != null && serviceRequested);
+        state.put("connectionReady", temperatureReady && temperatureGatt != null);
+        state.put("deviceKey", temperatureDeviceKey); state.put("listenerResult", readyResult);
+        call.resolve(state);
+    }
+    public void getPendingTemperatures(PluginCall call) {
+        String user = requireUser(call); if (user == null) return;
+        try { JSObject result = new JSObject(); result.put("readings", visible ? queue.pending(user) : new JSArray()); call.resolve(result); }
+        catch (Exception error) { call.reject("No se pudo leer la cola Android.", "PERSISTENCE_FAILED"); }
+    }
+    public void acknowledgeTemperature(PluginCall call) {
+        String user = requireUser(call); if (user == null) return;
+        try { queue.acknowledge(user, call.getString("deviceKey"), call.getString("deliveryId")); call.resolve(); }
+        catch (Exception error) { call.reject("No se pudo confirmar la entrega.", "PERSISTENCE_FAILED"); }
+    }
+
+    private static final String TAG = "FemometerBle";
+    private static final String BLUETOOTH_SCAN_ALIAS = "bluetoothScan";
+    private static final String BLUETOOTH_CONNECT_ALIAS = "bluetoothConnect";
+    private static final String LOCATION_ALIAS = "location";
+    private static final long SCAN_TIMEOUT_MS = 8000L;
+    private static final long REMEMBERED_SCAN_TIMEOUT_MS = 25000L;
+    private static final long AUTOMATIC_VINCA_SCAN_TIMEOUT_MS = 12000L;
+    private String scanTargetAddress;
+    private static final long CONNECT_TIMEOUT_MS = 15000L;
+    private static final long DISCOVER_TIMEOUT_MS = 10000L;
+    // Allow a 3–5 minute measurement plus time to position the thermometer.
+    private static final long TEMPERATURE_LISTENER_TIMEOUT_MS = 6 * 60 * 1000L;
+    private static final UUID HEALTH_THERMOMETER_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb");
+    private static final UUID TEMPERATURE_MEASUREMENT_UUID = UUID.fromString("00002a1c-0000-1000-8000-00805f9b34fb");
+    private static final UUID MEASUREMENT_INTERVAL_UUID = UUID.fromString("00002a21-0000-1000-8000-00805f9b34fb");
+    private static final UUID VINCA_SERVICE_UUID = Vinca2Profile.CONFIGURATION_SERVICE;
+    private static final UUID VINCA_INDICATION_UUID = Vinca2Profile.INDICATION;
+    private static final UUID CLIENT_CHARACTERISTIC_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+    private static final String TEMPERATURE_EVENT = "femometerTemperatureIndication";
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Vinca2Capture capture = new Vinca2Capture(new Vinca2Capture.Clock() {
+        public long wall() { return System.currentTimeMillis(); }
+        public long monotonic() { return android.os.SystemClock.elapsedRealtime(); }
+    });
+    private volatile String captureDeviceKey, captureUser;
+    private volatile String currentUser;
+    private final BleClockOperation clockOperation = new BleClockOperation(mainHandler, capture);
+    private final BleDeviceInfoOperation identityOperation = new BleDeviceInfoOperation(mainHandler);
+    private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
+    private final BleVolumeOperation volumeOperation = new BleVolumeOperation(mainHandler);
+    private final BleMeasurementModeOperation measurementModeOperation = new BleMeasurementModeOperation(mainHandler);
+    private final BleGattCleanup gattCleanup = new BleGattCleanup();
+    private volatile boolean temperatureReady;
+    private Vinca2Reception vincaReception = new Vinca2Reception();
+    private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
+    private final Map<String, String> idsByAddress = new LinkedHashMap<>();
+
+    private PluginCall scanCall;
+    private ScanCallback scanCallback;
+    private BluetoothGatt activeGatt;
+    private PluginCall connectCall;
+    private Runnable connectTimeoutRunnable;
+    private BluetoothGatt temperatureGatt;
+    private boolean temperatureProfileValidated;
+    private String temperatureDeviceModel;
+    private boolean experimentalReception;
+    private static final String TRIAL_EVENT = "thermometerTrialReading";
+    private static final long TRIAL_TIMEOUT_MS = 300000L;
+    private String temperatureProtocol, temperatureDeviceName;
+    private boolean receptionValidated, easyUnitConfigured;
+    private int easySetupStep;
+    private boolean trialReviewGranted;
+    private final EasyHomeOperation easyOperation = new EasyHomeOperation(mainHandler);
+    private String trialDeviceId;
+    private final ThermometerVerification<JSObject> verification = new ThermometerVerification<>();
+    private BluetoothGattCharacteristic temperatureCharacteristic;
+    private BluetoothGattCharacteristic vincaIndicationCharacteristic;
+    private PluginCall temperatureListenerCall;
+    private Runnable temperatureSetupTimeoutRunnable;
+    private Runnable temperatureListenerTimeoutRunnable;
+    private String temperatureDeviceKey;
+    private FemometerIdentityStore identityStore;
+
+    private synchronized FemometerIdentityStore identities() {
+        if (identityStore == null) {
+            SharedPreferences records = getContext().getSharedPreferences("femometer_identity_v2", Context.MODE_PRIVATE);
+            SharedPreferences groups = getContext().getSharedPreferences("thermometer_identity_v3", Context.MODE_PRIVATE);
+            identityStore = new FemometerIdentityStore(new FemometerIdentityStore.Storage() {
+                public String legacyAddress(String user) { return rememberedDevices().getString(user, null); }
+                public FemometerIdentityStore.Binding read(String user) {
+                    String value = records.getString(user, null);
+                    if (value == null) return null;
+                    try {
+                        org.json.JSONObject json = new org.json.JSONObject(value);
+                        return new FemometerIdentityStore.Binding(json.isNull("address") ? null : json.getString("address"),
+                            json.isNull("key") ? null : json.getString("key"));
+                    } catch (Exception error) { throw new IllegalStateException("IDENTITY_INVALID"); }
+                }
+                public FemometerIdentityStore.Bindings readBindings(String user) {
+                    String value = groups.getString(user, null);
+                    if (value == null) return null;
+                    try {
+                        org.json.JSONObject json = new org.json.JSONObject(value);
+                        org.json.JSONArray rows = json.getJSONArray("devices");
+                        List<FemometerIdentityStore.Binding> devices = new ArrayList<>();
+                        java.util.Set<String> keys = new java.util.HashSet<>(), addresses = new java.util.HashSet<>();
+                        for (int i = 0; i < rows.length(); i++) {
+                            org.json.JSONObject row = rows.getJSONObject(i);
+                            String address = row.getString("address"), key = row.getString("key");
+                            if (address.isEmpty() || key.isEmpty() || !keys.add(key) || !addresses.add(address)) throw new IllegalStateException();
+                            String model = row.optString("model", null);
+                            devices.add(new FemometerIdentityStore.Binding(address, key, model, row.optString("name", null),
+                                row.optString("manufacturer", null), row.optString("protocol", "BM-Vinca2".equals(model) ? "vinca2" : null),
+                                row.optString("firmware", null), row.optString("compatibility", "BM-Vinca2".equals(model) ? "compatible" : "pending")));
+                        }
+                        String selected = json.isNull("selectedKey") ? null : json.getString("selectedKey");
+                        if (selected != null && !keys.contains(selected)) throw new IllegalStateException();
+                        return new FemometerIdentityStore.Bindings(devices, selected);
+                    } catch (Exception error) { throw new IllegalStateException("IDENTITY_INVALID"); }
+                }
+                public boolean writeBindings(String user, FemometerIdentityStore.Bindings bindings) {
+                    JSObject json = new JSObject(); JSArray devices = new JSArray();
+                    for (FemometerIdentityStore.Binding binding : bindings.devices) {
+                        JSObject row = bindingMetadata(binding); row.put("address", binding.address); row.put("key", binding.key); devices.put(row);
+                    }
+                    json.put("devices", devices);
+                    json.put("selectedKey", bindings.selectedKey == null ? org.json.JSONObject.NULL : bindings.selectedKey);
+                    return groups.edit().putString(user, json.toString()).commit();
+                }
+                public boolean write(String user, FemometerIdentityStore.Binding binding) {
+                    JSObject json = new JSObject();
+                    json.put("address", binding.address == null ? org.json.JSONObject.NULL : binding.address);
+                    json.put("key", binding.key == null ? org.json.JSONObject.NULL : binding.key);
+                    boolean saved = records.edit().putString(user, json.toString()).commit();
+                    // V2 is authoritative before removing the legacy entry; a
+                    // crash cannot resurrect an old address after forgetting.
+                    if (saved) rememberedDevices().edit().remove(user).apply();
+                    return saved;
+                }
+            });
+        }
+        return identityStore;
+    }
+
+    private JSObject publicBinding(String user) {
+        FemometerIdentityStore.Binding binding = identities().get(user);
+        JSObject result = bindingMetadata(binding);
+        result.put("remembered", binding.address != null);
+        result.put("deviceKey", binding.key);
+        result.put("model", binding.address == null ? null : binding.model);
+        JSArray bindings = new JSArray();
+        for (FemometerIdentityStore.Binding saved : identities().all(user).devices) {
+            JSObject row = bindingMetadata(saved); row.put("deviceKey", saved.key);
+            bindings.put(row);
+        }
+        result.put("bindings", bindings);
+        return result;
+    }
+
+    private JSObject bindingMetadata(FemometerIdentityStore.Binding binding) {
+        JSObject row = new JSObject();
+        row.put("model", binding.model == null ? org.json.JSONObject.NULL : binding.model);
+        row.put("name", binding.name == null ? org.json.JSONObject.NULL : binding.name);
+        row.put("manufacturer", binding.manufacturer == null ? org.json.JSONObject.NULL : binding.manufacturer);
+        row.put("firmware", binding.firmware == null ? org.json.JSONObject.NULL : binding.firmware);
+        row.put("protocol", binding.protocol); row.put("compatibility", binding.compatibility);
+        return row;
+    }
+    private void saveInspected(String user, ScannedDevice device, String protocol, String compatibility) {
+        JSObject info = device.inspection;
+        identities().remember(user, device.address, info.optString("model", null), device.name,
+            info.optString("manufacturer", null), protocol, info.optString("firmware", null), compatibility);
+    }
+
+    // UID comes from the authenticated web session; no Firebase native dependency.
+    // Never return the stored address through the bridge.
+    private SharedPreferences rememberedDevices() {
+        return getContext().getSharedPreferences("femometer_identity_v1", Context.MODE_PRIVATE);
+    }
+
+    private boolean isStaging() {
+        return "com.fertiliapp.fertiliapp.staging".equals(getContext().getPackageName());
+    }
+
+    private void clearCapture() { capture.clear(); captureDeviceKey = null; captureUser = null; }
+
+    // All exports are allowlisted: no device/account identity or arbitrary error text.
+    public void bluetoothCapture(PluginCall call) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> bluetoothCapture(call)); return; }
+        if (!isStaging() || !Boolean.TRUE.equals(call.getBoolean("stagingFrontend", false))) {
+            call.reject("Solo Android Staging.", "UNAVAILABLE_PLATFORM"); return;
+        }
+        String action = call.getString("action", "status");
+        if ("clear".equals(action) || "stop".equals(action)) {
+            clearCapture();
+        } else if ("prepare".equals(action)) {
+            String user = requireUser(call);
+            if (user == null) return;
+            if (temperatureGatt != null || connectCall != null || scanCall != null || temperatureListenerCall != null) {
+                call.reject("Deten la escucha antes de preparar la captura.", "CONNECTION_ACTIVE"); return;
+            }
+            try {
+                FemometerIdentityStore.Binding bound = identities().get(user);
+                if (bound.address == null || bound.key == null || !Vinca2Profile.MODEL.equals(bound.model)
+                        || !Vinca2Profile.PROTOCOL.equals(bound.protocol) || !"compatible".equals(bound.compatibility)
+                        || !bound.key.equals(call.getString("deviceKey"))) {
+                    call.reject("Se necesita una vinculacion Vinca 2 validada.", "DEVICE_NOT_VERIFIED"); return;
+                }
+                captureDeviceKey = bound.key; captureUser = user;
+                capture.prepare(Boolean.TRUE.equals(call.getBoolean("observeClock", false)));
+            } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
+        } else if ("start".equals(action)) {
+            if (!Vinca2Capture.allowed(getContext().getPackageName(), true,
+                    temperatureProfileValidated && receptionValidated && !experimentalReception,
+                    temperatureDeviceModel) || temperatureGatt == null) {
+                call.reject("Conecta y valida primero un BM-Vinca2.", "DEVICE_NOT_VERIFIED"); return;
+            }
+            captureDeviceKey = temperatureDeviceKey; captureUser = currentUser;
+            capture.start(); capture.connectionStarted();
+        } else if ("dateTime".equals(action)) {
+            if (!capture.snapshot().active || capture.snapshot().prepared) {
+                call.reject("Inicia una captura conectada.", "DEVICE_NOT_VERIFIED"); return;
+            }
+            operateClock(call, false); return;
+        } else if (!"status".equals(action)) {
+            call.reject("Accion no valida.", "CAPTURE_INVALID_ACTION"); return;
+        }
+        Vinca2Capture.Snapshot snapshot = capture.snapshot();
+        JSObject result = new JSObject(); JSArray events = new JSArray();
+        for (Vinca2Capture.Event item : snapshot.events) {
+            JSObject event = new JSObject();
+            event.put("connection", item.connection); event.put("order", item.order); event.put("receivedAt", item.receivedAt);
+            event.put("elapsedMs", item.elapsedMs); event.put("channel", item.channel);
+            event.put("direction", item.direction); event.put("status", item.status);
+            event.put("hex", item.hex); event.put("originalBytes", item.originalBytes);
+            event.put("decoded", item.decoded);
+            events.put(event);
+        }
+        result.put("prepared", snapshot.prepared); result.put("observeClock", snapshot.observeClock);
+        result.put("active", snapshot.active); result.put("truncated", snapshot.truncated);
+        result.put("events", events); call.resolve(result);
+    }
+
+    private String requireUser(PluginCall call) {
+        if (!isStaging()) {
+            call.reject("Solo disponible en Android Staging.", "UNAVAILABLE_PLATFORM");
+            return null;
+        }
+        String userId = call.getString("userId");
+        if (userId == null || userId.trim().isEmpty()) {
+            call.reject("Se requiere una sesion autenticada.", "USER_REQUIRED");
+            return null;
+        }
+        if (captureUser != null && !captureUser.equals(userId)) clearCapture();
+        if (currentUser != null && !currentUser.equals(userId)) {
+            cancelScan(); rejectPendingConnect("Cambio de cuenta.", "CONNECTION_CANCELLED");
+            rejectTemperatureStart("Cambio de cuenta.", "CONNECTION_CANCELLED"); closeActiveGatt();
+        }
+        currentUser = userId;
+        return userId;
+    }
+
+    public void getRememberedDevice(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
+        try { call.resolve(publicBinding(userId)); }
+        catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); }
+    }
+
+    public void rememberDevice(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
+        if (scanCall != null || connectCall != null || temperatureGatt != null || temperatureListenerCall != null || activeGatt != null || !gattCleanup.complete()) { call.reject("Deten la escucha antes de cambiar la vinculacion.", "CONNECTION_ACTIVE"); return; }
+        ScannedDevice device = devicesById.get(call.getString("deviceId"));
+        if (scanCall != null || device == null) {
+            call.reject("Vuelve a buscar el termometro.", "DEVICE_NOT_FOUND");
+            return;
+        }
+        if (!device.compatible || device.inspection == null) {
+            call.reject("Comprueba primero la compatibilidad.", "DEVICE_NOT_VERIFIED");
+            return;
+        }
+        try {
+            clearCapture();
+            saveInspected(userId, device, device.inspection.optString("protocol", null), device.inspection.optString("compatibility", "pending"));
+            call.resolve(publicBinding(userId));
+        } catch (IllegalStateException error) {
+            call.reject("No se pudo guardar el termometro.", "PERSISTENCE_FAILED");
+        }
+    }
+
+    public void forgetDevice(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
+        if (scanCall != null || connectCall != null || temperatureGatt != null || temperatureListenerCall != null || activeGatt != null || !gattCleanup.complete()) { call.reject("Deten la escucha antes de olvidar.", "CONNECTION_ACTIVE"); return; }
+        try {
+            clearCapture();
+            identities().forget(userId, call.getString("deviceKey", identities().get(userId).key));
+            call.resolve(publicBinding(userId));
+        } catch (IllegalStateException error) {
+            call.reject("No se pudo olvidar el termometro.", "PERSISTENCE_FAILED");
+        }
+    }
+
+    public synchronized void confirmStandardTrial(PluginCall call) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> confirmStandardTrial(call)); return; }
+        String user = requireUser(call); if (user == null) return;
+        ScannedDevice device = devicesById.get(call.getString("deviceId"));
+        if (!experimentalReception || !temperatureReady || device == null || device.inspection == null
+                || !java.util.Objects.equals(trialDeviceId, call.getString("deviceId"))) {
+            call.reject("Repite la comprobacion del termometro.", "VERIFICATION_INVALID"); return;
+        }
+        try {
+            JSObject reading = verification.confirmed(user, device.address, call.getString("verificationId"),
+                call.getString("readingId"), Boolean.TRUE.equals(call.getBoolean("basalConfirmed", false)));
+            boolean unique = verification.count(item -> java.util.Objects.equals(item.optString("deviceTimestamp", null), reading.optString("deviceTimestamp", null))
+                && item.optDouble("temperatureC") == reading.optDouble("temperatureC")) == 1;
+            stopTemperatureListenerInternal(false, null, null);
+            if (!gattCleanup.complete()) { call.reject("No se pudo cerrar la comprobacion.", "GATT_CLOSE_FAILED"); return; }
+            saveInspected(user, device, "health-thermometer", "experimental");
+            JSObject result = publicBinding(user);
+            // The native reading ID is evidence even without an original date.
+            // Only reliable original timestamps can suppress exact replay.
+            {
+                reading.put("exactReplayEligible", unique && reading.optString("deviceTimestamp", null) != null);
+                reading.put("deviceKey", identities().get(user).key); reading.put("experimental", false);
+                reading.put("receptionValidated", true); reading.put("promotedVerification", true);
+                reading.remove("verificationId"); reading.remove("readingId");
+                result.put("verifiedReading", reading);
+            }
+            call.resolve(result);
+        } catch (IllegalStateException error) {
+            call.reject("No se pudo confirmar y guardar la vinculacion.", error.getMessage());
+        }
+    }
+
+    public void selectRememberedDevice(PluginCall call) {
+        String user = requireUser(call); if (user == null) return;
+        if (temperatureGatt != null || activeGatt != null || scanCall != null || !gattCleanup.complete()) {
+            call.reject("Deten la conexion antes de seleccionar otro dispositivo.", "CONNECTION_ACTIVE"); return;
+        }
+        try { if (!java.util.Objects.equals(captureDeviceKey, call.getString("deviceKey"))) clearCapture(); identities().select(user, call.getString("deviceKey")); call.resolve(publicBinding(user)); }
+        catch (IllegalStateException error) { call.reject("No se pudo seleccionar el dispositivo.", error.getMessage()); }
+    }
+
+    public void scan(PluginCall call) {
+        if (!visible) { call.reject("Actividad no visible.", "CONNECTION_CANCELLED"); return; }
+        // Scan callbacks, timeout and cancellation share one ordered queue.
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> scan(call)); return; }
+        if (captureUser != null && !captureUser.equals(call.getString("userId"))) clearCapture();
+        Log.d(TAG, "scan called");
+        String blockedCode = getBlockedOperationCode();
+        if (blockedCode != null) {
+            Log.d(TAG, "Scan blocked: " + blockedCode);
+            rejectWithCode(call, blockedCode);
+            return;
+        }
+        if (temperatureGatt != null || connectCall != null || activeGatt != null || temperatureListenerCall != null || !gattCleanup.complete()) { call.reject("Deten la conexion antes de buscar.", "CONNECTION_IN_PROGRESS"); return; }
+        if (scanCall != null) {
+            Log.d(TAG, "Scan blocked: SCAN_IN_PROGRESS");
+            call.reject("Ya hay una busqueda BLE en curso.", "SCAN_IN_PROGRESS");
+            return;
+        }
+
+        BluetoothLeScanner scanner = getScanner();
+        if (scanner == null) {
+            Log.d(TAG, "Scan blocked: SCANNER_UNAVAILABLE");
+            call.reject("No se pudo iniciar el escaneo BLE.", "SCANNER_UNAVAILABLE");
+            return;
+        }
+
+        scanTargetAddress = null;
+        boolean automaticVincaRecovery = false;
+        if ((Boolean.TRUE.equals(call.getBoolean("rememberedDevice", false)) || Boolean.TRUE.equals(call.getBoolean("rememberedVinca", false))) && call.getString("userId") != null) {
+            try {
+                FemometerIdentityStore.Binding binding = identities().get(call.getString("userId"));
+                automaticVincaRecovery = "vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model)
+                    && "compatible".equals(binding.compatibility) && Boolean.TRUE.equals(call.getBoolean("automaticRecovery", false));
+                if (("vinca2".equals(binding.protocol) && "BM-Vinca2".equals(binding.model) && "compatible".equals(binding.compatibility))
+                    || ("experimental".equals(binding.compatibility) && (("easyhome-ebt300".equals(binding.protocol) && "EBT-300".equals(binding.model))
+                    || "health-thermometer".equals(binding.protocol)))) scanTargetAddress = binding.address;
+            } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
+        }
+        final long scanTimeout = scanTargetAddress == null ? SCAN_TIMEOUT_MS
+            : automaticVincaRecovery ? AUTOMATIC_VINCA_SCAN_TIMEOUT_MS : REMEMBERED_SCAN_TIMEOUT_MS;
+        devicesById.clear();
+        idsByAddress.clear();
+        scanCall = call;
+        scanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                if (scanCall != call) return;
+                handleScanResult(result);
+            }
+
+            @Override
+            public void onBatchScanResults(List<ScanResult> results) {
+                if (scanCall != call) return;
+                if (results == null) return;
+                for (ScanResult result : results) {
+                    handleScanResult(result);
+                }
+            }
+
+            @Override
+            public void onScanFailed(int errorCode) {
+                if (scanCall != call) return;
+                capture.record("search", "reception", "scan_failed;code=" + errorCode, null);
+                Log.e(TAG, "BLE scan failed with errorCode=" + errorCode);
+                PluginCall pending = scanCall;
+                stopScanInternal();
+                if (pending != null) {
+                    pending.reject("Fallo la busqueda BLE.", "SCAN_FAILED");
+                }
+            }
+        };
+
+        try {
+            capture.record("search", "control", "scan_requested", null);
+            scanner.startScan(scanCallback);
+            capture.record("search", "control", "scan_started", null);
+            Log.d(TAG, "BLE scan started");
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException starting BLE scan");
+            stopScanInternal();
+            call.reject("Faltan permisos Bluetooth para buscar dispositivos.", "PERMISSION_NOT_GRANTED");
+            return;
+        } catch (IllegalStateException error) {
+            Log.e(TAG, "IllegalStateException starting BLE scan");
+            stopScanInternal();
+            call.reject("Bluetooth no esta disponible para buscar dispositivos.", "BLUETOOTH_UNAVAILABLE");
+            return;
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception starting BLE scan");
+            stopScanInternal();
+            call.reject("No se pudo iniciar la busqueda BLE.", "SCAN_FAILED");
+            return;
+        }
+
+        mainHandler.postDelayed(() -> {
+            if (scanCall != call) return;
+            finishScan();
+        }, scanTimeout);
+    }
+
+    private void finishScan() {
+        PluginCall pending = scanCall;
+        stopScanInternal();
+        if (pending == null) return;
+        JSObject result = new JSObject();
+        try {
+            result.put("devices", buildScannedDevicesArray(pending.getString("userId")));
+            pending.resolve(result);
+        } catch (IllegalStateException error) { pending.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); }
+    }
+
+    public void connectAndInspect(PluginCall call) {
+        if (!visible) { call.reject("Actividad no visible.", "CONNECTION_CANCELLED"); return; }
+        String deviceId = call.getString("deviceId");
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            call.reject("Falta el identificador interno del dispositivo.", "DEVICE_ID_REQUIRED");
+            return;
+        }
+
+        String blockedCode = getBlockedOperationCode();
+        if (blockedCode != null) {
+            rejectWithCode(call, blockedCode);
+            return;
+        }
+
+        ScannedDevice scannedDevice = devicesById.get(deviceId);
+        if (scannedDevice == null) {
+            call.reject("El dispositivo seleccionado ya no esta disponible. Vuelve a buscarlo.", "DEVICE_NOT_FOUND");
+            return;
+        }
+
+        if (connectCall != null || scanCall != null || temperatureGatt != null || !gattCleanup.complete()) {
+            call.reject("Ya hay una conexion BLE en curso.", "CONNECTION_IN_PROGRESS");
+            return;
+        }
+
+        closeActiveGatt();
+        scannedDevice.compatible = false;
+        connectCall = call;
+
+        BluetoothGattCallback callback = new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (gatt != activeGatt || connectCall != call) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectConnectCall("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    scheduleConnectTimeout(DISCOVER_TIMEOUT_MS, "SERVICE_DISCOVERY_TIMEOUT", "La deteccion de servicios BLE ha tardado demasiado.");
+                    try {
+                        if (!gatt.discoverServices()) {
+                            rejectConnectCall("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                        }
+                    } catch (SecurityException error) {
+                        Log.e(TAG, "SecurityException discovering BLE services");
+                        rejectConnectCall("Faltan permisos Bluetooth para detectar servicios.", "PERMISSION_NOT_GRANTED");
+                    } catch (Exception error) {
+                        Log.e(TAG, "Unexpected exception discovering BLE services");
+                        rejectConnectCall("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    }
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_DISCONNECTED && connectCall != null) {
+                    rejectConnectCall("El termometro se desconecto antes de terminar la comprobacion.", "DEVICE_DISCONNECTED");
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (gatt != activeGatt || connectCall == null) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectConnectCall("No se pudieron detectar los servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    return;
+                }
+
+                inspectProfile(gatt, scannedDevice.name, result -> {
+                    if (gatt != activeGatt || connectCall != call) return;
+                    scannedDevice.compatible = result.optBoolean("compatible", false);
+                    scannedDevice.inspection = result;
+                    PluginCall pending = connectCall;
+                    clearConnectState();
+                    activeGatt = null;
+                    closeGatt(gatt);
+                    pending.resolve(result);
+                }, code -> { if (gatt == activeGatt && connectCall == call) rejectConnectCall("No se pudo identificar el dispositivo.", code); });
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (Build.VERSION.SDK_INT < 33 && gatt == activeGatt) identityOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+                if (gatt == activeGatt) identityOperation.onRead(gatt, characteristic, value, status);
+            }
+        };
+
+        scheduleConnectTimeout(CONNECT_TIMEOUT_MS, "CONNECTION_TIMEOUT", "La conexion BLE ha tardado demasiado.");
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                activeGatt = scannedDevice.device.connectGatt(getContext(), false, callback, BluetoothDevice.TRANSPORT_LE, BluetoothDevice.PHY_LE_1M_MASK, mainHandler);
+            } else {
+                activeGatt = scannedDevice.device.connectGatt(getContext(), false, callback);
+            }
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException connecting BLE device");
+            rejectConnectCall("Faltan permisos Bluetooth para conectar.", "PERMISSION_NOT_GRANTED");
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception connecting BLE device");
+            rejectConnectCall("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+
+        if (activeGatt == null && connectCall != null) {
+            rejectConnectCall("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+    }
+
+    public void startTemperatureListener(PluginCall call) { startReception(call, false); }
+
+    public void startStandardTrial(PluginCall call) { startReception(call, true); }
+
+    private synchronized void startReception(PluginCall call, boolean trial) {
+        if (!visible) { call.reject("Actividad no visible.", "CONNECTION_CANCELLED"); return; }
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> startReception(call, trial)); return; }
+        String userId = requireUser(call);
+        if (userId == null) return;
+        String deviceId = call.getString("deviceId");
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            call.reject("Falta el identificador interno del dispositivo.", "DEVICE_ID_REQUIRED");
+            return;
+        }
+
+        String blockedCode = getBlockedOperationCode();
+        if (blockedCode != null) {
+            Log.d(TAG, "Temperature listener blocked: " + blockedCode);
+            rejectWithCode(call, blockedCode);
+            return;
+        }
+
+        ScannedDevice scannedDevice = devicesById.get(deviceId);
+        if (scannedDevice == null) {
+            call.reject("El dispositivo seleccionado ya no esta disponible. Vuelve a buscarlo.", "DEVICE_NOT_FOUND");
+            return;
+        }
+
+        if (temperatureListenerCall != null || temperatureGatt != null || connectCall != null || scanCall != null) {
+            call.reject("Ya hay una escucha de temperatura en curso.", "TEMPERATURE_LISTENER_IN_PROGRESS");
+            return;
+        }
+
+        Log.d(TAG, "Starting temperature indication listener");
+        closeActiveGatt();
+        stopTemperatureListenerInternal(false, null, null);
+        try {
+            temperatureDeviceKey = identities().keyForAddress(userId, scannedDevice.address);
+        } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
+        final FemometerIdentityStore.Binding bound = identities().forAddress(userId, scannedDevice.address);
+        if (!trial && (bound == null || !bound.key.equals(identities().get(userId).key))) { call.reject("Vincula primero el dispositivo.", "DEVICE_NOT_VERIFIED"); return; }
+        if (captureDeviceKey != null && (trial || !captureDeviceKey.equals(temperatureDeviceKey)
+                || bound == null || !Vinca2Profile.MODEL.equals(bound.model))) {
+            clearCapture();
+        }
+        capture.connectionStarted();
+        capture.record("connection", "control", "connect_requested", null);
+        experimentalReception = trial;
+        if (trial) { trialDeviceId = deviceId; verification.begin(userId, scannedDevice.address); }
+        temperatureListenerCall = call;
+        final String connectedDeviceKey = temperatureDeviceKey;
+        vincaReception = new Vinca2Reception();
+
+        BluetoothGattCallback callback = new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (gatt != temperatureGatt) return;
+                capture.record("connection", "reception", (newState == BluetoothProfile.STATE_CONNECTED ? "connected"
+                    : newState == BluetoothProfile.STATE_DISCONNECTED ? "disconnected" : "state=" + newState) + ";gatt=" + status, null);
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    if (temperatureListenerCall == null) notifyTemperatureListenerState("error", "La conexion se ha interrumpido.");
+                    rejectTemperatureStart("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    vincaReception.connectedAt = System.currentTimeMillis();
+                    Log.d(TAG, "Temperature listener connected, discovering services");
+                    try {
+                        if (!gatt.discoverServices()) {
+                            rejectTemperatureStart("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                        }
+                    } catch (SecurityException error) {
+                        Log.e(TAG, "SecurityException discovering services for listener");
+                        rejectTemperatureStart("Faltan permisos Bluetooth para detectar servicios.", "PERMISSION_NOT_GRANTED");
+                    } catch (Exception error) {
+                        Log.e(TAG, "Unexpected exception discovering services for listener");
+                        rejectTemperatureStart("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    }
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    Log.d(TAG, "Temperature listener disconnected");
+                    if (temperatureListenerCall != null) {
+                        rejectTemperatureStart("El termometro se desconecto antes de activar indicaciones.", "DEVICE_DISCONNECTED");
+                    } else {
+                        notifyTemperatureListenerState("disconnected", "El termometro se desconecto.");
+                        stopTemperatureListenerInternal(false, null, null);
+                    }
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (gatt != temperatureGatt) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se pudieron detectar los servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    return;
+                }
+
+                inspectProfile(gatt, scannedDevice.name, result -> {
+                    if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                    temperatureProfileValidated = result.optBoolean("compatible", false) && "vinca2".equals(result.optString("protocol"));
+                    String detected = result.optString("protocol", null);
+                    if (trial) {
+                        if (result.optBoolean("compatible", false) || !HealthThermometerProfile.supports(gatt)) {
+                            rejectTemperatureStart("Recepcion estandar no disponible.", "DEVICE_NOT_VERIFIED"); return;
+                        }
+                        detected = "health-thermometer";
+                    } else {
+                        if ("health-thermometer".equals(bound.protocol) && !result.optBoolean("compatible", false)
+                                && HealthThermometerProfile.supports(gatt)) detected = "health-thermometer";
+                        boolean allowed = temperatureProfileValidated
+                            || ("easyhome-ebt300".equals(detected) && result.optBoolean("compatible", false))
+                            || ("health-thermometer".equals(detected) && "experimental".equals(bound.compatibility));
+                        if (!allowed || !bound.matches(result.optString("model", null), result.optString("manufacturer", null),
+                                result.optString("firmware", null), detected)) {
+                            clearCapture();
+                            rejectTemperatureStart("La identidad o perfil del dispositivo ha cambiado.", "DEVICE_NOT_VERIFIED"); return;
+                        }
+                    }
+                    if (captureDeviceKey != null && !temperatureProfileValidated) clearCapture();
+                    capture.record("connection", "control", "identity_validated", null);
+                    temperatureProtocol = detected;
+                    receptionValidated = true;
+                    temperatureDeviceModel = result.optString("model", null);
+                    temperatureDeviceName = scannedDevice.name;
+                    scannedDevice.inspection = result;
+                    if ("easyhome-ebt300".equals(temperatureProtocol)) { easySetupStep = 0; configureEasyUnit(gatt); }
+                    else subscribeTemperature(gatt);
+                }, code -> { if (gatt == temperatureGatt && temperatureListenerCall != null) rejectTemperatureStart("No se pudo identificar el dispositivo.", code); });
+            }
+
+            private void configureEasyUnit(BluetoothGatt gatt) {
+                byte[] command = easySetupStep == 0 ? EasyHomeProfile.clockCommand(java.util.Calendar.getInstance()) : EasyHomeProfile.celsiusCommand();
+                BluetoothGattCharacteristic write = gatt.getService(EasyHomeProfile.SERVICE).getCharacteristic(EasyHomeProfile.WRITE);
+                int mode = (write.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+                    ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT;
+                try {
+                    boolean accepted;
+                    if (Build.VERSION.SDK_INT >= 33) accepted = gatt.writeCharacteristic(write, command, mode) == 0;
+                    else { write.setWriteType(mode); write.setValue(command); accepted = gatt.writeCharacteristic(write); }
+                    if (!accepted) rejectTemperatureStart("No se pudo configurar Celsius.", "UNIT_WRITE_FAILED");
+                } catch (Exception error) { rejectTemperatureStart("No se pudo configurar Celsius.", "UNIT_WRITE_FAILED"); }
+            }
+
+            private void subscribeTemperature(BluetoothGatt gatt) {
+                boolean easy = "easyhome-ebt300".equals(temperatureProtocol);
+                BluetoothGattService service = gatt.getService(easy ? EasyHomeProfile.SERVICE : HEALTH_THERMOMETER_UUID);
+                if (service == null) {
+                    rejectTemperatureStart("No se encontro el servicio Health Thermometer.", "HEALTH_THERMOMETER_NOT_FOUND");
+                    return;
+                }
+
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(easy ? EasyHomeProfile.NOTIFY : TEMPERATURE_MEASUREMENT_UUID);
+                if (characteristic == null) {
+                    rejectTemperatureStart("No se encontro la caracteristica Temperature Measurement.", "TEMPERATURE_MEASUREMENT_NOT_FOUND");
+                    return;
+                }
+
+                int properties = characteristic.getProperties();
+                if ((properties & (easy ? BluetoothGattCharacteristic.PROPERTY_NOTIFY : BluetoothGattCharacteristic.PROPERTY_INDICATE)) == 0) {
+                    rejectTemperatureStart("Temperature Measurement no expone indicaciones.", "INDICATE_NOT_SUPPORTED");
+                    return;
+                }
+
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID);
+                if (descriptor == null) {
+                    rejectTemperatureStart("No se encontro el descriptor CCCD 0x2902.", "CCCD_NOT_FOUND");
+                    return;
+                }
+
+                try {
+                    if (!gatt.setCharacteristicNotification(characteristic, true)) {
+                        rejectTemperatureStart("No se pudo activar la escucha local de indicaciones.", "INDICATION_ENABLE_FAILED");
+                        return;
+                    }
+                    temperatureCharacteristic = characteristic;
+                    if (!writeDescriptorValue(gatt, descriptor, easy ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                        rejectTemperatureStart("No se pudo escribir el descriptor CCCD para indicaciones.", "CCCD_WRITE_FAILED");
+                    }
+                } catch (SecurityException error) {
+                    Log.e(TAG, "SecurityException enabling indications");
+                    rejectTemperatureStart("Faltan permisos Bluetooth para activar indicaciones.", "PERMISSION_NOT_GRANTED");
+                } catch (Exception error) {
+                    Log.e(TAG, "Unexpected exception enabling indications");
+                    rejectTemperatureStart("No se pudieron activar las indicaciones.", "INDICATION_ENABLE_FAILED");
+                }
+            }
+
+            @Override
+            public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+                if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                capture.record(descriptor.getCharacteristic().getUuid().toString(), "write",
+                    (status == BluetoothGatt.GATT_SUCCESS ? "indications_enabled" : "indications_failed")
+                        + ";CCCD=" + descriptor.getUuid() + ";gatt=" + status, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+                if (!CLIENT_CHARACTERISTIC_CONFIG_UUID.equals(descriptor.getUuid())) {
+                    return;
+                }
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se confirmo la escritura del descriptor CCCD.", "CCCD_WRITE_FAILED");
+                    return;
+                }
+
+                UUID subscribedUuid = descriptor.getCharacteristic().getUuid();
+                Log.d(TAG, "Indications enabled: " + subscribedUuid);
+                if (TEMPERATURE_MEASUREMENT_UUID.equals(subscribedUuid) || ("easyhome-ebt300".equals(temperatureProtocol) && EasyHomeProfile.NOTIFY.equals(subscribedUuid))) {
+                    if (!temperatureProfileValidated) finishTemperatureSetup(); else enableVincaIndications(gatt);
+                } else if (!trial && VINCA_INDICATION_UUID.equals(subscribedUuid)) {
+                    configureMeasurementInterval(gatt);
+                }
+            }
+
+            @Override
+            public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt == temperatureGatt && EasyHomeProfile.WRITE.equals(characteristic.getUuid()) && easyOperation.busy()) { easyOperation.onWrite(gatt, status); return; }
+                if (gatt == temperatureGatt && "easyhome-ebt300".equals(temperatureProtocol) && EasyHomeProfile.WRITE.equals(characteristic.getUuid()) && temperatureListenerCall != null) {
+                    if (status != BluetoothGatt.GATT_SUCCESS) { rejectTemperatureStart("No se confirmo Celsius.", "UNIT_WRITE_FAILED"); return; }
+                    if (easySetupStep++ == 0) { configureEasyUnit(gatt); return; }
+                    easyUnitConfigured = true; subscribeTemperature(gatt); return;
+                }
+                if (gatt == temperatureGatt && Vinca2Profile.CONFIGURATION.equals(characteristic.getUuid())) {
+                    synchronized (FemometerGattSession.this) {
+                        // Both settings share one characteristic: deliver each callback to one owner only.
+                        if (measurementModeOperation.busy()) measurementModeOperation.onWrite(gatt, characteristic, status);
+                        else volumeOperation.onWrite(gatt, characteristic, status);
+                    }
+                    return;
+                }
+                if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid())) {
+                    clockOperation.onWrite(gatt, status);
+                    return;
+                }
+                if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                if (!MEASUREMENT_INTERVAL_UUID.equals(characteristic.getUuid())) return;
+                capture.record(MEASUREMENT_INTERVAL_UUID.toString(), "write", "confirmed;gatt=" + status, new byte[] {1, 0});
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se pudo configurar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
+                    return;
+                }
+                Log.d(TAG, "Measurement interval configured: 1 second");
+                finishTemperatureSetup();
+            }
+
+            @Override
+            public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                if (gatt != temperatureGatt) return;
+                handleTemperatureCharacteristicChanged(gatt, characteristic, characteristic.getValue(), connectedDeviceKey);
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (Build.VERSION.SDK_INT < 33 && gatt == temperatureGatt) {
+                    identityOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+                    deviceInfoOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
+                }
+                if (Build.VERSION.SDK_INT < 33 && gatt == temperatureGatt && (Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()) || BleClockOperation.DATE_TIME.equals(characteristic.getUuid())))
+                    clockOperation.onRead(gatt, characteristic.getUuid(), characteristic.getValue(), status);
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+                if (gatt == temperatureGatt) {
+                    identityOperation.onRead(gatt, characteristic, value, status);
+                    deviceInfoOperation.onRead(gatt, characteristic, value, status);
+                }
+                if (gatt == temperatureGatt && (Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()) || BleClockOperation.DATE_TIME.equals(characteristic.getUuid())))
+                    clockOperation.onRead(gatt, characteristic.getUuid(), value, status);
+            }
+
+            @Override
+            public void onCharacteristicChanged(
+                BluetoothGatt gatt,
+                BluetoothGattCharacteristic characteristic,
+                byte[] value
+            ) {
+                if (gatt != temperatureGatt) return;
+                handleTemperatureCharacteristicChanged(gatt, characteristic, value, connectedDeviceKey);
+            }
+        };
+
+        scheduleTemperatureSetupTimeout();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                temperatureGatt = scannedDevice.device.connectGatt(getContext(), false, callback, BluetoothDevice.TRANSPORT_LE, BluetoothDevice.PHY_LE_1M_MASK, mainHandler);
+            } else {
+                temperatureGatt = scannedDevice.device.connectGatt(getContext(), false, callback);
+            }
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException connecting temperature listener");
+            rejectTemperatureStart("Faltan permisos Bluetooth para conectar.", "PERMISSION_NOT_GRANTED");
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception connecting temperature listener");
+            rejectTemperatureStart("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+
+        if (temperatureGatt == null && temperatureListenerCall != null) {
+            rejectTemperatureStart("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+    }
+
+    public void readClock(PluginCall call) { operateClock(call, false); }
+
+    public void syncClock(PluginCall call) {
+        if ("easyhome-ebt300".equals(temperatureProtocol)) operateEasy(call, true);
+        else operateClock(call, true);
+    }
+
+    public void setTemperatureUnit(PluginCall call) { operateEasy(call, false); }
+
+    private synchronized void operateEasy(PluginCall call, boolean clock) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        if (!receptionValidated || !temperatureReady || !"easyhome-ebt300".equals(temperatureProtocol) || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null || !EasyHomeProfile.supports(temperatureGatt)) { call.reject("Perfil no preparado.", "EASYHOME_NOT_CONNECTED"); return; }
+        if (easyOperation.busy() || clockOperation.busy() || deviceInfoOperation.busy() || volumeOperation.busy() || measurementModeOperation.busy()) { call.reject("Hay otra operacion en curso.", "EASYHOME_BUSY"); return; }
+        if (easyOperation.uncertain(temperatureGatt) || deviceInfoOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta.", "EASYHOME_RECONNECT_REQUIRED"); return; }
+        String unit = call.getString("unit");
+        if (!clock && !"C".equals(unit) && !"F".equals(unit)) { call.reject("Unidad no valida.", "UNIT_INVALID"); return; }
+        // A unit write has no read-back. Do not interpret further packets in this
+        // connection, even if its write callback succeeds. Reconnect prepares C.
+        if (!clock) easyUnitConfigured = false;
+        byte[] command = clock ? EasyHomeProfile.clockCommand(java.util.Calendar.getInstance()) : EasyHomeProfile.unitCommand("F".equals(unit) ? 2 : 1);
+        easyOperation.start(temperatureGatt, call, command, clock ? "sync" : "unit", temperatureDeviceKey);
+    }
+
+    private synchronized void operateClock(PluginCall call, boolean write) {
+        if (write && capture.observingClock()) {
+            capture.record(Vinca2Profile.CURRENT_TIME.toString(), "write", "blocked;diagnostic_read_only", null);
+            call.reject("Exporta y detén la captura antes de sincronizar el reloj.", "CLOCK_DIAGNOSTIC_READ_ONLY"); return;
+        }
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        if (!temperatureProfileValidated || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "CLOCK_NOT_CONNECTED"); return;
+        }
+        if (deviceInfoOperation.busy()) { call.reject("Hay una consulta de datos en curso.", "DEVICE_INFO_BUSY"); return; }
+        if (deviceInfoOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de usar el reloj.", "CLOCK_RECONNECT_REQUIRED"); return; }
+        if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "VOLUME_BUSY"); return; }
+        if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
+        if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
+        boolean dateTime = !write && "dateTime".equals(call.getString("action"));
+        if (dateTime && !capture.snapshot().active) {
+            call.reject("La lectura adicional requiere una captura activa.", "DEVICE_NOT_VERIFIED"); return;
+        }
+        clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey, dateTime);
+    }
+
+    public synchronized void readDeviceInfo(PluginCall call) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        if (!receptionValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "DEVICE_INFO_NOT_CONNECTED"); return;
+        }
+        if (easyOperation.busy() || easyOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta o espera al ajuste.", "EASYHOME_RECONNECT_REQUIRED"); return; }
+        if (clockOperation.busy()) { call.reject("Hay una operacion de reloj en curso.", "CLOCK_BUSY"); return; }
+        if (clockOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de consultar datos.", "DEVICE_INFO_RECONNECT_REQUIRED"); return; }
+        if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "VOLUME_BUSY"); return; }
+        if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
+        if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
+        deviceInfoOperation.start(temperatureGatt, call);
+    }
+
+    public synchronized void setVolume(PluginCall call) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        String level = call.getString("level");
+        if (BleVolumeOperation.command(level) < 0) { call.reject("Nivel de volumen desconocido.", "VOLUME_INVALID_LEVEL"); return; }
+        if (!temperatureProfileValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "VOLUME_NOT_CONNECTED"); return;
+        }
+        if (vincaIndicationCharacteristic == null || temperatureCharacteristic == null) {
+            call.reject("No se ha preparado un Vinca 2 compatible.", "VOLUME_UNSUPPORTED"); return;
+        }
+        if (clockOperation.busy() || deviceInfoOperation.busy()) { call.reject("Hay otra operacion GATT en curso.", "VOLUME_BUSY"); return; }
+        if (clockOperation.uncertain(temperatureGatt) || deviceInfoOperation.uncertain(temperatureGatt)) {
+            call.reject("Deten y reconecta antes de ajustar volumen.", "VOLUME_RECONNECT_REQUIRED"); return;
+        }
+        if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
+        volumeOperation.start(temperatureGatt, call, level);
+    }
+
+    public synchronized void setMeasurementMode(PluginCall call) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        String level = call.getString("level");
+        if (BleMeasurementModeOperation.command(level) < 0) { call.reject("Modo de medicion desconocido.", "MEASUREMENT_MODE_INVALID_LEVEL"); return; }
+        if (!temperatureProfileValidated || !temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "MEASUREMENT_MODE_NOT_CONNECTED"); return;
+        }
+        if (vincaIndicationCharacteristic == null || temperatureCharacteristic == null) {
+            call.reject("No se ha preparado un Vinca 2 compatible.", "MEASUREMENT_MODE_UNSUPPORTED"); return;
+        }
+        if (clockOperation.busy() || deviceInfoOperation.busy()) { call.reject("Hay otra operacion GATT en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (clockOperation.uncertain(temperatureGatt) || deviceInfoOperation.uncertain(temperatureGatt)) {
+            call.reject("Deten y reconecta antes de ajustar modo.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return;
+        }
+        if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de ajustar modo.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
+        measurementModeOperation.start(temperatureGatt, call, level);
+    }
+
+    public void stopTemperatureListener(PluginCall call) {
+        Log.d(TAG, "Stopping temperature listener");
+        rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
+        call.resolve();
+    }
+
+    public synchronized void disconnect(PluginCall call) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> disconnect(call)); return; }
+        gattCleanup.retry();
+        cancelScan();
+        rejectPendingConnect("Conexion cancelada.", "CONNECTION_CANCELLED");
+        rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
+        closeActiveGatt();
+        if (!gattCleanup.complete()) { call.reject("No se pudo cerrar GATT. Reintenta antes de conectar o desvincular.", "GATT_CLOSE_FAILED"); return; }
+        call.resolve();
+    }
+
+    private void handleScanResult(ScanResult result) {
+        if (scanCall == null) return;
+        if (result == null || result.getDevice() == null) return;
+
+        String advertisedName = null;
+        if (result.getScanRecord() != null) {
+            advertisedName = result.getScanRecord().getDeviceName();
+        }
+        if (advertisedName == null) {
+            try {
+                advertisedName = result.getDevice().getName();
+            } catch (SecurityException error) {
+                Log.e(TAG, "SecurityException reading advertised device name");
+                return;
+            } catch (Exception error) {
+                Log.e(TAG, "Unexpected exception reading advertised device name");
+                return;
+            }
+        }
+        advertisedName = publicDeviceText(advertisedName);
+        List<android.os.ParcelUuid> services = result.getScanRecord() == null ? null : result.getScanRecord().getServiceUuids();
+        boolean standard = services != null && services.contains(new android.os.ParcelUuid(HEALTH_THERMOMETER_UUID));
+        boolean signature = services != null && services.contains(new android.os.ParcelUuid(VINCA_SERVICE_UUID));
+
+        String address;
+        try {
+            address = result.getDevice().getAddress();
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException reading internal BLE address");
+            return;
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception reading internal BLE address");
+            return;
+        }
+
+        if (!address.equals(scanTargetAddress) && !ThermometerDiscovery.candidate(advertisedName, standard, signature, Boolean.TRUE.equals(scanCall.getBoolean("expanded", false)))) return;
+        String id = idsByAddress.get(address);
+        if (id == null) {
+            id = UUID.randomUUID().toString();
+            idsByAddress.put(address, id);
+        }
+        devicesById.put(id, new ScannedDevice(result.getDevice(), address, advertisedName, result.getRssi(), standard));
+        // Discovery is only a candidate: GATT still verifies the stored identity/profile.
+        if (address.equals(scanTargetAddress)) finishScan();
+    }
+
+    private JSArray buildScannedDevicesArray(String userId) {
+        String rememberedAddress = userId == null ? null : identities().get(userId).address;
+        JSArray devices = new JSArray();
+        for (Map.Entry<String, ScannedDevice> entry : devicesById.entrySet()) {
+            JSObject device = new JSObject();
+            device.put("id", entry.getKey());
+            device.put("name", entry.getValue().name);
+            device.put("preliminaryModel", ThermometerDiscovery.preliminaryModel(entry.getValue().name));
+            device.put("rssi", entry.getValue().rssi);
+            device.put("compatibility", entry.getValue().standard ? "possible_standard" : "unknown");
+            device.put("isRemembered", entry.getValue().address.equals(rememberedAddress));
+            device.put("deviceKey", identities().keyForAddress(userId, entry.getValue().address));
+            devices.put(device);
+        }
+        return devices;
+    }
+
+    private void inspectProfile(BluetoothGatt gatt, String advertisedName,
+            java.util.function.Consumer<JSObject> completed, java.util.function.Consumer<String> failed) {
+        // Shared read queue, same connection owner. Only model/manufacturer, no serial,
+        // subscription, configuration or proprietary command during identification.
+        identityOperation.start(gatt, new BleDeviceInfoOperation.Reads() {
+            public Object readableTarget(int field) {
+                if (field != 1 && field != 2 && field != 3) return null;
+                BluetoothGattCharacteristic target = BleDeviceInfoOperation.deviceInfo(gatt, field);
+                return target != null && (target.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) != 0 ? target : null;
+            }
+            public boolean read(Object target) { return gatt.readCharacteristic((BluetoothGattCharacteristic) target); }
+        }, (values, code) -> {
+            if (code != null) { failed.accept(code); return; }
+            String model = publicDeviceText((String) values.get("model"));
+            String manufacturer = publicDeviceText((String) values.get("manufacturer"));
+            boolean identified = Vinca2Profile.identifies(advertisedName, model);
+            boolean compatible = identified && Vinca2Profile.supports(gatt);
+            boolean easy = !identified && EasyHomeProfile.identifies(advertisedName, model) && EasyHomeProfile.supports(gatt);
+            String protocol = compatible ? "vinca2" : easy ? "easyhome-ebt300" : null;
+            if (easy) { model = EasyHomeProfile.MODEL; if (manufacturer == null) manufacturer = "Easy@Home"; compatible = true; }
+            if (identified) { model = Vinca2Profile.MODEL; if (manufacturer == null) manufacturer = "Femometer"; }
+            BluetoothGattService health = gatt.getService(HEALTH_THERMOMETER_UUID);
+            boolean standard = health != null && health.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID) != null;
+            JSObject result = buildInspectionResult(gatt);
+            result.put("compatible", compatible);
+            result.put("model", model);
+            result.put("manufacturer", manufacturer);
+            result.put("protocol", protocol);
+            result.put("name", advertisedName);
+            result.put("firmware", publicDeviceText((String) values.get("firmware")));
+            result.put("standardTrialAvailable", !compatible && HealthThermometerProfile.supports(gatt));
+            result.put("compatibility", easy ? "experimental" : ThermometerDiscovery.classification(compatible, model, manufacturer, standard));
+            result.put("capabilities", compatible ? profileCapabilities(gatt, protocol, model) : new JSObject());
+            completed.accept(result);
+        }, 4500L);
+    }
+
+    private JSObject profileCapabilities(BluetoothGatt gatt, String protocol, String model) {
+        if ("vinca2".equals(protocol)) return Vinca2Profile.capabilities(gatt);
+        JSObject result = new JSObject();
+        result.put("model", model); result.put("protocol", protocol); result.put("compatibility", "experimental");
+        result.put("temperatureReceive", true); result.put("deviceInfo", true);
+        result.put("historyReceive", false); // EBT-300 history has no confirmed unit.
+        result.put("clockSync", "easyhome-ebt300".equals(protocol));
+        result.put("unitWrite", "easyhome-ebt300".equals(protocol));
+        return result;
+    }
+
+    private JSObject buildInspectionResult(BluetoothGatt gatt) {
+        boolean healthThermometerFound = false;
+        boolean temperatureMeasurementFound = false;
+        JSArray services = new JSArray();
+
+        for (BluetoothGattService service : gatt.getServices()) {
+            UUID serviceUuid = service.getUuid();
+            if (HEALTH_THERMOMETER_UUID.equals(serviceUuid)) {
+                healthThermometerFound = true;
+            }
+
+            JSObject serviceJson = new JSObject();
+            serviceJson.put("uuid", serviceUuid.toString());
+            JSArray characteristics = new JSArray();
+
+            for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+                UUID characteristicUuid = characteristic.getUuid();
+                if (TEMPERATURE_MEASUREMENT_UUID.equals(characteristicUuid)) {
+                    temperatureMeasurementFound = true;
+                }
+
+                JSObject characteristicJson = new JSObject();
+                characteristicJson.put("uuid", characteristicUuid.toString());
+                characteristicJson.put("properties", buildPropertiesArray(characteristic.getProperties()));
+                characteristics.put(characteristicJson);
+            }
+
+            serviceJson.put("characteristics", characteristics);
+            services.put(serviceJson);
+        }
+
+        JSObject result = new JSObject();
+        result.put("healthThermometerFound", healthThermometerFound);
+        result.put("temperatureMeasurementFound", temperatureMeasurementFound);
+        result.put("services", services);
+        return result;
+    }
+
+    private JSArray buildPropertiesArray(int properties) {
+        JSArray propertyNames = new JSArray();
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
+            propertyNames.put("read");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
+            propertyNames.put("write");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
+            propertyNames.put("writeWithoutResponse");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+            propertyNames.put("notify");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0) {
+            propertyNames.put("indicate");
+        }
+        return propertyNames;
+    }
+
+    // Configure each GATT operation only after the previous write is acknowledged.
+    private void enableVincaIndications(BluetoothGatt gatt) {
+        if (experimentalReception || !temperatureProfileValidated) return;
+        BluetoothGattService service = gatt.getService(VINCA_SERVICE_UUID);
+        BluetoothGattCharacteristic characteristic = service == null ? null : service.getCharacteristic(VINCA_INDICATION_UUID);
+        if (characteristic == null) {
+            configureMeasurementInterval(gatt);
+            return;
+        }
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID);
+        try {
+            if (descriptor == null || !gatt.setCharacteristicNotification(characteristic, true)) {
+                rejectTemperatureStart("No se pudo preparar el canal Vinca 2.", "INDICATION_ENABLE_FAILED");
+                return;
+            }
+            vincaIndicationCharacteristic = characteristic;
+            if (!writeDescriptorValue(gatt, descriptor, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                rejectTemperatureStart("No se pudo activar el canal Vinca 2.", "CCCD_WRITE_FAILED");
+            }
+        } catch (SecurityException error) {
+            rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
+        }
+    }
+
+    private void configureMeasurementInterval(BluetoothGatt gatt) {
+        if (experimentalReception || !temperatureProfileValidated) return;
+        BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
+        BluetoothGattCharacteristic interval = service == null ? null : service.getCharacteristic(MEASUREMENT_INTERVAL_UUID);
+        if (interval == null || (interval.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) == 0) {
+            rejectTemperatureStart("Este dispositivo no permite configurar el envio Vinca 2.", "MEASUREMENT_INTERVAL_FAILED");
+            return;
+        }
+        // Bluetooth 0x2A21: uint16 little-endian, seconds. Vinca 2 uses 1 second.
+        byte[] intervalValue = new byte[] { 1, 0 };
+        capture.record(MEASUREMENT_INTERVAL_UUID.toString(), "write", "requested", intervalValue);
+        try {
+            boolean started;
+            if (Build.VERSION.SDK_INT >= 33) {
+                started = gatt.writeCharacteristic(interval, intervalValue, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothGatt.GATT_SUCCESS;
+            } else {
+                interval.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                interval.setValue(intervalValue);
+                started = gatt.writeCharacteristic(interval);
+            }
+            capture.record(MEASUREMENT_INTERVAL_UUID.toString(), "write", started ? "queued" : "rejected", intervalValue);
+            if (!started) rejectTemperatureStart("No se pudo solicitar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
+        } catch (SecurityException error) {
+            rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
+        }
+    }
+
+    private void finishTemperatureSetup() {
+        vincaReception.indicationsReadyAt = System.currentTimeMillis();
+        capture.record("listener", "control", temperatureProfileValidated ? "listening_until_disconnect" : "bounded_listening_started", null);
+        clearTemperatureSetupTimeout();
+        PluginCall pending = temperatureListenerCall;
+        temperatureListenerCall = null;
+        scheduleTemperatureListenerTimeout();
+        JSObject result = new JSObject();
+        result.put("captureObserveClock", capture.observingClock());
+        result.put("connectionReady", true);
+        result.put("indicationsActive", true);
+        result.put("timeoutSeconds", Vinca2Reception.continuous(temperatureProfileValidated, experimentalReception) ? 0
+            : (experimentalReception ? TRIAL_TIMEOUT_MS : TEMPERATURE_LISTENER_TIMEOUT_MS) / 1000);
+        result.put("experimental", experimentalReception);
+        result.put("measurementIntervalConfigured", temperatureProfileValidated);
+        result.put("capabilities", experimentalReception ? new JSObject() : profileCapabilities(temperatureGatt, temperatureProtocol, temperatureDeviceModel));
+        result.put("verificationId", verification.session());
+        result.put("deviceKey", temperatureDeviceKey);
+        result.put("sessionId", vincaReception.sessionId);
+        result.put("connectedAt", vincaReception.connectedAt);
+        result.put("indicationsReadyAt", vincaReception.indicationsReadyAt);
+        temperatureReady = true;
+        readyResult = result;
+        if (backgroundEligible()) {
+            if (!visible) { rejectTemperatureStart("Actividad no visible.", "CONNECTION_CANCELLED"); return; }
+            try {
+                serviceRequested = true;
+                context.startForegroundService(new android.content.Intent(context, FemometerReceptionService.class));
+            } catch (RuntimeException error) {
+                serviceRequested = false;
+                rejectTemperatureStart("No se pudo preparar la recepción Android.", "BACKGROUND_SERVICE_FAILED");
+                if (pending != null) pending.reject("No se pudo preparar la recepción Android.", "BACKGROUND_SERVICE_FAILED");
+                return;
+            }
+        }
+        if (pending != null) pending.resolve(result);
+        Log.d(TAG, "Temperature listener ready: Vinca setup v2");
+    }
+
+    private synchronized void handleTemperatureCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, String connectedDeviceKey) {
+        expireIfDue();
+        if (gatt != temperatureGatt) return;
+        if (characteristic != null) {
+            // Log transport metadata only, never temperatures or raw measurement bytes.
+            Log.d(TAG, "BLE indication: " + characteristic.getUuid() + ", bytes=" + (value == null ? 0 : value.length));
+        }
+        Vinca2Capture.Event captured = null;
+        if (temperatureProfileValidated && receptionValidated && characteristic != null
+                && (TEMPERATURE_MEASUREMENT_UUID.equals(characteristic.getUuid()) || VINCA_INDICATION_UUID.equals(characteristic.getUuid()))) {
+            captured = capture.record(characteristic.getUuid().toString(), "reception", "received", value);
+        }
+        if (!receptionValidated || characteristic == null || !("easyhome-ebt300".equals(temperatureProtocol) ? EasyHomeProfile.NOTIFY : TEMPERATURE_MEASUREMENT_UUID).equals(characteristic.getUuid())) {
+            return;
+        }
+        if (value == null || value.length < 5) {
+            capture.decoded(captured, "PAYLOAD_TOO_SHORT");
+            Log.e(TAG, "Temperature indication payload too short");
+            return;
+        }
+
+        try {
+            JSObject decoded;
+            if ("easyhome-ebt300".equals(temperatureProtocol)) {
+                if (easyOperation.busy() || easyOperation.uncertain(temperatureGatt)) return;
+                EasyHomeProfile.Reading reading = EasyHomeProfile.decode(value, easyUnitConfigured);
+                decoded = new JSObject(); decoded.put("temperatureC", reading.temperature); decoded.put("temperatureOriginal", reading.original);
+                decoded.put("temperatureUnit", "unknown"); decoded.put("temperatureInferredUnit", reading.inferredUnit);
+                decoded.put("temperatureInterpretation", "range-inference-provisional"); decoded.put("deviceTimestamp", reading.timestamp);
+                decoded.put("deviceTimestampReliability", "unverified"); decoded.put("receivedAt", formatIsoLocal(new Date()));
+                decoded.put("measurementKind", reading.live ? "current" : "historical");
+            } else {
+                if (!temperatureProfileValidated) TemperatureMeasurementCodec.validateFinal(value);
+                else TemperatureMeasurementCodec.validateVincaFinal(value);
+                decoded = decodeTemperatureMeasurement(value);
+            }
+            if (captured != null) {
+                JSObject safe = new JSObject();
+                for (String key : new String[] {"temperatureC", "temperatureOriginal", "temperatureUnit", "deviceTimestamp",
+                        "deviceTimestampReliability", "deviceTimeZone", "measurementType", "measurementTypeCode", "flags"})
+                    safe.put(key, decoded.opt(key));
+                capture.decoded(captured, safe.toString());
+            }
+            if (temperatureProfileValidated && !experimentalReception) {
+                if (!vincaReception.accept(value, decoded.optString("deviceTimestamp", "").length() == 19)) return;
+                JSObject transport = new JSObject();
+                transport.put("sessionId", vincaReception.sessionId);
+                transport.put("connectedAt", vincaReception.connectedAt);
+                transport.put("indicationsReadyAt", vincaReception.indicationsReadyAt);
+                transport.put("receivedAt", System.currentTimeMillis());
+                decoded.put("transport", transport);
+            }
+            decoded.put("deviceKey", connectedDeviceKey);
+            decoded.put("deviceModel", temperatureDeviceModel);
+            decoded.put("deviceName", temperatureDeviceName);
+            if (!temperatureProfileValidated) decoded.remove("rawHex");
+            decoded.put("deviceProtocol", temperatureProtocol);
+            decoded.put("receptionValidated", !experimentalReception);
+            if (experimentalReception) {
+                String readingId = verification.add(decoded);
+                if (!trialReviewGranted && readingId != null) { trialReviewGranted = true; scheduleTemperatureListenerTimeout(); }
+                if (readingId == null) return;
+                decoded.put("verificationId", verification.session()); decoded.put("readingId", readingId);
+            }
+            decoded.put("experimental", experimentalReception);
+            if (temperatureProfileValidated && !experimentalReception) {
+                decoded.remove("rawHex");
+                try { queue.append(currentUser, decoded); }
+                catch (Exception failure) {
+                    notifyTemperatureListenerState("error", "No se pudo conservar la lectura en Android.");
+                    stopTemperatureListenerInternal(false, null, null);
+                    return;
+                }
+            }
+            Log.d(TAG, "Temperature indication received");
+            if (visible || !temperatureProfileValidated) notifyListeners(experimentalReception ? TRIAL_EVENT : TEMPERATURE_EVENT, decoded);
+        } catch (Exception error) {
+            capture.decoded(captured, "DECODE_FAILED");
+            Log.e(TAG, "Error decoding temperature indication");
+            JSObject event = new JSObject();
+            event.put("error", "DECODE_FAILED");
+            if ("easyhome-ebt300".equals(temperatureProtocol)) event.put("message", "Lectura EBT-300 no utilizable: unidad no confirmada o datos fuera del formato y rango admitidos.");
+            event.put("rawHex", bytesToHex(value));
+            notifyListeners(experimentalReception ? TRIAL_EVENT : TEMPERATURE_EVENT, event);
+        }
+    }
+
+    private JSObject decodeTemperatureMeasurement(byte[] value) {
+        int flags = value[0] & 0xFF;
+        boolean isFahrenheit = (flags & 0x01) != 0;
+        boolean hasTimestamp = (flags & 0x02) != 0;
+        boolean hasMeasurementType = (flags & 0x04) != 0;
+
+        int offset = 1;
+        double temperature = decodeIeee11073Float(value, offset);
+        offset += 4;
+        double temperatureC = isFahrenheit ? (temperature - 32.0) * 5.0 / 9.0 : temperature;
+
+        String deviceTimestamp = null;
+        if (hasTimestamp && value.length >= offset + 7) {
+            int year = uint16(value, offset);
+            int month = value[offset + 2] & 0xFF;
+            int day = value[offset + 3] & 0xFF;
+            int hour = value[offset + 4] & 0xFF;
+            int minute = value[offset + 5] & 0xFF;
+            int second = value[offset + 6] & 0xFF;
+            deviceTimestamp = formatDeviceTimestamp(year, month, day, hour, minute, second);
+            offset += 7;
+        }
+
+        Integer measurementTypeCode = null;
+        String measurementType = null;
+        if (hasMeasurementType && value.length > offset) {
+            measurementTypeCode = value[offset] & 0xFF;
+            measurementType = measurementTypeName(measurementTypeCode);
+        }
+
+        JSObject result = new JSObject();
+        result.put("temperatureC", !temperatureProfileValidated ? temperatureC : roundTemperature(temperatureC));
+        result.put("temperatureUnit", isFahrenheit ? "fahrenheit" : "celsius");
+        result.put("temperatureOriginal", !temperatureProfileValidated ? temperature : roundTemperature(temperature));
+        result.put("receivedAt", formatIsoLocal(new Date()));
+        result.put("deviceTimestamp", deviceTimestamp);
+        result.put("deviceTimestampReliability", deviceTimestamp == null ? (hasTimestamp ? "invalid" : "missing") : "unverified");
+        result.put("deviceTimeZone", "unknown");
+        result.put("measurementType", measurementType != null ? measurementType : null);
+        result.put("measurementTypeCode", measurementTypeCode != null ? measurementTypeCode : null);
+        result.put("flags", flags);
+        result.put("rawHex", bytesToHex(value));
+        return result;
+    }
+
+    private double decodeIeee11073Float(byte[] value, int offset) {
+        return TemperatureMeasurementCodec.ieee11073(value, offset);
+    }
+
+    private int uint16(byte[] value, int offset) {
+        return (value[offset] & 0xFF) | ((value[offset + 1] & 0xFF) << 8);
+    }
+
+    private double roundTemperature(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private String formatDeviceTimestamp(int year, int month, int day, int hour, int minute, int second) {
+        try {
+            return BleClockCodec.dateTime(year, month, day, hour, minute, second);
+        } catch (Exception error) {
+            Log.e(TAG, "Error formatting device timestamp");
+            return null;
+        }
+    }
+
+    private String formatIsoLocal(Date date) {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US);
+        format.setTimeZone(TimeZone.getDefault());
+        return format.format(date);
+    }
+
+    private String measurementTypeName(int code) {
+        switch (code) {
+            case 1:
+                return "armpit";
+            case 2:
+                return "body";
+            case 3:
+                return "ear";
+            case 4:
+                return "finger";
+            case 5:
+                return "gastrointestinal";
+            case 6:
+                return "mouth";
+            case 7:
+                return "rectum";
+            case 8:
+                return "toe";
+            case 9:
+                return "tympanum";
+            default:
+                return "code_" + code;
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder();
+        for (byte item : bytes) {
+            builder.append(String.format(Locale.US, "%02X", item));
+        }
+        return builder.toString();
+    }
+
+    private boolean writeDescriptorValue(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, byte[] value) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return gatt.writeDescriptor(descriptor, value) == BluetoothGatt.GATT_SUCCESS;
+        }
+        descriptor.setValue(Arrays.copyOf(value, value.length));
+        return gatt.writeDescriptor(descriptor);
+    }
+
+    private BluetoothAdapter getBluetoothAdapter() {
+        BluetoothManager bluetoothManager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+        return bluetoothManager != null ? bluetoothManager.getAdapter() : null;
+    }
+
+    private BluetoothLeScanner getScanner() {
+        BluetoothAdapter adapter = getBluetoothAdapter();
+        return adapter != null ? adapter.getBluetoothLeScanner() : null;
+    }
+
+    String getUnavailableCode() {
+        if (!isStaging()) return "UNAVAILABLE_PLATFORM";
+        if (!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            return "BLE_NOT_SUPPORTED";
+        }
+        BluetoothAdapter adapter = getBluetoothAdapter();
+        if (adapter == null) {
+            return "BLUETOOTH_UNAVAILABLE";
+        }
+        return null;
+    }
+
+    private String getBlockedOperationCode() {
+        if (!gattCleanup.complete()) return "GATT_CLOSE_FAILED";
+        String unavailableCode = getUnavailableCode();
+        if (unavailableCode != null) return unavailableCode;
+        if (!hasRequiredRuntimePermissions()) {
+            return "PERMISSION_NOT_GRANTED";
+        }
+        BluetoothAdapter adapter = getBluetoothAdapter();
+        if (adapter == null || !adapter.isEnabled()) {
+            return "BLUETOOTH_DISABLED";
+        }
+        return null;
+    }
+
+    String[] getRequiredPermissionAliases() {
+        List<String> aliases = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            aliases.add(BLUETOOTH_SCAN_ALIAS);
+            aliases.add(BLUETOOTH_CONNECT_ALIAS);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            aliases.add(LOCATION_ALIAS);
+        }
+        return aliases.toArray(new String[0]);
+    }
+
+    boolean hasRequiredRuntimePermissions() {
+        for (String alias : getRequiredPermissionAliases()) {
+            if (getPermissionState(alias) != PermissionState.GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    JSObject buildPermissionStatesObject() {
+        JSObject states = new JSObject();
+        states.put(BLUETOOTH_SCAN_ALIAS, String.valueOf(getPermissionState(BLUETOOTH_SCAN_ALIAS)));
+        states.put(BLUETOOTH_CONNECT_ALIAS, String.valueOf(getPermissionState(BLUETOOTH_CONNECT_ALIAS)));
+        states.put(LOCATION_ALIAS, String.valueOf(getPermissionState(LOCATION_ALIAS)));
+        return states;
+    }
+
+    void logPermissionStates(String stage) {
+        Log.d(
+            TAG,
+            "Permission states " + stage +
+                ": android=" + Build.VERSION.SDK_INT +
+                ", scan=" + getPermissionState(BLUETOOTH_SCAN_ALIAS) +
+                ", connect=" + getPermissionState(BLUETOOTH_CONNECT_ALIAS) +
+                ", location=" + getPermissionState(LOCATION_ALIAS)
+        );
+    }
+
+    private void scheduleConnectTimeout(long timeoutMs, String code, String message) {
+        if (connectTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(connectTimeoutRunnable);
+        }
+        connectTimeoutRunnable = () -> rejectConnectCall(message, code);
+        mainHandler.postDelayed(connectTimeoutRunnable, timeoutMs);
+    }
+
+    private void scheduleTemperatureSetupTimeout() {
+        clearTemperatureSetupTimeout();
+        temperatureSetupTimeoutRunnable = () ->
+            rejectTemperatureStart("La preparacion de indicaciones BLE ha tardado demasiado.", "TEMPERATURE_LISTENER_SETUP_TIMEOUT");
+        mainHandler.postDelayed(temperatureSetupTimeoutRunnable, CONNECT_TIMEOUT_MS + DISCOVER_TIMEOUT_MS);
+    }
+
+    private void clearTemperatureSetupTimeout() {
+        if (temperatureSetupTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(temperatureSetupTimeoutRunnable);
+            temperatureSetupTimeoutRunnable = null;
+        }
+    }
+
+    private void scheduleTemperatureListenerTimeout() {
+        clearTemperatureListenerTimeout();
+        if (Vinca2Reception.continuous(temperatureProfileValidated, experimentalReception)) return;
+        temperatureListenerTimeoutRunnable = () -> {
+            Log.d(TAG, "Temperature listening window ended");
+            notifyTemperatureListenerState("timeout", "Ha finalizado el tiempo de escucha.");
+            stopTemperatureListenerInternal(false, null, null);
+        };
+        mainHandler.postDelayed(temperatureListenerTimeoutRunnable, experimentalReception ? (trialReviewGranted ? 900000L : TRIAL_TIMEOUT_MS) : TEMPERATURE_LISTENER_TIMEOUT_MS);
+    }
+
+    private void clearTemperatureListenerTimeout() {
+        if (temperatureListenerTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(temperatureListenerTimeoutRunnable);
+            temperatureListenerTimeoutRunnable = null;
+        }
+    }
+
+    private void rejectTemperatureStart(String message, String code) {
+        capture.record("connection", "control", code, null);
+        PluginCall pending = temperatureListenerCall;
+        stopTemperatureListenerInternal(false, null, null);
+        if (pending != null) {
+            pending.reject(message, code);
+        }
+    }
+
+    private void notifyTemperatureListenerState(String status, String message) {
+        capture.record("connection", "control", status, null);
+        JSObject event = new JSObject();
+        event.put("status", status);
+        event.put("message", message);
+        notifyListeners(experimentalReception ? TRIAL_EVENT : TEMPERATURE_EVENT, event);
+    }
+
+    private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+        if (temperatureGatt != null) {
+            capture.record("listener", "control", temperatureReady ? "window_ended" : "setup_ended", null);
+            capture.record("connection", "control", "disconnect_requested", null);
+        }
+        verification.clear(); trialDeviceId = null; trialReviewGranted = false;
+        receptionValidated = false; temperatureProtocol = null; temperatureDeviceName = null; easyUnitConfigured = false;
+        temperatureReady = false;
+        readyResult = null;
+        cancelDeadline();
+        serviceRequested = false;
+        context.stopService(new android.content.Intent(context, FemometerReceptionService.class));
+        easyOperation.cancel();
+        measurementModeOperation.cancel();
+        volumeOperation.cancel();
+        deviceInfoOperation.cancel();
+        clockOperation.cancel();
+        clearTemperatureSetupTimeout();
+        clearTemperatureListenerTimeout();
+        temperatureListenerCall = null;
+
+        BluetoothGatt gatt = temperatureGatt;
+        BluetoothGattCharacteristic characteristic = temperatureCharacteristic;
+        BluetoothGattCharacteristic vincaCharacteristic = vincaIndicationCharacteristic;
+        temperatureGatt = null;
+        temperatureProfileValidated = false;
+        temperatureDeviceModel = null;
+        temperatureDeviceKey = null;
+        temperatureCharacteristic = null;
+        vincaIndicationCharacteristic = null;
+
+        if (gatt != null) {
+            try {
+                if (characteristic != null) {
+                    gatt.setCharacteristicNotification(characteristic, false);
+                }
+                if (vincaCharacteristic != null) {
+                    gatt.setCharacteristicNotification(vincaCharacteristic, false);
+                }
+            } catch (SecurityException error) {
+                Log.e(TAG, "SecurityException disabling local indication listener");
+            } catch (Exception error) {
+                Log.e(TAG, "Unexpected exception disabling local indication listener");
+            }
+            closeGatt(gatt);
+            capture.record("connection", "control", gattCleanup.complete() ? "closed" : "GATT_CLOSE_FAILED", null);
+        }
+
+        if (notifyStopped) {
+            notifyTemperatureListenerState(status != null ? status : "stopped", message != null ? message : "Escucha detenida.");
+        }
+        experimentalReception = false;
+    }
+
+    private void rejectConnectCall(String message, String code) {
+        PluginCall pending = connectCall;
+        clearConnectState();
+        closeActiveGatt();
+        if (pending != null) {
+            pending.reject(message, code);
+        }
+    }
+
+    private void rejectPendingConnect(String message, String code) {
+        PluginCall pending = connectCall;
+        clearConnectState();
+        if (pending != null) {
+            pending.reject(message, code);
+        }
+    }
+
+    private void clearConnectState() {
+        if (connectTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(connectTimeoutRunnable);
+            connectTimeoutRunnable = null;
+        }
+        connectCall = null;
+    }
+
+    private void cancelScan() {
+        PluginCall pending = scanCall;
+        stopScanInternal();
+        if (pending != null) pending.reject("Busqueda cancelada.", "CONNECTION_CANCELLED");
+    }
+
+    private void stopScanInternal() {
+        if (scanCall != null && captureUser != null) {
+            capture.record("search", "control", "scan_finished", null);
+            try {
+                String address = identities().get(captureUser).address;
+                boolean found = devicesById.values().stream().anyMatch(device -> device.address.equals(address));
+                capture.record("search", "control", found ? "bound_device_found" : "bound_device_not_found", null);
+            } catch (IllegalStateException error) { capture.record("search", "control", "binding_unavailable", null); }
+        }
+        if (scanCallback != null) {
+            try {
+                BluetoothLeScanner scanner = getScanner();
+                if (scanner != null) {
+                    scanner.stopScan(scanCallback);
+                }
+            } catch (SecurityException error) {
+                Log.e(TAG, "SecurityException stopping BLE scan");
+                // Best effort cleanup only.
+            } catch (IllegalStateException error) {
+                Log.e(TAG, "IllegalStateException stopping BLE scan");
+                // Best effort cleanup only.
+            } catch (Exception error) {
+                Log.e(TAG, "Unexpected exception stopping BLE scan");
+                // Best effort cleanup only.
+            }
+        }
+        scanCallback = null;
+        scanCall = null;
+        scanTargetAddress = null;
+    }
+
+    private void closeActiveGatt() {
+        BluetoothGatt gatt = activeGatt;
+        activeGatt = null;
+        closeGatt(gatt);
+    }
+
+    private void closeGatt(BluetoothGatt gatt) {
+        if (gatt == null) return;
+        identityOperation.cancel();
+        try {
+            gatt.disconnect();
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException disconnecting BLE GATT");
+            // Best effort cleanup only.
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception disconnecting BLE GATT");
+            // Best effort cleanup only.
+        }
+        if (!gattCleanup.close(gatt, gatt::close)) Log.e(TAG, "Unable to close BLE GATT; further operations blocked");
+    }
+
+    void rejectWithCode(PluginCall call, String code) {
+        switch (code) {
+            case "BLE_NOT_SUPPORTED":
+                call.reject("Este dispositivo no tiene soporte BLE.", code);
+                break;
+            case "BLUETOOTH_DISABLED":
+                call.reject("Bluetooth esta apagado.", code);
+                break;
+            case "PERMISSION_NOT_GRANTED":
+                call.reject("Faltan permisos Bluetooth.", code);
+                break;
+            case "BLUETOOTH_UNAVAILABLE":
+            default:
+                call.reject("Bluetooth no esta disponible.", code);
+                break;
+        }
+    }
+
+    // Names and DIS strings are untrusted; never relay an embedded MAC address.
+    private static String publicDeviceText(String value) {
+        if (value == null) return null;
+        String clean = value.replaceAll("(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}", "").trim();
+        return clean.isEmpty() ? null : clean.substring(0, Math.min(clean.length(), 128));
+    }
+
+    private static class ScannedDevice {
+        final BluetoothDevice device;
+        final String address;
+        volatile boolean compatible;
+        volatile JSObject inspection;
+        final String name;
+        final int rssi;
+        final boolean standard;
+
+        ScannedDevice(BluetoothDevice device, String address, String name, int rssi, boolean standard) {
+            this.device = device;
+            this.address = address;
+            this.name = name;
+            this.rssi = rssi;
+            this.standard = standard;
+        }
+    }
+}

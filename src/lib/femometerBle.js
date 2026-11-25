@@ -385,7 +385,14 @@ export const readFemometerClock = () => callFemometerBle('readClock');
 export const setFemometerTemperatureUnit = unit => callFemometerBle('setTemperatureUnit', { unit });
 export const syncFemometerClock = () => callFemometerBle('syncClock');
 
+export const getFemometerReceptionState = userId => callFemometerBle('getReceptionState', { userId });
+export const getPendingFemometerTemperatures = userId => callFemometerBle('getPendingTemperatures', { userId });
+export const acknowledgeFemometerTemperature = (userId, deviceKey, deliveryId) =>
+  callFemometerBle('acknowledgeTemperature', { userId, deviceKey, deliveryId });
+export const addFemometerReceptionStateListener = callback => addFemometerTemperatureListener(callback, 'femometerReceptionState');
+
 export const createFemometerPanelSession = createFemometerSessionManager({
+  getFemometerReceptionState, getPendingFemometerTemperatures, acknowledgeFemometerTemperature,
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer, selectRememberedFemometer,

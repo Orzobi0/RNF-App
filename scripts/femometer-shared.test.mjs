@@ -185,6 +185,18 @@ const bridge = () => {
 
 async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: null, isLoading: false }, metadata, presentationClock = null) {
   const harness = hooks();
+  let nativeResult = null, visible = true;
+  const originalStart = native.api.startFemometerTemperatureListener;
+  const originalDisconnect = native.api.disconnectFemometer;
+  native.api.startFemometerTemperatureListener = async (...args) => (nativeResult = await originalStart(...args));
+  native.api.disconnectFemometer = async (...args) => { nativeResult = null; return originalDisconnect(...args); };
+  native.api.getFemometerReceptionState = async () => ({ visible, connectionReady: Boolean(nativeResult), deviceKey: nativeResult?.deviceKey, listenerResult: nativeResult });
+  native.api.getPendingFemometerTemperatures = async () => ({ readings: native.flags.nativePending ?? [] });
+  native.api.acknowledgeFemometerTemperature = async (_user, _device, id) => {
+    if (native.flags.ackFails) throw Error('ACK unavailable');
+    (native.calls.acks ??= []).push(id);
+    native.flags.nativePending = (native.flags.nativePending ?? []).filter(row => row.nativeDeliveryId !== id);
+  };
   let userId = initialUser;
   let routeKey = 'dashboard';
   const lifecycle = new Set();
@@ -193,8 +205,8 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
     ...harness.bindings, ...(metadata ? { useThermometerMetadata: () => metadata } : {}), clearVinca2Capture: async () => { native.calls.captureClears = (native.calls.captureClears ?? 0) + 1; }, useCycleData: () => cycle, authorizedBleMeasurement, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
-    CapacitorApp: { addListener: (name, callback) => {
-      assert.equal(name, 'appStateChange');
+    document: { addEventListener() {}, removeEventListener() {} },
+    addFemometerReceptionStateListener: callback => {
       if (native.flags.lifecycleThrow) throw native.flags.lifecycleThrow;
       return (async () => {
         if (native.flags.lifecycleWait) await native.flags.lifecycleWait.promise;
@@ -202,7 +214,7 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
         lifecycle.add(callback);
         return { remove: async () => lifecycle.delete(callback) };
       })();
-    } },
+    },
     ...(presentationClock ? { Date: presentationClock.Date } : {}),
     setTimeout: (callback, delay) => { timers.add(callback); presentationClock?.delays.set(callback, delay); return callback; },
     clearTimeout: callback => { timers.delete(callback); presentationClock?.delays.delete(callback); },
@@ -214,9 +226,9 @@ async function mountedOwner(native, initialUser = 'a', cycle = { currentCycle: n
     prompt: () => { render(); return treeNodes(lastTree).find(node => node.type === 'automation-prompt')?.props; },
     card: () => { render(); return treeNodes(lastTree).find(node => node.type === 'card').props; },
     navigate: key => { routeKey = key; render(); },
-    background: async () => { lifecycle.forEach(callback => callback({ isActive: false })); await flush(); },
+    background: async () => { lifecycle.forEach(callback => callback({ visible: (visible = false) })); await flush(); },
     foreground: async () => {
-      lifecycle.forEach(callback => callback({ isActive: true }));
+      lifecycle.forEach(callback => callback({ visible: (visible = true) }));
       for (const callback of timers) { timers.delete(callback); callback(); }
       await flush();
     },
@@ -240,7 +252,7 @@ test('foreground preserves healthy Vinca listening beyond six minutes and late r
     native.emit({ status: 'disconnected' }); await flush();
     assert.notEqual(owner.render().sessionState.status, 'listening');
     await owner.background(); await owner.foreground();
-    assert.equal(native.calls.connections, 2);
+    assert.equal(native.calls.connections, 1);
     assert.equal(native.calls.permissions, 0);
     await owner.changeAccount('b');
     assert.equal(owner.render().pendingCount, 0);
@@ -255,19 +267,19 @@ test('foreground after unsuccessful scan is bounded and requires a remembered de
   const owner = await mountedOwner(native);
   native.flags.found = true;
   await owner.background(); await owner.foreground();
-  assert.equal(native.calls.connections, 1); // First return is not blocked by mount's scan.
+  assert.equal(native.calls.connections, 0); // BLE-10 resume does not search.
   native.emit({ status: 'disconnected' }); await flush();
   await owner.foreground();
-  assert.equal(native.calls.connections, 1);
-  assert.equal(owner.render().sessionState.foreground.reason, 'already_active');
+  assert.equal(native.calls.connections, 0);
+  assert.equal(owner.render().sessionState.foreground.reason, 'native_disconnected');
   await Promise.all([owner.render().sessionRef.current.start(), owner.render().sessionRef.current.start()]);
-  assert.equal(native.calls.connections, 2); // Explicit retry bypasses only the cooldown.
+  assert.equal(native.calls.connections, 1); // Explicit connection remains available.
   assert.equal(native.calls.peakListeners, 1);
   native.flags.remembered = false;
   await owner.changeAccount('b');
   native.flags.now += 120_000;
   await owner.foreground();
-  assert.equal(native.calls.connections, 2);
+  assert.equal(native.calls.connections, 1);
   owner.cleanup(); await flush();
 });
 
@@ -314,6 +326,7 @@ test('account change and unmount dispose old listener, clear readings and ignore
   const saving = owner.render().incorporateReading(1, () => pending.promise);
   await owner.changeAccount('b');
   pending.resolve({}); await saving;
+  owner.render(); await flush();
   assert.equal(owner.render().readings.length, 0);
   assert.equal(native.calls.peakListeners, 1);
   assert.equal(native.calls.clock, 2);
@@ -1520,7 +1533,7 @@ test('technical diagnostics are collapsed by default and rendering never calls t
   }, ['Vinca2Diagnostics']);
   const tree = harness.render(() => ({ props: { value: Vinca2Diagnostics() } }));
   assert.equal(tree.type, 'details'); assert.equal(tree.props.open, undefined);
-  assert.match(JSON.stringify(tree), /Error al registrar App.appStateChange/);
+  assert.match(JSON.stringify(tree), /Error del ciclo de vida nativo/);
   assert.match(JSON.stringify(tree), /UNIMPLEMENTED/); assert.match(JSON.stringify(tree), /App plugin unavailable in test/);
   assert.match(JSON.stringify(tree), /Diagnóstico técnico/); assert.match(JSON.stringify(tree), /characteristic/);
   for (const [reason, label] of Object.entries({ initial: 'búsqueda automática inicial', automatic_retry: 'único reintento automático',
@@ -3068,7 +3081,7 @@ test('standard promotion without original date persists before one manual save; 
         if (outcome !== 'success') throw Object.assign(new Error('failure'), outcome === 'duplicate' ? { code: 'ble-possible-duplicate' } : {});
         return { isoDate: payload.isoDate, measurements: payload.measurements };
       } };
-    owner = await mountedOwner({ factory: createFemometerSessionManager(h.api), storage }, 'a', cycle);
+    owner = await mountedOwner({ factory: createFemometerSessionManager(h.api), api: h.api, calls: {}, flags: {}, storage }, 'a', cycle);
     const session = owner.render().sessionRef.current;
     await session.scan(); await session.selectAndRemember('standard'); h.trial(h.sample);
     const action = owner.render().completeVerification({ readingId: 'reading', basalConfirmed: true, isoDate: '2026-11-18', time: '08:05' });
@@ -3158,7 +3171,7 @@ test('navigation during first binding leaves its received take pending without s
   const h = standardVerificationFixture(), wait = deferred(), original = h.api.confirmStandardThermometerTrial;
   let saves = 0;
   h.api.confirmStandardThermometerTrial = async (...args) => { await wait.promise; return original(...args); };
-  const owner = await mountedOwner({ factory: createFemometerSessionManager(h.api), storage: memoryStorage() }, 'a', {
+  const owner = await mountedOwner({ factory: createFemometerSessionManager(h.api), api: h.api, calls: {}, flags: {}, storage: memoryStorage() }, 'a', {
     currentCycle: { id: 'cycle', startDate: '2026-11-01' }, isLoading: false, incorporateBleMeasurement: async () => { saves++; } });
   const session = owner.render().sessionRef.current;
   await session.scan(); await session.selectAndRemember('standard'); h.trial(h.sample);
@@ -3238,7 +3251,7 @@ test('capture wrappers exclude PWA, production and Experiment and export only ex
 });
 
 test('native hooks observe both Android callback signatures and proprietary bytes before the existing discard', async () => {
-  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerBle.java', import.meta.url), 'utf8');
+  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerGattSession.java', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('private synchronized void handleTemperatureCharacteristicChanged'), source.indexOf('private JSObject decodeTemperatureMeasurement'));
   assert.ok(handler.indexOf('captured = capture.record') < handler.indexOf('if (!receptionValidated'));
   assert.match(handler, /VINCA_INDICATION_UUID.equals/);
@@ -3311,7 +3324,7 @@ test('prepared observation keeps automatic reads but suppresses only Vinca autom
 });
 
 test('preparation native guard uses saved identity and preserves the transport sequence', async () => {
-  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerBle.java', import.meta.url), 'utf8');
+  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerGattSession.java', import.meta.url), 'utf8');
   const prepare = source.slice(source.indexOf('} else if ("prepare".equals(action))'), source.indexOf('} else if ("start".equals(action))'));
   assert.match(prepare, /identities\(\).get\(user\)/);
   assert.match(prepare, /bound.compatibility/); assert.match(prepare, /bound.protocol/); assert.match(prepare, /bound.key.equals/);
@@ -3549,14 +3562,16 @@ test('automatic consent prepares a verified clock reference and preserves it on 
     const syncAt = owner.render().clockHistory.lastVerifiedSync.checkedAt;
     native.flags.now += 60000;
     native.emit({ status: 'disconnected' }); await flush();
-    await owner.background(); await owner.background(); await owner.foreground(); owner.render();
+    await owner.background(); await owner.background(); await owner.foreground();
+    await owner.render().sessionRef.current.start(); owner.render();
     assert.equal(native.calls.sync, 1);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, syncAt);
     assert.ok(owner.render().clockHistory.lastValidCheck.checkedAt > syncAt);
     native.api.readFemometerClock = async () => { throw { code: 'CLOCK_INVALID_DATE' }; };
     native.flags.now += 60000;
     native.emit({ status: 'disconnected' }); await flush();
-    await owner.background(); await owner.background(); await owner.foreground(); owner.render();
+    await owner.background(); await owner.background(); await owner.foreground();
+    await owner.render().sessionRef.current.start(); owner.render();
     assert.equal(native.calls.sync, 2);
     assert.equal(owner.render().clockHistory.lastVerifiedSync.checkedAt, native.flags.now);
   } finally { owner.cleanup(); await flush(); }
@@ -3583,7 +3598,8 @@ test('a fixed connection clock requires review without interrupting reception or
     // Only a natural loss creates a new connection; never interrupt reception for CTS.
     native.emit({ status: 'disconnected' }); await flush();
     native.flags.now += 60000;
-    await owner.background(); await owner.foreground(); owner.render();
+    await owner.background(); await owner.foreground();
+    await session.start(); owner.render();
     assert.equal(owner.render().clockHistory.staleCheck, null);
     assert.equal(owner.render().clockHistory.state, 'read_correct');
     assert.equal(native.calls.sync, 0);
@@ -3649,7 +3665,7 @@ test('Vinca minimal transport provenance survives pending recovery but does not 
 });
 
 test('native continuous policy is connected to setup while preserving operation deadlines and proprietary subscription', async () => {
-  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerBle.java', import.meta.url), 'utf8');
+  const source = await fs.readFile(new URL('../android/app/src/main/java/com/fertiliapp/fertiliapp/FemometerGattSession.java', import.meta.url), 'utf8');
   const timeout = source.slice(source.indexOf('private void scheduleTemperatureListenerTimeout()'), source.indexOf('private void clearTemperatureListenerTimeout()'));
   assert.match(timeout, /if \(Vinca2Reception.continuous\(temperatureProfileValidated, experimentalReception\)\) return;/);
   assert.match(timeout, /TEMPERATURE_LISTENER_TIMEOUT_MS/);
@@ -3889,7 +3905,7 @@ test('late lifecycle registration is removed after unmount and cannot resume the
   assert.equal(native.calls.connections, connections);
 });
 
-test('registered Android events reopen exactly one bounded window after both initial searches fail', async () => {
+test('native Android resume leaves exhausted search policy to BLE-11', async () => {
   const native = bridge(); const timers = new Map(); let searches = 0;
   native.api.setTimeout = (fn, delay) => { timers.set(fn, delay); return fn; };
   native.api.clearTimeout = fn => timers.delete(fn);
@@ -3909,12 +3925,160 @@ test('registered Android events reopen exactly one bounded window after both ini
     owner.navigate('devices'); await owner.foreground();
     assert.equal(searches, 2);
     await owner.background(); await owner.foreground();
-    assert.equal(searches, 3);
+    assert.equal(searches, 2);
     await Promise.all([owner.foreground(), owner.foreground()]);
-    owner.navigate('records'); assert.equal(searches, 3);
-    await tick(); assert.equal(searches, 4); assert.equal(timers.size, 0);
-    await owner.foreground(); assert.equal(searches, 4);
+    owner.navigate('records'); assert.equal(searches, 2);
+    assert.equal(timers.size, 0);
+    await owner.foreground(); assert.equal(searches, 2);
     assert.equal(owner.render().sessionState.recoveryExhausted, true);
   } finally { owner.cleanup(); await flush(); }
   assert.equal(timers.size, 0); assert.equal(owner.lifecycle.size, 0);
+});
+
+
+const nativeReading = (id, extra = {}) => ({ nativeDeliveryId: id, nativeUserId: 'a', deviceKey: 'bound-a',
+  deviceModel: 'BM-Vinca2', deviceProtocol: 'vinca2', receptionValidated: true,
+  temperatureC: 36.45, temperatureUnit: 'celsius', deviceTimestamp: '2026-11-25T07:30:10',
+  receivedAt: '2026-11-25T07:33:00', ...extra });
+
+test('BLE-10: native background leaves the same connection, restores multiple deliveries and acknowledges individually', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    await owner.background(); await owner.background();
+    assert.equal(native.calls.disconnects, 0);
+    native.flags.nativePending = [nativeReading('one'), nativeReading('two', { deviceTimestamp: '2026-11-25T07:31:10' })];
+    assert.equal(owner.render().readings.length, 0);
+    await owner.foreground();
+    assert.equal(native.calls.connections, 1);
+    assert.equal(native.calls.disconnects, 0);
+    assert.equal(native.calls.peakListeners, 1);
+    assert.equal(owner.render().readings.length, 2);
+    assert.deepEqual(native.calls.acks, ['one', 'two']);
+    assert.equal(createFemometerLocalState(native.storage, 'a').recover().length, 2);
+    await owner.foreground();
+    assert.equal(owner.render().readings.length, 2);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('BLE-10: event plus queue recovery has one pending; failed ACK survives reload even after incorporation', async () => {
+  const native = bridge(); native.flags.ackFails = true;
+  const event = nativeReading('delivery'); native.flags.nativePending = [event];
+  let owner = await mountedOwner(native);
+  try {
+    native.emit(event); await flush();
+    assert.equal(owner.render().readings.length, 1);
+    await owner.render().incorporateReading(owner.render().readings[0].uiId, async () => ({}));
+    assert.equal(createFemometerLocalState(native.storage, 'a').recover().length, 0);
+    owner.cleanup(); await flush();
+    native.flags.ackFails = false;
+    owner = await mountedOwner(native);
+    assert.equal(owner.render().readings.length, 0);
+    assert.deepEqual(native.calls.acks, ['delivery']);
+    assert.equal(native.flags.nativePending.length, 0);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('BLE-10: local persistence failure never ACKs or exposes an unsafe pending, retry conserves it', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  const write = native.storage.setItem;
+  try {
+    const event = nativeReading('storage-failure'); native.flags.nativePending = [event];
+    native.storage.setItem = () => { throw Error('quota'); };
+    native.emit(event); await flush();
+    assert.equal(owner.render().readings.length, 0);
+    assert.equal(native.calls.acks, undefined);
+    assert.equal(native.flags.nativePending.length, 1);
+    native.storage.setItem = write;
+    await owner.foreground();
+    assert.equal(owner.render().readings.length, 1);
+    assert.deepEqual(native.calls.acks, ['storage-failure']);
+  } finally { native.storage.setItem = write; owner.cleanup(); await flush(); }
+});
+
+test('BLE-10: native deliveries retain account/device and invalid dates; interrupted Firestore is never retried', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.flags.nativePending = [nativeReading('other-account', { nativeUserId: 'b' }),
+      nativeReading('old-device', { deviceKey: 'old', deviceTimestamp: null, deviceTimestampReliability: 'invalid' }),
+      nativeReading('uncertain')];
+    await owner.foreground();
+    assert.deepEqual(native.calls.acks, ['old-device', 'uncertain']);
+    assert.deepEqual(owner.render().readings.map(r => r.deviceKey), ['old', 'bound-a']);
+    assert.equal(owner.render().readings[0].normalized.device_timestamp, null);
+    const row = owner.render().readings[1];
+    await assert.rejects(owner.render().incorporateReading(row.uiId, async () => { throw Error('response lost'); }));
+    assert.equal(owner.render().readings[1].importStatus, 'uncertain');
+    native.emit(nativeReading('uncertain')); await flush();
+    await owner.foreground();
+    assert.equal(owner.render().readings.length, 2);
+    assert.equal(owner.render().readings[1].importStatus, 'uncertain');
+    const restored = createFemometerLocalState(native.storage, 'a').recover();
+    assert.equal(restored.find(r => r.nativeDeliveryId === 'uncertain').importStatus, 'uncertain');
+    assert.equal(createFemometerLocalState(native.storage, 'b').recover().length, 0);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('BLE-10: expired native connection recovers queued temperature without scanning or claiming connected', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    await owner.background();
+    native.flags.nativePending = [nativeReading('expired')];
+    await native.api.disconnectFemometer(); // Native expiry; deliberately no delivered JS terminal event.
+    await owner.foreground();
+    assert.equal(owner.render().sessionState.status, 'stopped');
+    assert.equal(owner.render().sessionState.listenerResult, null);
+    assert.equal(native.calls.connections, 1);
+    assert.equal(owner.render().readings.length, 1);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('BLE-10: rebuilt interface adopts ready native GATT without another connection or setup', async () => {
+  const native = bridge(); let state;
+  native.api.getFemometerReceptionState = async () => ({ visible: true, connectionReady: true, deviceKey: 'bound-a',
+    listenerResult: { deviceKey: 'bound-a', connectionReady: true, indicationsActive: true, capabilities: { protocol: 'vinca2', model: 'BM-Vinca2', compatibility: 'compatible' } } });
+  native.api.getPendingFemometerTemperatures = async () => ({ readings: [] });
+  const session = native.factory('a', next => { state = next; }, () => {});
+  try {
+    await Promise.all([session.reconcileNative(true), session.reconcileNative()]);
+    assert.equal(state.status, 'listening');
+    assert.equal(native.calls.connections, 0);
+    assert.equal(native.calls.clock, 0);
+    assert.equal(native.calls.peakListeners, 1);
+  } finally { await session.dispose(); }
+});
+
+test('BLE-10: late native state cannot restore Connected after suspension', async () => {
+  const native = bridge(); const wait = deferred(); let state;
+  native.api.getFemometerReceptionState = async () => wait.promise;
+  native.api.getPendingFemometerTemperatures = async () => ({ readings: [] });
+  const session = native.factory('a', next => { state = next; }, () => {});
+  const reconcile = session.reconcileNative(true); await flush();
+  await session.suspend();
+  wait.resolve({ visible: true, connectionReady: true, deviceKey: 'bound-a', listenerResult: { connectionReady: true, indicationsActive: true } });
+  await reconcile;
+  assert.notEqual(state.status, 'listening');
+  assert.equal(native.calls.connections, 0);
+  await session.dispose();
+  assert.equal(native.calls.listeners, 0);
+});
+
+
+test('BLE-10: restored GATT cannot invent clock confidence or forget a fixed same-session snapshot', async () => {
+  for (const hasEvidence of [false, true]) {
+    const native = bridge(); native.flags.now = 120000; let state;
+    const local = createFemometerLocalState(native.storage, 'a'); local.activate('bound-a');
+    if (hasEvidence) local.saveClock('bound-a', { operation: 'read', checkedAt: 10000, deviceLocalTime: '2026-11-25T07:30:00', driftSeconds: 0 });
+    native.api.getFemometerReceptionState = async () => ({ visible: true, connectionReady: true, deviceKey: 'bound-a',
+      listenerResult: { connectedAt: 5000, connectionReady: true, indicationsActive: true, deviceKey: 'bound-a',
+        capabilities: { protocol: 'vinca2', compatibility: 'compatible', model: 'BM-Vinca2', clockRead: true } } });
+    native.api.getPendingFemometerTemperatures = async () => ({ readings: [] });
+    native.api.readFemometerClock = async () => ({ deviceLocalTime: '2026-11-25T07:30:00' });
+    const session = native.factory('a', next => { state = next; }, () => {}, local);
+    try {
+      await session.reconcileNative(true);
+      if (!hasEvidence) await assert.rejects(session.checkAutomaticClock(), { code: 'ble-auto-review' });
+      else { await session.checkAutomaticClock(); assert.equal(state.clockError.code, 'CLOCK_SNAPSHOT_STALE'); }
+      assert.equal(native.calls.connections, 0); assert.equal(native.calls.sync, 0);
+    } finally { await session.dispose(); }
+  }
 });

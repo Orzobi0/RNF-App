@@ -52,6 +52,16 @@ public class MainActivity extends BridgeActivity {
 }
     }
 
+    @Override public void onStart() {
+        super.onStart();
+        FemometerGattSession.get(this).activityVisible(true);
+    }
+
+    @Override public void onStop() {
+        FemometerGattSession.get(this).activityVisible(false);
+        super.onStop();
+    }
+
     private void setStatusBar(String color, boolean darkIcons) {
         runOnUiThread(() -> {
             try {

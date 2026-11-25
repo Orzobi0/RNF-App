@@ -147,7 +147,7 @@ const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}
       {sessionState.devices?.length > 0 && <ul aria-label="Dispositivos detectados">{sessionState.devices.map(device => <li key={device.id}>{device.name || 'Sin nombre'} · Señal {device.rssi ?? 'no disponible'} dBm{device.isRemembered ? ' · Vinculado' : ''}</li>)}</ul>}
             <div className="text-xs text-slate-500" role="status">
               <p>Ciclo de vida Android: {lifecycleStatus === 'preview' ? 'simulado en laboratorio; sin listener nativo' : lifecycleStatus === 'registered' ? 'listener registrado (pendiente de comprobar eventos reales)' : lifecycleStatus === 'unavailable' ? 'no disponible; utiliza la búsqueda manual' : 'registrando listener'}.</p>
-              {lifecycleStatus === 'unavailable' && lifecycleError && <p>Error al registrar App.appStateChange: {lifecycleError.code}: {lifecycleError.message}</p>}
+              {lifecycleStatus === 'unavailable' && lifecycleError && <p>Error del ciclo de vida nativo: {lifecycleError.code}: {lifecycleError.message}</p>}
               <p>{sessionState.foreground ? `Regreso detectado a las ${new Date(sessionState.foreground.detectedAt).toLocaleTimeString()}: ${({
                 connection_active: 'conexión preparada; no se reconecta', already_active: 'la app ya estaba activa; no se abre otra búsqueda',
                 reconnecting: 'iniciando reconexión', listening_active: 'escucha vigente; no se reconecta',

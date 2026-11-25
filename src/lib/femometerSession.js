@@ -63,6 +63,7 @@ export const createFemometerSessionManager = (api) => {
     let stopping;
     let disposal;
     let subscription;
+    let subscriptionJob;
     const now = api.now ?? Date.now;
     let started = false;
     let resumeJob;
@@ -73,6 +74,7 @@ export const createFemometerSessionManager = (api) => {
     let disconnectJob;
     let recoveryTimer, recoveryJob, recoveryEnabled = false, recoveryAttempts = 0, recoveryBlocked = false;
     let connectionClockSample = null;
+    let restoredWithoutClockEvidence = false;
     let automaticMode = false, foregroundRecoveryPending = false, recoveryWakeQueued = false;
     const schedule = api.setTimeout ?? globalThis.setTimeout;
     const unschedule = api.clearTimeout ?? globalThis.clearTimeout;
@@ -155,6 +157,7 @@ export const createFemometerSessionManager = (api) => {
     const connectionPrepared = () => state.status === 'listening' && state.listenerResult?.connectionReady === true
       && state.listenerResult?.indicationsActive === true;
     const removeSubscription = async () => {
+      await subscriptionJob;
       const old = subscription;
       subscription = null;
       await old?.remove();
@@ -189,24 +192,47 @@ export const createFemometerSessionManager = (api) => {
       });
       return job;
     };
-    const listen = async (deviceId, call, current) => {
-      automaticConfigurationPending = false;
-      const reconnect = connectionCount++ > 0;
-      publish({ unitResult: null, unitError: null, configurationBusy: false, configurationIssue: false, gattReconnectRequired: false, measurementModeBusy: false, measurementModeResult: null, measurementModeError: null, measurementModeReconnectRequired: false, volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null, status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
-      // Assign even a late subscription so cancellation can remove it after job settles.
-      subscription = await api.addFemometerTemperatureListener(event => {
-        if (!current() || event?.experimental === true) return;
+    let nativeReconcileJob;
+    const deliverTemperature = async event => {
+      if (disposed || suspended || (event?.nativeDeliveryId && event.nativeUserId !== userId)) return;
+      if (event?.nativeDeliveryId) {
+        // Old-device readings keep their device association and review rules.
+        const conserved = await onTemperature(event);
+        if (conserved && !disposed) await api.acknowledgeFemometerTemperature(userId, event.deviceKey, event.nativeDeliveryId);
+      } else onTemperature(event);
+    };
+    const ensureTemperatureSubscription = async () => {
+      if (subscription) return;
+      if (subscriptionJob) return subscriptionJob;
+      const epoch = version;
+      subscriptionJob = (async () => {
+      const handle = await api.addFemometerTemperatureListener(event => {
+        if (disposed || event?.experimental === true) return;
+        if (event?.nativeDeliveryId) {
+          void deliverTemperature(event).catch(() => {});
+          return; // Failed deliveries remain in the durable native spool.
+        }
         if (event?.deviceKey && event.deviceKey !== state.deviceKey) return;
         if (!['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status) && event?.deviceProtocol && (event.receptionValidated !== true || event.deviceKey !== state.deviceKey)) return;
-        if (promotedReplay && now() < promotedReplay.until && sameReading(promotedReplay.reading, event)) {
-          return; // Suppress exact replays of the promoted take during the initial five-minute window.
-        }
-        onTemperature({ ...event, ...(event?.transport ? { transport: { ...event.transport, reconnect } } : {}), deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
+        if (promotedReplay && now() < promotedReplay.until && sameReading(promotedReplay.reading, event)) return;
+        onTemperature({ ...event, ...(event?.transport ? { transport: { ...event.transport, reconnect: connectionCount > 1 } } : {}), deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
         if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
+          if (suspended) { recoveryEnabled = false; clearRecovery(); }
           void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
-            ['timeout', 'stopped'].includes(event.status) ? null : { code: event.status === 'disconnected' ? 'CONNECTION_LOST' : 'LISTENER_ERROR', message: event.message || 'El termómetro se desconectó.' }, true);
+            ['timeout', 'stopped'].includes(event.status) ? null : { code: event.status === 'disconnected' ? 'CONNECTION_LOST' : 'LISTENER_ERROR', message: event.message || 'El termometro se desconecto.' }, true);
         }
       });
+      if (disposed || epoch !== version) await handle.remove();
+      else subscription = handle;
+      })().finally(() => { subscriptionJob = null; });
+      return subscriptionJob;
+    };
+    const listen = async (deviceId, call, current) => {
+      automaticConfigurationPending = false;
+      connectionCount++;
+      publish({ unitResult: null, unitError: null, configurationBusy: false, configurationIssue: false, gattReconnectRequired: false, measurementModeBusy: false, measurementModeResult: null, measurementModeError: null, measurementModeReconnectRequired: false, volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null, status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
+      // Assign even a late subscription so cancellation can remove it after job settles.
+      await ensureTemperatureSubscription();
       const result = await call(() => api.startFemometerTemperatureListener(deviceId, userId));
       if (result?.connectionReady !== true || result?.indicationsActive !== true) {
         throw { code: 'LISTENER_NOT_READY', message: 'No se pudo preparar la escucha. Reconecta el termómetro.' };
@@ -217,6 +243,7 @@ export const createFemometerSessionManager = (api) => {
       if (!thermometerCapabilities(result?.capabilities).temperatureReceive) throw { code: 'DEVICE_NOT_VERIFIED', message: 'El perfil de este termómetro no está validado.' };
       foregroundRecoveryPending = false;
       clearRecovery(); connectionClockSample = null;
+      restoredWithoutClockEvidence = false;
       const configure = result.capabilities?.protocol === 'vinca2';
       publish({ recoveryReason: 'connected', status: 'listening', configurationBusy: configure, listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
       automaticConfigurationPending = configure;
@@ -496,6 +523,53 @@ export const createFemometerSessionManager = (api) => {
         publish({ status: 'trial', trial: { ...state.trial, verificationId: result.verificationId, status: 'listening' } });
     };
     const session = {
+      reconcileNative: (initial = false) => {
+        if (!api.getFemometerReceptionState || disposed) return Promise.resolve();
+        if (nativeReconcileJob) return nativeReconcileJob;
+        nativeReconcileJob = (async () => {
+          await ready;
+          if (disposed) return;
+          if (stopping) await stopping;
+          if (disposed) return;
+          const epoch = version, lifecycle = lifecycleVersion;
+          const current = () => !disposed && epoch === version && lifecycle === lifecycleVersion;
+          const saved = await api.getRememberedFemometer(userId);
+          if (!current()) return;
+          await ensureTemperatureSubscription();
+          const native = await api.getFemometerReceptionState(userId);
+          if (!current()) return;
+          if (!native.visible) { await session.suspend(); return; }
+          suspended = false;
+          applyBindings(saved); loadPreferences(saved.deviceKey);
+          if (native.connectionReady && native.deviceKey === saved.deviceKey) {
+            if (!acquired) {
+              // Reattaching a WebView is not a new BLE connection. Restore the
+              // same-session clock sample or require review; never trust a fixed
+              // snapshot as a new reference just because JS memory was lost.
+              const sample = localState?.clock(saved.deviceKey)?.lastValidCheck;
+              const sameSession = sample?.deviceLocalTime && Number.isFinite(native.listenerResult?.connectedAt)
+                && sample.checkedAt >= native.listenerResult.connectedAt;
+              connectionClockSample = sameSession ? sample : null;
+              restoredWithoutClockEvidence = !sameSession;
+            }
+            acquired = true; started = true;
+            publish({ status: 'listening', error: null, busy: false, listenerResult: native.listenerResult,
+              capabilities: thermometerCapabilities(native.listenerResult?.capabilities),
+              foreground: { detectedAt: now(), reason: 'connection_active' } });
+          } else if (!job) {
+            publish({ status: 'stopped', listenerResult: null, busy: false,
+              foreground: { detectedAt: now(), reason: 'native_disconnected' } });
+          }
+          const pending = await api.getPendingFemometerTemperatures(userId);
+          for (const event of pending.readings ?? []) {
+            if (!current()) return;
+            await deliverTemperature(event);
+          }
+          // Only initial opening uses the existing search policy; BLE-11 is separate.
+          if (initial && !connectionPrepared() && current()) await session.start();
+        })().finally(() => { nativeReconcileJob = null; });
+        return nativeReconcileJob;
+      },
       recheckSaved: async () => {
         const key = state.deviceKey;
         await session.stop();
@@ -553,6 +627,7 @@ export const createFemometerSessionManager = (api) => {
         if (!recoveryBlocked && foregroundRecoveryPending) void session.recoverReadings('automatic_retry');
       },
       checkAutomaticClock: async () => {
+        if (restoredWithoutClockEvidence) throw Object.assign(new Error('No se conserva evidencia suficiente del reloj de esta conexión. Revisa la fecha de la temperatura.'), { code: 'ble-auto-review' });
         const previousAttempt = state.clockAttempt;
         await clock(false);
         if (state.clockAttempt === previousAttempt || state.clockBusy) {
@@ -610,9 +685,13 @@ export const createFemometerSessionManager = (api) => {
         if (disposed || suspended) return stopping ?? Promise.resolve();
         suspended = true; foregroundRecoveryPending = false;
         ++lifecycleVersion;
-        // Android handleOnStop closes GATT without a terminal event once ready.
-        // Invalidate JS immediately and share the normal ordered cleanup.
         clearRecovery();
+        if (api.getFemometerReceptionState) {
+          recoveryEnabled = false;
+          publish({ recoveryReason: 'native_background' });
+          return Promise.resolve();
+        }
+        // Legacy bridge retains its previous behavior.
         publish({ recoveryReason: 'lifecycle_cancelled' });
         return session.stop('stopped', null, true);
       },
