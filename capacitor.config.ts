@@ -14,7 +14,9 @@ const config: CapacitorConfig = {
   appId: staging ? 'com.fertiliapp.fertiliapp.staging' : 'com.fertiliapp.fertiliapp',
   appName: staging ? 'FertiliApp Staging' : 'FertiliApp',
   webDir: staging ? 'dist-staging' : 'dist',
-  server: staging && androidMode === 'embedded' ? { cleartext: false } : {
+  // Preserve Capacitor 5's origin and its Auth/IndexedDB/localStorage data.
+  server: staging && androidMode === 'embedded' ? { androidScheme: 'http', hostname: 'localhost', cleartext: false } : {
+    androidScheme: 'http',
     url: staging ? 'https://fertiliapp-staging.web.app' : 'https://rnf-app.web.app',
     cleartext: false
   }

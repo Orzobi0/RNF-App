@@ -39,7 +39,9 @@ export function snapshot(mode, directory = root) {
   const config = readJson(path.join(assets, 'capacitor.config.json'));
   if (config.appId !== 'com.fertiliapp.fertiliapp.staging' || config.webDir !== 'dist-staging' ||
       (mode === 'remote' ? config.server?.url !== 'https://fertiliapp-staging.web.app' :
-        Object.hasOwn(config.server || {}, 'url'))) {
+        Object.hasOwn(config.server || {}, 'url')) ||
+      config.server?.androidScheme !== 'http' ||
+      (config.server?.hostname || 'localhost') !== 'localhost') {
     throw new Error('Android configuration does not match the selected Staging mode');
   }
   const source = tree(path.join(directory, 'dist-staging'));

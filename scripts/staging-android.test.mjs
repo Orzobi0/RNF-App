@@ -85,6 +85,8 @@ test('remote default and embedded selection keep Staging app ID and webDir', () 
     const value = config({ CAPACITOR_STAGING_MODE: mode });
     assert.equal(value.appId, 'com.fertiliapp.fertiliapp.staging');
     assert.equal(value.webDir, 'dist-staging');
+    assert.equal(value.server.androidScheme, 'http');
+    if (mode === 'embedded') assert.equal(value.server.hostname, 'localhost');
     assert.equal(Object.hasOwn(value.server, 'url'), mode === 'remote');
   }
   assert.equal(config().server.url, 'https://fertiliapp-staging.web.app');
@@ -113,6 +115,15 @@ test('prepared assets reject environment/mode mixtures and stale or extra files'
     writeConfig(config({ CAPACITOR_STAGING_MODE: mode }));
     const state = snapshot(mode, directory);
     verifyPreparation(state, directory);
+    for (const server of [
+      { ...config({ CAPACITOR_STAGING_MODE: mode }).server, androidScheme: 'https' },
+      { ...config({ CAPACITOR_STAGING_MODE: mode }).server, androidScheme: undefined },
+      { ...config({ CAPACITOR_STAGING_MODE: mode }).server, hostname: 'other.localhost' },
+    ]) {
+      writeConfig({ ...config({ CAPACITOR_STAGING_MODE: mode }), server });
+      assert.throws(() => snapshot(mode, directory), /configuration/);
+    }
+    writeConfig(config({ CAPACITOR_STAGING_MODE: mode }));
     assert.throws(() => snapshot(mode === 'remote' ? 'embedded' : 'remote', directory));
     fs.writeFileSync(path.join(publicDir, 'index.html'), 'production or stale');
     assert.throws(() => verifyPreparation(state, directory), /Stale/);

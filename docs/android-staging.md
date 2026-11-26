@@ -1,5 +1,7 @@
 # Android Staging: remoto e incorporado
 
+> AND-01 prepara una plataforma nueva, todavía sin compilación Android ni validación física. Las confirmaciones históricas de AND-03/04 no certifican esta migración.
+
 Ambas modalidades usan `com.fertiliapp.fertiliapp.staging` y Firebase `fertiliapp-staging`. Se instalan sobre la misma app; no pueden convivir como dos apps independientes.
 
 Desde la raíz del repositorio, en `nov26`, ejecutar localmente:
@@ -29,7 +31,7 @@ Antes de cada build Android, `verifyFirebaseEnvironment` ejecuta el verificador 
 ## Build e instalación en Android Studio (usuario)
 
 1. Ejecutar el build web y uno de los dos comandos anteriores. Esperar el mensaje `Android Staging prepared: remote/embedded`.
-2. Abrir la carpeta `C:\Mario\FertiliAPP\FertiliAPP\android` como proyecto en Android Studio. Dejar terminar su sincronización Gradle. Usar el JDK ya configurado para este proyecto; no actualizar Gradle, SDK ni Capacitor.
+2. Abrir la carpeta `C:\Mario\FertiliAPP\FertiliAPP\android` como proyecto en Android Studio. Dejar terminar su sincronización Gradle. Usar JDK 21, SDK 36 y la toolchain fijada por AND-01 (ver requisitos al final); no aceptar actualizaciones automáticas adicionales.
 3. Elegir el módulo `app` y la variante `debug` en Build Variants. Para obtener el archivo, usar Build > Build Bundle(s) / APK(s) > Build APK(s) (el nombre puede variar según versión). Salida: `android\app\build\outputs\apk\debug\app-debug.apk`.
 4. Para instalar desde Studio, conectar el teléfono con depuración USB, aceptar la autorización, elegirlo como dispositivo y pulsar Run con la configuración `app`. Studio compila e instala la variante debug sobre la app Staging existente si la firma es compatible.
 5. No desinstalar ni borrar almacenamiento para cambiar de modalidad: puede haber temperaturas pendientes. Si aparece conflicto de firma, detenerse y resolverlo antes de borrar datos. El usuario ha compilado/instalado la APK y confirma que AND-03 funciona correctamente. Las comprobaciones complementarias indicadas abajo no se consideran realizadas individualmente sin evidencia específica.
@@ -123,3 +125,74 @@ Después abrir `android` en Android Studio, elegir `app`/`debug` y Run sobre el 
 6. Comprobar icono amarillo, nombre e identificador en launcher redondo/adaptativo, tanto incorporado como remoto. Confirmar que producción conserva su icono original y que las PWA no cambian.
 
 Pruebas de código dirigidas: `node --test scripts/embedded-offline.test.mjs scripts/staging-icons.test.mjs scripts/temperature-persistence.test.mjs scripts/preferences-gate.test.mjs scripts/auth-recovery.test.mjs scripts/staging-android.test.mjs`. No sustituyen la validación física offline, de escrituras pendientes ni del launcher.
+
+## AND-01: actualización controlada de plataforma
+
+Estado: preparación de código sobre `nov26`, commit base `6c8c88ae`. **Pendientes compilación Android y validación física; AND-01 no está terminado.** No se ejecutaron builds web, Capacitor sync/migrate, Gradle, Android Studio, emuladores ni despliegues. Los recursos Staging sin seguimiento presentes al comenzar se han conservado.
+
+### Versiones y requisitos locales
+
+| Componente | Antes | Preparado |
+| --- | --- | --- |
+| Capacitor core / android / cli | 5.7.8 | 8.6.3 estable, fijado exacto |
+| Capacitor App | 5.0.8 | 8.1.2 estable, fijado exacto |
+| compileSdk / targetSdk | 34 / 34 | 36 / 36 |
+| minSdk | 26 | 26 (Android 8+) |
+| Gradle wrapper | 9.2.0 | 8.14.3 |
+| Android Gradle Plugin | 8.13.2 | 8.13.2 conservado |
+| Google Services plugin | 4.3.15 | 4.4.4 |
+| Compatibilidad Java | 17 | 21 |
+
+Node **22 o superior** (pruebas con 22.13.1), JDK **21** tanto en JAVA_HOME como en Gradle JDK de Studio; Android Studio **Otter 2025.2.1 o posterior compatible con AGP 8.13.2**. Instalar Android SDK Platform 36, SDK Build-Tools 35.0.0 (predeterminado de AGP 8.13) y Platform-Tools. No se fija una ruta personal de JDK/SDK en Git. `android/gradle.properties` mantiene AndroidX y memoria existentes; no requiere flags adicionales. No hace falta añadir Kotlin ni NDK al código Java propio.
+
+AndroidX y Cordova se alinean con los valores del paquete instalado `@capacitor/android` 8.6.3 en `android/variables.gradle`. Gradle vuelve a la línea recomendada 8.14.3, manteniendo el parche AGP 8.13.2 existente. La llamada `providers.exec(...).result.get().assertNormalExitValue()` sigue siendo válida y se conserva: el fallo del verificador sigue abortando preBuild. No se vuelve a `Project.exec`.
+
+React y sus dependencias directas ajenas a Android permanecen iguales. El lock actualiza Capacitor y su árbol transitivo; `@capacitor/assets` sigue en 3.0.5 y conserva su CLI 5 privado como dependencia de desarrollo. Los scripts de sync invocan expresamente el CLI 8 de la raíz. No utilizar la herramienta de assets para migrar Android. npm advierte sobre tar/glob antiguos de ese árbol; no se ha realizado un `audit fix` general.
+
+### Revisión de compatibilidad
+
+Fuentes oficiales revisadas: [5 → 6](https://capacitorjs.com/docs/updating/6-0), [6 → 7](https://capacitorjs.com/docs/updating/7-0), [7 → 8](https://capacitorjs.com/docs/updating/8-0), [8.5, cambios de ciclo de vida iOS](https://capacitorjs.com/docs/updating/8-5), [AGP 8.13](https://developer.android.com/build/releases/agp-8-13-0-release-notes), [Android 16 con target 36](https://developer.android.com/about/versions/16/behavior-changes-16) y [Android 16 para todas las apps](https://developer.android.com/about/versions/16/behavior-changes-all). Contrastadas con el código de los paquetes npm instalados, sin ejecutar migradores.
+
+- **Origen y datos:** se fija `server.androidScheme: 'http'` y, en incorporado, `hostname: 'localhost'`. El cambio predeterminado a HTTPS desde Capacitor 6 separaría el almacenamiento de la instalación anterior. `cleartext: false` y los destinos remotos HTTPS se conservan. El verificador rechaza esquemas ausentes/distintos y hosts locales distintos, incluso si los hashes coinciden. Una preparación anterior se debe repetir con el nuevo CLI; no editar los assets para eludirlo.
+- **MainActivity:** sin modificaciones. `registerPlugin(FemometerBle.class)` antes de `super.onCreate` sigue admitido por BridgeActivity 8; su PluginManager también carga App desde el registro generado. `onStart/onStop` conservan las llamadas a super y al propietario GATT. No se usa el recurso eliminado `bridge_layout_main`. La incidencia física BLE-11 no se considera resuelta solo por actualizar versiones.
+- **FemometerBle/GATT/servicio:** sin cambios. Se conservan PluginCall, JSObject, permisos por alias, PermissionCallback, notifyListeners y handleOnDestroy presentes en Capacitor 8. El servicio `connectedDevice` arranca con actividad visible y permisos BLE, usa PendingIntent inmutable y START_NOT_STICKY. El receptor solo escucha el broadcast protegido del sistema Bluetooth. No se añaden permisos de salud ni se alteran ventanas, reintentos, GATT, cola, automatización BLE-12 o diagnóstico BLE-13. Las cuotas nuevas de JobScheduler no sustituyen este servicio, que no usa JobScheduler/WorkManager; no garantizan su supervivencia ante restricciones del fabricante.
+- **Registro y sincronización:** App continúa como proyecto Gradle y plugin generado; los listeners BLE usan `await`. Los archivos generados ignorados de Cordova y assets todavía pueden reflejar Capacitor 5: el sync explícito del usuario los actualizará. Se ajustó manualmente Java 21 en el archivo versionado `app/capacitor.build.gradle`, coincidiendo con lo que genera CLI 8; no se regeneró Android.
+- **Manifest:** se añaden `navigation|density` a configChanges para evitar recreaciones innecesarias. Permisos, identificadores, placeholders de iconos, proveedor y servicio permanecen iguales.
+- **Health Connect:** no se encuentran plugins, dependencias Android ni permisos de Health Connect en el árbol revisado. La Function `syncBasalBodyTemperature` y campos `health_connect` siguen en backend. Su retirada requiere comprobar consumidores y despliegues (AND-06). BLE Health Thermometer se conserva íntegro.
+
+### Riesgos visuales y de sistema pendientes
+
+Android 16 con target 36 impone edge-to-edge. Capacitor 8 usa SystemBars; el código instalado inyecta variables `--safe-area-inset-*`. La interfaz actual usa también `env(safe-area-inset-*)` y el puente propio de color de barra de MainActivity, cuya API de color ya no garantiza el resultado anterior. **Pendiente adaptar y verificar safe areas, cabecera, barra inferior, iconos claros/oscuros y teclado en AND-05**; no se ha refactorizado la UI ni añadido un opt-out de edge-to-edge.
+
+Atrás predictivo deja de entregar el antiguo onBackPressed en Android 16. App 8.1.2 utiliza OnBackPressedDispatcher/OnBackPressedCallback, por lo que no se añade un opt-out temporal. Aun así, hay que probar el historial WebView/React Router, `useBackClose`, diálogos anidados, raíz y regreso del navegador. Probar rotación, multiventana y pantallas grandes: Android 16 puede ignorar restricciones de tamaño/orientación. No asumir que las comprobaciones estáticas validan estos comportamientos.
+
+### Preparar la APK incorporada de Staging (solo usuario)
+
+Desde la raíz, con JDK 21 configurado y Node en PATH:
+
+```powershell
+npm ci
+$env:CAPACITOR_ENV = 'staging'
+Remove-Item Env:CAPACITOR_STAGING_MODE -ErrorAction SilentlyContinue
+npm run check:staging
+npm run build:staging
+npm run sync:staging:android:embedded
+node scripts/check-staging-android.mjs
+Push-Location android
+.\gradlew.bat testDebugUnitTest assembleDebug
+Pop-Location
+```
+
+No continuar tras un comando fallido. El sync debe indicar `Android Staging prepared: embedded`. Alternativamente, tras ese sync abrir `android` en Studio, seleccionar Gradle JDK 21 y app/debug, ejecutar las pruebas nativas y Build APK(s). APK: `android/app/build/outputs/apk/debug/app-debug.apk`. No borrar almacenamiento ni desinstalar para resolver errores de firma. Mantener mismo identificador y firma al actualizar. Para remoto, usar `npm run sync:staging:android:remote` después de resolver los pendientes de todas las cuentas; no publica el frontend remoto.
+
+### Validación necesaria para cerrar AND-01
+
+1. Compilar con la toolchain indicada y ejecutar pruebas nativas; comprobar que una preparación ausente, alterada o de otro entorno bloquea el empaquetado. Revisar manifest fusionado, registro App/FemometerBle, nombre/icono Staging e identificadores de ambas variantes de entorno.
+2. Actualizar sobre APK incorporada anterior con la misma firma: sesión, IndexedDB, preferencias, ciclos y temperaturas pendientes conservados en `http://localhost`. Probar cierre/reapertura, logout, cambio de cuenta y guardados inciertos sin duplicados. Repetir la matriz AND-03/04, modo avión con/sin caché y reconexión sin nuevas escrituras.
+3. En teléfono Android 16 y al menos una versión anterior (incluido API 26 si disponible), conceder/denegar/revocar permisos Bluetooth, apagar/encender Bluetooth, conectar Vinca 2 y recibir lecturas. Bloquear pantalla, recibir y recuperar cola; volver antes y después del vencimiento existente de seis minutos. Comprobar notificación/servicio, desconexión y ausencia de reinicios de una conexión sana.
+4. Validar BLE-12 (incorporación y duplicados), BLE-13 (diagnóstico sin tráfico adicional), cambios de cuenta/dispositivo y cola pendiente tras reinicio/actualización. Comprobar carga real de App y eventos de ciclo de vida para BLE-11.
+5. Revisar barras, safe areas, teclado, Atrás y diálogos, escalado y orientación. Verificar ambas modalidades, Firebase exclusivamente Staging, y que producción conserva recursos e identificador; no desplegar ni usar datos reales para pruebas destructivas.
+
+Pruebas de código: `node --test scripts/android-platform.test.mjs scripts/staging-android.test.mjs scripts/staging-isolation.test.mjs scripts/auth-recovery.test.mjs scripts/embedded-offline.test.mjs scripts/staging-icons.test.mjs scripts/android-ui.test.mjs scripts/femometer-bridge.test.mjs scripts/femometer-shared.test.mjs scripts/ble-measurements.test.mjs scripts/ble-manual-import.test.mjs scripts/temperature-persistence.test.mjs scripts/preferences-gate.test.mjs`, `npm run check:staging` y `git diff --check`. Las pruebas JavaScript y de fixtures no acreditan compilación ni comportamiento físico.
+
+Resultado final: **513/520 pruebas pasan; quedan 7 fallos reproducidos también con los archivos del commit base**: seis en `android-ui.test.mjs` (reloj, cambio de cuenta, sesión automática, parada durante conexión y búsqueda manual) y uno en `ble-measurements.test.mjs` (confianza temporal Vinca antes de sincronización redundante). No se cambia comportamiento BLE para ocultarlos. La comprobación nueva de plataforma y los seis casos de Staging Android pasan (7/7); `check:staging` y `git diff --check` pasan. La comparación base usa los tests y fuentes extraídos de `6c8c88ae`, con las dependencias locales actuales; no es una compilación ni una instalación independiente del lock antiguo.

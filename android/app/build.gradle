@@ -8,8 +8,8 @@ def stagingFirebase = firebaseEnvironment == 'staging'
 def firebaseAppId = stagingFirebase ? 'com.fertiliapp.fertiliapp.staging' : 'com.fertiliapp.fertiliapp'
 
 android {
-    namespace "com.fertiliapp.fertiliapp"
-    compileSdkVersion rootProject.ext.compileSdkVersion
+    namespace = "com.fertiliapp.fertiliapp"
+    compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId firebaseAppId
         manifestPlaceholders = [fertiliAppLabel: stagingFirebase ? 'FertiliApp Pruebas' : '@string/app_name',
@@ -65,9 +65,9 @@ tasks.register('verifyFirebaseEnvironment') {
             // The successful sync records the mode and hashes outside generated assets.
             // Always check, including incremental builds launched from Android Studio.
             providers.exec {
-    workingDir rootProject.projectDir.parentFile
-    commandLine 'node', 'scripts/check-staging-android.mjs'
-}.result.get().assertNormalExitValue()
+                workingDir rootProject.projectDir.parentFile
+                commandLine 'node', 'scripts/check-staging-android.mjs'
+            }.result.get().assertNormalExitValue()
             return
         }
         def expectedUrl = stagingFirebase ? 'https://fertiliapp-staging.web.app' : 'https://rnf-app.web.app'

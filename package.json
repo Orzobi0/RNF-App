@@ -27,10 +27,10 @@
     "deploy": "node -e \"throw new Error('Choose deploy:staging:session or deploy:staging:hosting explicitly')\""
   },
   "dependencies": {
-    "@capacitor/android": "^5.7.8",
-    "@capacitor/app": "^5.0.8",
-    "@capacitor/cli": "^5.7.8",
-    "@capacitor/core": "^5.7.8",
+    "@capacitor/android": "8.6.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/cli": "8.6.3",
+    "@capacitor/core": "8.6.3",
     "@radix-ui/react-alert-dialog": "^1.0.5",
     "@radix-ui/react-avatar": "^1.0.3",
     "@radix-ui/react-checkbox": "^1.0.4",
