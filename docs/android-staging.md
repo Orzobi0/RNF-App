@@ -1,6 +1,6 @@
 # Android Staging: remoto e incorporado
 
-> AND-01 prepara una plataforma nueva, todavía sin compilación Android ni validación física. Las confirmaciones históricas de AND-03/04 no certifican esta migración.
+> El usuario confirma que la APK incorporada con Capacitor 8.6.3/API 36/Java 21 compila, se instala, conserva sesión y muestra ciclos/registros. AND-01 sigue abierto: falta completar la matriz física. AND-05A corrige las regresiones visuales observadas en Android 16; sus cambios todavía requieren generar e instalar otra APK.
 
 Ambas modalidades usan `com.fertiliapp.fertiliapp.staging` y Firebase `fertiliapp-staging`. Se instalan sobre la misma app; no pueden convivir como dos apps independientes.
 
@@ -128,7 +128,7 @@ Pruebas de código dirigidas: `node --test scripts/embedded-offline.test.mjs scr
 
 ## AND-01: actualización controlada de plataforma
 
-Estado: preparación de código sobre `nov26`, commit base `6c8c88ae`. **Pendientes compilación Android y validación física; AND-01 no está terminado.** No se ejecutaron builds web, Capacitor sync/migrate, Gradle, Android Studio, emuladores ni despliegues. Los recursos Staging sin seguimiento presentes al comenzar se han conservado.
+Estado: preparación de código sobre `nov26`, commit base `6c8c88ae`. **APK incorporada compilada e instalada por el usuario, con sesión/ciclos/registros confirmados; falta completar validación física y AND-01 no está terminado.** No se ejecutaron builds web, Capacitor sync/migrate, Gradle, Android Studio, emuladores ni despliegues. Los recursos Staging sin seguimiento presentes al comenzar se han conservado.
 
 ### Versiones y requisitos locales
 
@@ -196,3 +196,57 @@ No continuar tras un comando fallido. El sync debe indicar `Android Staging prep
 Pruebas de código: `node --test scripts/android-platform.test.mjs scripts/staging-android.test.mjs scripts/staging-isolation.test.mjs scripts/auth-recovery.test.mjs scripts/embedded-offline.test.mjs scripts/staging-icons.test.mjs scripts/android-ui.test.mjs scripts/femometer-bridge.test.mjs scripts/femometer-shared.test.mjs scripts/ble-measurements.test.mjs scripts/ble-manual-import.test.mjs scripts/temperature-persistence.test.mjs scripts/preferences-gate.test.mjs`, `npm run check:staging` y `git diff --check`. Las pruebas JavaScript y de fixtures no acreditan compilación ni comportamiento físico.
 
 Resultado final: **513/520 pruebas pasan; quedan 7 fallos reproducidos también con los archivos del commit base**: seis en `android-ui.test.mjs` (reloj, cambio de cuenta, sesión automática, parada durante conexión y búsqueda manual) y uno en `ble-measurements.test.mjs` (confianza temporal Vinca antes de sincronización redundante). No se cambia comportamiento BLE para ocultarlos. La comprobación nueva de plataforma y los seis casos de Staging Android pasan (7/7); `check:staging` y `git diff --check` pasan. La comparación base usa los tests y fuentes extraídos de `6c8c88ae`, con las dependencias locales actuales; no es una compilación ni una instalación independiente del lock antiguo.
+
+
+## AND-05A: interfaz Android 16 y estado offline
+
+Implementado en `nov26`, sin commit, merge, despliegue ni compilación en Codex. Se revisaron SettingsPage y el DevicePageShell compartido por Dispositivos/Vinca 2: sus cabeceras sticky conservan dimensiones y `top-0`; el área de scroll empieza ahora después del inset superior en Android. No se modificó lógica de ciclos, BLE, caché, red, escrituras ni Firebase.
+
+- Eliminada la franja «Entorno de pruebas», sin sustitución ni hueco. Restaurado `setTextZoom(100)` para Staging y producción por igual: su retirada amplificaba números/textos con la escala de fuente Android. No se retocan tipografías individuales. Implicación de accesibilidad: el texto WebView ya no sigue el aumento de fuente del sistema; comprobar lectura con TalkBack y ampliación de pantalla. Web/PWA/iPhone no usan este ajuste. Iconos, nombre APK e identificadores intactos.
+- API integrada `SystemBars` verificada contra el código instalado de Capacitor **8.6.3** (`plugin/SystemBars.java`, exportaciones de core y tipos): `LIGHT` = iconos oscuros, incluso con tema Android oscuro. Configuración `insetsHandling: css` e `initialViewportFitValueHint: cover`, coincidiendo con el viewport HTML. Referencia: [System Bars oficial](https://next.capacitorjs.com/docs/apis/system-bars); el código instalado es la referencia de compatibilidad, no las opciones de versiones futuras.
+- En Android, `/settings` y sus descendientes usan `#F8FAFC`; dashboard, registros y ciclos usan `#FFF7F9`, igual que sus fondos efectivos (se elimina la franja `#FFE4E6`). La gráfica cargada usa realmente `#FFF8FA` en ChartPage/FertilityChart: ChartPage pasa ese mismo `baseStyle.backgroundColor` a MainLayout, sin aproximarlo; sus estados de carga/sin ciclo conservan el fondo general. Se pinta la superficie de la aplicación detrás de la barra transparente y se actualiza antes del repintado React, sin reset rosa al desmontar. SystemBars controla contraste/insets; `FertiliAppStatusBar` queda limitado a pintar el fondo nativo para WebViews antiguas y la barra opaca en API < 35. Se reaplica al volver y tras cambios de configuración. No hay dos escritores de contraste.
+- WebView >= 140 con viewport cover recibe insets efectivos. En WebViews anteriores, SystemBars reserva espacio nativo y publica ceros: CSS no vuelve a sumarlo. Android toma `var(--safe-area-inset-*, env(...))`, nunca la suma; reserva superior una sola vez en el contenedor exterior, mantiene scroll acotado al viewport y usa safe bottom completo, sin el límite iOS de 34 px. Se recalcula `--bottom-nav-safe` en ese mismo ámbito. El teclado sigue el manejo IME de SystemBars y el ViewportHeightFix existente, sin listeners nuevos de teclado.
+- Corregido el falso WifiOff del arranque: `embeddedCycleLoader` añade únicamente `serverReadFailed` a su estado publicado. Empieza en falso, se activa al fallar/expirar la consulta de servidor y se borra al confirmar un snapshot válido. No cambia fases, consultas, persistencia, concurrencia, timeouts ni reintentos. Recuperar caché durante la consulta no es un fallo. Un fallo previo se conserva durante Reintentar hasta confirmar datos; `knownOffline` sigue siendo el indicador de desconexión conocida.
+- BottomNav restaurado exactamente al componente original: cinco iconos, cinco columnas, mismas alturas/espacios/tamaños. WifiOff sale de su cuadrícula y de ChartControls. Se conserva diálogo Radix accesible y Reintentar. El botón de 32 px ocupa espacios superiores en el flujo, sin fila nueva: celda lateral vacía de 48×32 en dashboard; cabecera de archivo, Ajustes, Dispositivos/Termómetro, Preferencias y Soporte. Las cabeceras textuales de Ajustes conservan líneas truncadas y su altura; no se coloca un botón flotante sobre ellas. Sin datos se mantiene el aviso visible del layout.
+- **Incompatibilidades explícitas:** Registros (actual y archivado) tiene acciones absolutas a ambos lados y navegación de ciclos; la gráfica normal/completa/rotada tiene controles y etiquetas superpuestos. No se ha identificado allí un hueco superior garantizado sin cambiar distribución o tapar controles, por lo que **no muestran el indicador compacto con datos**. Puede consultarse desde dashboard, Archivo o Ajustes; resolver esas dos cabeceras requiere acordar una posición de diseño. También los estados vacíos/de carga que no renderizan una cabecera no añaden una superposición. No se oculta el mensaje global cuando no hay datos.
+- Barra horizontal de gráfica Android gris discreta; no se cambian overflow, gestos ni cálculos. Web/PWA/iPhone conservan reglas de dimensiones, insets y theme-color anteriores; la retirada de la franja Staging es deliberadamente común a todos.
+
+### Comprobaciones realizadas
+
+`node --test scripts/android-layout.test.mjs scripts/embedded-offline.test.mjs scripts/android-platform.test.mjs scripts/staging-android.test.mjs`: **35/35**. Incluyen render con adaptadores de componentes reales, acción Reintentar, rutas, contraste/restauración, navegación, parsing JSX/TS y CSS. `git diff --check` y `git diff --cached --check`: correctos. `check:staging` pasó en la revisión anterior; no se repitió en esta corrección. No se ejecutaron builds web, Capacitor sync, Gradle, Android Studio, emuladores ni despliegues. Las comprobaciones de CSS son estáticas: no certifican geometría ni aspecto en pantalla real.
+
+### Validación física pendiente (AND-01 y AND-05 siguen abiertos)
+
+1. Instalar sobre Staging existente y comparar con producción de esta revisión en el mismo dispositivo, orientación, escala de texto y estado de datos: mismas alturas, márgenes y cabeceras, sin franja. No basta comparar con una producción antigua.
+2. Android 16 y una versión anterior soportada; WebView moderno y antiguo si es posible. Dashboard → Ajustes → Dispositivos → Vinca 2 → gráfica/registros/ciclos: iconos oscuros, rosa/gris correcto sin destellos ni franjas residuales. Repetir con tema oscuro del sistema, retorno del segundo plano y rotación.
+3. Notch/cámara, orientación y escalado de texto: ninguna cabecera sticky bajo los iconos; navegación sobre gestos y navegación Android de tres botones; abrir/cerrar teclado en formularios sin recortes. Confirmar área inferior completa también si supera 34 px.
+4. Modo avión con caché, Firebase inaccesible con red aparente y arranque sin caché: icono solo con datos; detalle, foco/lector de pantalla, cierre y Reintentar. Sin datos, aviso visible; no desbloquear escrituras. Confirmar cinco iconos idénticos en BottomNav en todos los estados, ningún WifiOff transitorio al arrancar con caché y Wi-Fi, y las posiciones superiores sin aumento de altura en pantallas estrechas.
+5. Gráfica normal/completa/rotada: sin indicador superpuesto por la incompatibilidad indicada; desplazamiento horizontal y vertical intactos, barra gris y continuidad de color con el fondo real #FFF8FA. Revisar controles en los tamaños más pequeños.
+6. Regresión visual en web/PWA y iPhone/Safari: mismas dimensiones y comportamiento, salvo retirada intencionada de la franja Staging. Las pruebas de código no sustituyen esta comparación.
+
+### Generar e instalar la revisión (solo usuario)
+
+Desde la raíz, con Java 21 configurado en `JAVA_HOME` (JBR 21 de Android Studio) y SDK 36 disponible:
+
+```powershell
+npm run build:staging
+npm run sync:staging:android:embedded
+.\android\gradlew.bat -p android assembleDebug
+adb install -r .\android\app\build\outputs\apk\debug\app-debug.apk
+```
+
+Si `adb` no está en PATH, usar el ejecutable de `platform-tools` del SDK, o instalar con Run de Android Studio según la sección inicial. Conservar firma y almacenamiento; no desinstalar. Para esta prueba visual usar incorporado: el modo remoto seguirá mostrando el frontend publicado, y estos pasos no lo despliegan. No se continúan otras tareas Android; «Consultando vinculación…» queda pendiente de observación.
+
+
+### «Consultando vinculación…»: revisión limitada y captura sin entrar en Dispositivos
+
+No se ha demostrado una incompatibilidad de Capacitor 8.6.3/MainActivity. El código instalado de BridgeActivity añade los plugins registrados antes de `super.onCreate`, carga los automáticos y conserva la delegación del ciclo de vida. MainActivity mantiene registro FemometerBle, `super` y llamadas `activityVisible` de onStart/onStop. Los cambios visuales no sustituyen esos métodos. El flujo `search()` de femometerSession publica `checking`, espera `getRememberedFemometer`, publica `searching` y termina en `missing` si no hay una coincidencia única. Ese recorrido no acredita un fallo técnico ni explica por sí solo la pantalla bloqueada. No se modifica código BLE ni se propone recuperación automática.
+
+Para recoger evidencia de la APK ya instalada, sin poder entrar en Termómetro:
+
+1. Conectar el teléfono por USB, autorizar depuración y abrir **View > Tool Windows > Logcat** en Android Studio; seleccionar el dispositivo. No pulsar Run, reinstalar, borrar almacenamiento ni ejecutar sync/build para capturar.
+2. Filtrar `package:com.fertiliapp.fertiliapp.staging level:DEBUG`. Iniciar captura antes de abrir la app desde su icono y mantenerla hasta reproducir el bloqueo. Guardar el intervalo completo con horas y PID; no limitar inicialmente a errores.
+3. Para localizar eventos dentro de esa captura, usar `tag:FemometerBle` y buscar también `Capacitor`, `Registering FemometerBle`, `getRememberedDevice`, `scan`, `Scan blocked`, `BLE scan failed`, `UNIMPLEMENTED`, `PluginLoadException` y excepciones. Guardar además el tramo sin filtro de etiqueta: los errores del puente pueden tener otra etiqueta. Referencia de filtros: [Logcat oficial de Android Studio](https://developer.android.com/studio/debug/logcat).
+4. Anotar hora de «Consultando vinculación…», primer arranque/retorno, APK exacta, Android/WebView, si el sistema tenía Bluetooth activo y los permisos visibles; no cambiarlos durante la captura. Adjuntar captura de la pantalla y secuencia temporal. Ocultar UID, correo, direcciones BLE, tokens y datos de salud antes de compartir registros.
+
+Logcat permite recoger registros nativos sin abrir la pantalla de diagnóstico, pero no garantiza que todos los campos del snapshot BLE estén registrados. Si no hay eventos suficientes, conservar esa evidencia antes de ampliar instrumentación. La consulta nativa existente `getReceptionState(diagnosticOnly: true)` es de solo lectura y exige la cuenta autenticada; no sustituirla por llamadas de escaneo/reconexión ni por su variante sin `diagnosticOnly`, que sí puede comprobar vencimientos. La causa queda abierta; las observaciones actuales no justifican tocar GATT, permisos, tiempos ni recuperación.

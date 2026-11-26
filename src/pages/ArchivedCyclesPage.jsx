@@ -1,3 +1,4 @@
+import { CycleAvailabilityIndicator } from '@/components/layout/MainLayout';
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
@@ -589,6 +590,7 @@ const totalRecordCount = allCycles.reduce(
             </p>
           </div>
 
+          <CycleAvailabilityIndicator />
           <HeaderIconButtonPrimary
             type="button"
             onClick={openAddDialog}

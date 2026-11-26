@@ -653,3 +653,42 @@ button.date-editor-toggle[aria-pressed="true"] svg {
     display: none;
   }
 }
+
+/* AND-05A: Capacitor 8.6.3 supplies remaining insets (zero when native
+   padding already handles them on older WebViews). Never add env + var. */
+.android-layout {
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-bottom-clamped: var(--safe-bottom);
+  --bottom-nav-safe: calc(var(--bottom-nav-height) + var(--safe-bottom-clamped));
+  height: calc(var(--app-vh, 1vh) * 100);
+  min-height: 0;
+  padding-top: var(--safe-top);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+.android-layout > .status-bar-surface {
+  height: var(--safe-top);
+}
+.android-layout > .android-main {
+  min-height: 0;
+  padding-top: 0;
+}
+.android-layout > nav {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+/* Keep the horizontal gesture/scroll behavior; only mute the native thumb. */
+.android-chart-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.android-chart-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.android-chart-scroll::-webkit-scrollbar-thumb,
+.android-chart-scroll::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}

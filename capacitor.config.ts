@@ -14,6 +14,9 @@ const config: CapacitorConfig = {
   appId: staging ? 'com.fertiliapp.fertiliapp.staging' : 'com.fertiliapp.fertiliapp',
   appName: staging ? 'FertiliApp Staging' : 'FertiliApp',
   webDir: staging ? 'dist-staging' : 'dist',
+  plugins: {
+    SystemBars: { insetsHandling: 'css', initialViewportFitValueHint: 'cover', style: 'LIGHT' },
+  },
   // Preserve Capacitor 5's origin and its Auth/IndexedDB/localStorage data.
   server: staging && androidMode === 'embedded' ? { androidScheme: 'http', hostname: 'localhost', cleartext: false } : {
     androidScheme: 'http',

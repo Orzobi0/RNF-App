@@ -1,3 +1,4 @@
+import { CycleAvailabilityIndicator } from '@/components/layout/MainLayout';
 import Vinca2ThermometerDrawing from '@/components/Vinca2ThermometerDrawing';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import React, { useEffect, useRef, useState } from 'react';
@@ -14,7 +15,8 @@ const DevicePageShell = ({ title, back, children }) => <div className="min-h-ful
   <header className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50 px-4 py-4">
     <div className="mx-auto flex max-w-2xl items-center gap-2">
       <Link to={back} aria-label="Volver" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-fertiliapp-fuerte hover:bg-rose-50"><ChevronLeft className="h-5 w-5" /></Link>
-      <h1 className="text-2xl font-semibold text-titulo">{title}</h1>
+      <h1 className="min-w-0 flex-1 text-2xl font-semibold text-titulo">{title}</h1>
+      <CycleAvailabilityIndicator />
     </div>
   </header>
   <div className="mx-auto max-w-2xl min-w-0 space-y-4 px-4 pt-4 pb-6">{children}</div>

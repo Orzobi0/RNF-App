@@ -1,3 +1,4 @@
+import { CycleAvailabilityIndicator } from '@/components/layout/MainLayout';
 import {
   measurementPayloadForRecord,
   loadRecordMeasurements,
@@ -1235,7 +1236,7 @@ const handleRingPointerCancel = useCallback(
         {bluetoothEnabled && <div className="absolute -top-1 right-0"><DashboardBluetoothStatus /></div>}
         </div>
         <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2">
-        <div aria-hidden="true" className="h-8 w-12" />
+        <div className="flex h-8 w-12 items-center justify-center"><CycleAvailabilityIndicator /></div>
         <div className="flex min-w-0 items-center justify-center gap-2">
             <button
               type="button"

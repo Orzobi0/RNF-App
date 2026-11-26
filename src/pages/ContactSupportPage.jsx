@@ -1,3 +1,4 @@
+import { CycleAvailabilityIndicator } from '@/components/layout/MainLayout';
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Copy, Mail } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
@@ -178,7 +179,7 @@ const ContactSupportPage = () => {
   return (
     <div className="relative flex min-h-full flex-col bg-slate-50">
       <div className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50/95 px-4 py-4">
-        <div className="relative mx-auto w-full max-w-2xl">
+        <div className="relative mx-auto flex w-full max-w-2xl items-center gap-3">
           <Link
             to="/settings"
             aria-label="Volver a ajustes"
@@ -187,7 +188,7 @@ const ContactSupportPage = () => {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Link>
 
-          <div className="min-w-0 pl-9">
+          <div className="min-w-0 flex-1 pl-9">
             <p className="truncate text-xs font-semibold text-fertiliapp-fuerte">
               Volver a Ajustes
             </p>
@@ -198,6 +199,7 @@ const ContactSupportPage = () => {
               Escribe a través del formulario o al email
             </p>
           </div>
+          <CycleAvailabilityIndicator />
         </div>
       </div>
 

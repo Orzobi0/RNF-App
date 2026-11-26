@@ -3,9 +3,11 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
   onState, offline = () => navigator.onLine === false, timeoutMs = 12000 }) {
   let disposed = false, loaded = null, task = null, serverTask = null;
   let phase = 'loading';
+  // Presentation metadata only; cached data is not evidence of a server failure.
+  let serverReadFailed = false;
   const publish = (next, apply = false) => {
     phase = next;
-    if (!disposed) onState({ accountId, phase, hasData: Boolean(loaded), knownOffline: offline(), data: apply ? loaded : undefined });
+    if (!disposed) onState({ accountId, phase, serverReadFailed, hasData: Boolean(loaded), knownOffline: offline(), data: apply ? loaded : undefined });
   };
   const bounded = promise => {
     let timer;
@@ -42,11 +44,13 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
         const data = await bounded(serverTask);
         if (disposed) return;
         if (!usable(data)) throw new Error('invalid-cycle-snapshot');
+        serverReadFailed = false;
         loaded = data;
         publish(offline() ? 'cached' : 'ready', true);
         // Cache failures never turn a confirmed server read into an empty cycle.
         await bounded(Promise.resolve().then(() => disposed ? undefined : saveCache(accountId, data))).catch(() => {});
       } catch {
+        serverReadFailed = true;
         if (!disposed) publish(loaded ? 'cached' : 'unavailable');
       }
     })().finally(() => { task = null; });

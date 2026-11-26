@@ -1,17 +1,18 @@
 package com.fertiliapp.fertiliapp;
 
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
 
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    private static final String DEFAULT_STATUS_BAR_COLOR = "#FFE4E6";
+    private static final String DEFAULT_STATUS_BAR_COLOR = "#FFF7F9";
+    private String statusBarColor = DEFAULT_STATUS_BAR_COLOR;
     private static final String FEMOMETER_BLE_TAG = "FemometerBle";
 
     @Override
@@ -20,36 +21,26 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FemometerBle.class);
         super.onCreate(savedInstanceState);
 
-        setStatusBar(DEFAULT_STATUS_BAR_COLOR, true);
+        setStatusBar(DEFAULT_STATUS_BAR_COLOR);
 
         if (getBridge() != null && getBridge().getWebView() != null) {
-
-    int textZoomInicial = getBridge()
-        .getWebView()
-        .getSettings()
-        .getTextZoom();
-
-    Log.d("FertiliAppText",
-        "TextZoom inicial: " + textZoomInicial
-        + " | FontScale Android: "
-        + getResources().getConfiguration().fontScale
-    );
-
-    // Prueba exclusivamente en Android Staging
-    if (getPackageName().endsWith(".staging")) {
-        getBridge().getWebView().getSettings().setTextZoom(100);
-
-        Log.d("FertiliAppText",
-            "TextZoom aplicado: "
-            + getBridge().getWebView().getSettings().getTextZoom()
-        );
+            // Same visual scale in Staging and production; do not inherit Android fontScale.
+            getBridge().getWebView().getSettings().setTextZoom(100);
+            getBridge().getWebView().addJavascriptInterface(
+                new StatusBarBridge(),
+                "FertiliAppStatusBar"
+            );
+        }
     }
 
-    getBridge().getWebView().addJavascriptInterface(
-        new StatusBarBridge(),
-        "FertiliAppStatusBar"
-    );
-}
+    @Override public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        setStatusBar(statusBarColor);
+    }
+
+    @Override public void onResume() {
+        super.onResume();
+        setStatusBar(statusBarColor);
     }
 
     @Override public void onStart() {
@@ -62,23 +53,20 @@ public class MainActivity extends BridgeActivity {
         super.onStop();
     }
 
-    private void setStatusBar(String color, boolean darkIcons) {
+    private void setStatusBar(String color) {
         runOnUiThread(() -> {
             try {
                 Window window = getWindow();
-                window.setStatusBarColor(Color.parseColor(color));
+                int background = Color.parseColor(color);
+                statusBarColor = color;
+                // SystemBars alone owns icon contrast and insets. This paints the
+                // native gutter on WebView < 140 and the legacy opaque status bar.
+                window.getDecorView().setBackgroundColor(background);
+                if (Build.VERSION.SDK_INT < 35) window.setStatusBarColor(background);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     window.setStatusBarContrastEnforced(false);
                 }
 
-                View decorView = window.getDecorView();
-                int flags = decorView.getSystemUiVisibility();
-                if (darkIcons) {
-                    flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-                } else {
-                    flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-                }
-                decorView.setSystemUiVisibility(flags);
             } catch (IllegalArgumentException ignored) {
                 // Ignore invalid colors sent from the WebView.
             }
@@ -87,8 +75,8 @@ public class MainActivity extends BridgeActivity {
 
     private class StatusBarBridge {
         @JavascriptInterface
-        public void setColor(String color, boolean darkIcons) {
-            setStatusBar(color, darkIcons);
+        public void setColor(String color) {
+            setStatusBar(color);
         }
     }
 }

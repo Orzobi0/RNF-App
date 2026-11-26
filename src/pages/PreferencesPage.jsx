@@ -1,3 +1,4 @@
+import { CycleAvailabilityIndicator } from '@/components/layout/MainLayout';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Clock3, Eye, Heart, Trash2 } from 'lucide-react';
@@ -430,7 +431,7 @@ const handleClearPreferredTime = useCallback(async () => {
   return (
     <div className="relative flex min-h-full flex-col bg-slate-50">
       <div className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50/95 px-4 py-4">
-        <div className="relative mx-auto w-full max-w-2xl">
+        <div className="relative mx-auto flex w-full max-w-2xl items-center gap-3">
           <Button
             asChild
             variant="ghost"
@@ -442,7 +443,7 @@ const handleClearPreferredTime = useCallback(async () => {
             </Link>
           </Button>
 
-          <div className="min-w-0 pl-9">
+          <div className="min-w-0 flex-1 pl-9">
             <p className="truncate text-xs font-semibold text-fertiliapp-fuerte">
               Volver a Ajustes
             </p>
@@ -453,6 +454,7 @@ const handleClearPreferredTime = useCallback(async () => {
               Registro, cálculo y visualización de datos
             </p>
           </div>
+          <CycleAvailabilityIndicator />
         </div>
       </div>
 

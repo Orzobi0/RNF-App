@@ -1,3 +1,4 @@
+import { CycleAvailabilityIndicator } from '@/components/layout/MainLayout';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
@@ -558,13 +559,16 @@ const SettingsPage = () => {
   return (
     <div className="relative flex min-h-full flex-col bg-slate-50">
       <div className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50/95 px-4 py-4">
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
+          <div className="min-w-0 flex-1">
           <h1 className="truncate text-[24px] font-semibold leading-tight text-titulo">
             Ajustes
           </h1>
           <p className="mt-1 truncate text-sm font-medium text-subtitulo">
             Gestiona tu cuenta y preferencias
           </p>
+          </div>
+          <CycleAvailabilityIndicator />
         </div>
       </div>
 

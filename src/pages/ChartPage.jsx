@@ -2606,7 +2606,7 @@ const isManualFertile =
 };
 
   return (
-    <MainLayout hideBottomNav={isFullScreen}>
+    <MainLayout hideBottomNav={isFullScreen} statusBarBackground={baseStyle.backgroundColor}>
       <div
   className={
     isFullScreen
