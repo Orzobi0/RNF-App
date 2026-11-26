@@ -1,3 +1,6 @@
+import { Network } from '@capacitor/network';
+import { App } from '@capacitor/app';
+import { observeEmbeddedConnectivity } from '@/lib/embeddedConnectivity';
 import { selectedMeasurementSummary, measurementTimeForSummary, hasMeasurementTemperature } from '@/lib/temperatureMeasurements';
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { format, startOfDay, parseISO, addDays, parse, isValid } from 'date-fns';
@@ -316,6 +319,8 @@ export const CycleDataProvider = ({ children }) => {
   const { user } = useAuth();
   const embedded = isEmbeddedAndroid();
   const embeddedLoader = useRef(null);
+  const embeddedConnectivity = useRef(null);
+  const isEmbeddedOffline = () => embeddedConnectivity.current?.isOffline() ?? (navigator.onLine === false);
   const offlineWriteWrappers = useRef(new WeakMap());
   const [availability, setAvailability] = useState({ accountId: null, phase: 'loading', hasData: false, knownOffline: false });
   const measurementReadStatus = useRef(new Map());
@@ -445,10 +450,10 @@ export const CycleDataProvider = ({ children }) => {
     if (embedded) {
       measurementReadStatus.current.clear();
       resetState();
-      setAvailability({ accountId: user?.uid ?? null, phase: 'loading', hasData: false, knownOffline: navigator.onLine === false });
+      setAvailability({ accountId: user?.uid ?? null, phase: 'loading', hasData: false, knownOffline: isEmbeddedOffline() });
       if (!user?.uid) return;
       const loader = createEmbeddedCycleLoader({
-        accountId: user.uid, readCache: getCachedCycleData,
+        accountId: user.uid, readCache: getCachedCycleData, offline: isEmbeddedOffline,
         readServer: uid => readCycleSnapshot(uid, true), saveCache: saveCycleDataToCache,
         onState: state => {
           setAvailability(state);
@@ -460,16 +465,19 @@ export const CycleDataProvider = ({ children }) => {
         },
       });
       embeddedLoader.current = loader;
+      const connectivity = observeEmbeddedConnectivity({
+        network: Network, app: App,
+        onOffline: () => loader.connectionLost(),
+        onOnline: () => { void loader.connectionRestored(); },
+      });
+      embeddedConnectivity.current = connectivity;
+      // Cache remains available immediately; native status can correct it in flight.
       void loader.load();
-      const online = () => { void loader.load(); };
-      const offline = () => loader.connectionLost();
-      window.addEventListener('online', online);
-      window.addEventListener('offline', offline);
       return () => {
+        connectivity.dispose();
         loader.dispose();
+        if (embeddedConnectivity.current === connectivity) embeddedConnectivity.current = null;
         if (embeddedLoader.current === loader) embeddedLoader.current = null;
-        window.removeEventListener('online', online);
-        window.removeEventListener('offline', offline);
       };
     }
     if (!user?.uid) {
@@ -1399,7 +1407,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
   const getCycleById = useCallback(
     async (cycleIdToFetch) => {
       if (!user?.uid) return null;
-      if (embedded && (navigator.onLine === false || availability.phase === 'cached')) {
+      if (embedded && (isEmbeddedOffline() || availability.phase === 'cached')) {
         if (availability.accountId !== user.uid) return null;
         return currentCycle.id === cycleIdToFetch ? currentCycle
           : archivedCycles.find(cycle => cycle.id === cycleIdToFetch) ?? null;
@@ -1576,7 +1584,7 @@ const getCycleFromState = useCallback(
     if (!embedded) return operation;
     if (!offlineWriteWrappers.current.has(operation)) {
       offlineWriteWrappers.current.set(operation, async (...args) => {
-        if (navigator.onLine === false) {
+        if (isEmbeddedOffline()) {
           throw createAppError('offline-write', 'Sin conexión',
             'Conecta a Internet antes de guardar cambios. No se ha enviado esta operación.');
         }

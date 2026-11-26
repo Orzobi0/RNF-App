@@ -28,7 +28,7 @@ const CycleAvailability = ({ children }) => {
 
 // Presentation only: a routine refresh is not a connectivity incident.
 const hasAvailabilityIssue = (state) => Boolean(state?.hasData &&
-  (state.knownOffline || state.serverReadFailed === true));
+  (state.knownOffline || state.serverReadFailed === true || state.needsServerConfirmation === true));
 
 export const CycleAvailabilityIndicator = ({ className = '' } = {}) => {
   const { dataAvailability: state, refreshData } = useCycleDataContext();
@@ -44,7 +44,8 @@ export const CycleAvailabilityIndicator = ({ className = '' } = {}) => {
     <DialogContent className="z-[400] max-h-[80dvh] overflow-y-auto" overlayClassName="z-[399]">
       <DialogTitle>Estado de los datos</DialogTitle>
       <DialogDescription>
-        {state.knownOffline ? 'Sin conexión conocida. ' : 'Firebase no ha podido actualizar los datos. '}
+        {state.knownOffline ? 'Sin conexión conocida. ' : state.serverReadFailed
+          ? 'Firebase no ha podido actualizar los datos. ' : 'Comprobando actualización desde Firebase. '}
         Datos almacenados; podrían no estar actualizados.
       </DialogDescription>
       <button type="button" disabled={loading} onClick={() => { void refreshData(); }}

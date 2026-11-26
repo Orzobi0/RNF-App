@@ -216,3 +216,12 @@ test('indicator uses explicit header slots; no global overlay or nav insertion',
   assert.doesNotMatch(button.props.className, /fixed|absolute/);
   assert.match(button.props.className, /h-8 w-8/);
 });
+
+
+test('native reconnect keeps cached warning while Firebase confirmation is pending', async () => {
+  const f = await fixture({ state: { hasData: true, phase: 'refreshing', knownOffline: false, serverReadFailed: false, needsServerConfirmation: true } });
+  const indicator = f.CycleAvailabilityIndicator();
+  assert.ok(indicator);
+  assert.match(JSON.stringify(indicator), /Comprobando actualización desde Firebase/);
+  assert.equal(nodes(indicator).filter(n => n.type === 'button')[1].props.disabled, true);
+});

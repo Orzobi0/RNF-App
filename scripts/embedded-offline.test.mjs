@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as dates from 'date-fns';
+import { observeEmbeddedConnectivity } from '../src/lib/embeddedConnectivity.js';
 import { createEmbeddedCycleLoader } from '../src/lib/embeddedCycleLoader.js';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
 
@@ -80,33 +81,41 @@ test('unresponsive cache is bounded and a server read can still succeed', async 
   await loader.load(); assert.equal(states.at(-1).phase, 'ready');
 });
 
-async function context(t, embedded = true) {
+async function context(t, embedded = true, options = {}) {
   const h = hooks(), events = new Map(), cache = new Map([['a', snapshot('a-cycle')]]);
   let user = { uid: 'a' }, writes = 0;
   const navigator = { onLine: false };
+  let nativeConnected = false;
+  const nativeEvents = new Map();
+  const Network = { getStatus: async () => ({ connected: nativeConnected }), addListener: async (name, fn) => {
+    nativeEvents.set(name, fn); return { remove: async () => nativeEvents.delete(name) };
+  } };
+  const App = { addListener: Network.addListener };
+  const surface = { visibilityState: 'visible', addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) };
   const bindings = { ...dates, ...h.bindings,
     useCallback: (fn, deps) => {
       const ref = h.bindings.useRef();
       if (!ref.current || deps.some((v, i) => v !== ref.current.deps[i])) ref.current = { deps, fn };
       return ref.current.fn;
     },
+    Network, App, observeEmbeddedConnectivity: options => observeEmbeddedConnectivity({ ...options, browser: surface, page: surface, webOffline: () => !navigator.onLine }),
     useAuth: () => ({ user }), isEmbeddedAndroid: () => embedded,
-    createEmbeddedCycleLoader: options => createEmbeddedCycleLoader({ ...options, offline: () => !navigator.onLine, timeoutMs: 25 }),
+    createEmbeddedCycleLoader: options => createEmbeddedCycleLoader({ ...options, timeoutMs: 25 }),
     useToast: () => ({ toast() {} }), navigator,
     window: { addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) },
     getCachedCycleData: async uid => cache.get(uid), saveCycleDataToCache: async (uid, data) => cache.set(uid, data),
     clearCycleDataCache: async () => { throw Error('must not clear storage'); },
-    fetchCurrentCycleDB: async uid => snapshot(uid + '-server').currentCycle,
+    fetchCurrentCycleDB: async uid => options.read ? options.read(uid) : snapshot(uid + '-server').currentCycle,
     fetchArchivedCyclesDB: async () => [], processCycleEntries: entries => entries, detectCycleDataIssues: () => ({}),
     createAppError: (code, title, message) => Object.assign(Error(message), { code }),
-    updateCyclePostpartumModeDB: async () => { writes++; throw Error('write-failed'); },
+    updateCyclePostpartumModeDB: async () => { writes++; if (options.write) return options.write(); throw Error('write-failed'); },
     console: { error() {} },
   };
   const { CycleDataProvider } = await loadFrontend('src/contexts/CycleDataContext.jsx', bindings, ['CycleDataProvider']);
   const state = () => h.render(CycleDataProvider);
   state(); await flush(); await flush();
   t.after(() => h.cleanup());
-  return { state, cache, navigator, events, writes: () => writes, switchUser: uid => { user = { uid }; state(); } };
+  return { state, cache, navigator, events, nativeEvents, connect: value => { nativeConnected = value; nativeEvents.get('networkStatusChange')?.({ connected: value }); }, writes: () => writes, switchUser: uid => { user = { uid }; state(); } };
 }
 test('provider exposes cached account, isolates switches and keeps local storage', async t => {
   const f = await context(t);
@@ -120,7 +129,7 @@ test('manual offline mutation is not submitted; a real failure rejects and recon
   const f = await context(t);
   await assert.rejects(f.state().updateCyclePostpartumMode('a-cycle', true), /No se ha enviado/);
   assert.equal(f.writes(), 0);
-  f.navigator.onLine = true;
+  f.navigator.onLine = true; f.connect(true); await flush();
   await assert.rejects(f.state().updateCyclePostpartumMode('a-cycle', true), /write-failed/);
   assert.equal(f.state().currentCycle.postpartumMode, false);
   f.events.get('online')(); f.events.get('online')(); await flush(); await flush();
@@ -170,4 +179,48 @@ test('availability UI hides unavailable cycles but retains settings and the unch
   assert.match(rendered(), /consultar Firebase/);
   pathname = '/settings'; assert.match(rendered(), /cycle-screen/);
   state = null; assert.equal(CycleAvailability({ children: child }), child);
+});
+
+
+test('native offline overrides a stale online browser for preventive writes and cleans up on logout', async t => {
+  const f = await context(t);
+  f.navigator.onLine = true;
+  f.connect(false);
+  assert.equal(f.state().dataAvailability.knownOffline, true);
+  await assert.rejects(f.state().updateCyclePostpartumMode('a-cycle', true), /No se ha enviado/);
+  assert.equal(f.writes(), 0);
+  f.switchUser(null); await flush();
+  assert.equal(f.events.size, 0);
+  assert.equal(f.nativeEvents.size, 0);
+});
+
+
+test('native transitions during a pending mutation never resend it or alter its outcome', async t => {
+  for (const fails of [false, true]) {
+    const pending = deferred();
+    const f = await context(t, true, { write: () => pending.promise });
+    f.connect(true); await flush(); await flush();
+    const outcome = f.state().updateCyclePostpartumMode('a-cycle', true).then(() => 'confirmed', error => error.message);
+    assert.equal(f.writes(), 1);
+    f.connect(false);
+    await assert.rejects(f.state().updateCyclePostpartumMode('a-cycle', false), /No se ha enviado/);
+    f.connect(true); f.connect(true); await flush(); await flush();
+    assert.equal(f.writes(), 1);
+    if (fails) pending.reject(Error('uncertain-original-result'));
+    else pending.resolve();
+    assert.equal(await outcome, fails ? 'uncertain-original-result' : 'confirmed');
+    assert.equal(f.writes(), 1);
+  }
+});
+
+test('provider account switch during native reconnect ignores the previous account response', async t => {
+  const pending = deferred();
+  const f = await context(t, true, { read: uid => uid === 'a' ? pending.promise : Promise.resolve(snapshot('b-server').currentCycle) });
+  f.connect(true); await flush();
+  f.switchUser('b'); await flush(); await flush();
+  assert.equal(f.state().currentCycle.id, 'b-server');
+  pending.resolve(snapshot('a-late').currentCycle); await flush(); await flush();
+  assert.equal(f.state().currentCycle.id, 'b-server');
+  assert.equal(f.state().dataAvailability.accountId, 'b');
+  assert.equal(f.cache.get('a').currentCycle.id, 'a-cycle');
 });

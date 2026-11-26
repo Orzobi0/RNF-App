@@ -598,6 +598,7 @@ test('device routes use the shared state and are unavailable outside the enabled
   const harness = hooks(); let enabled = true;
   let deviceState = { remembered: true, status: 'listening' };
   const { DevicesPage, Vinca2DevicePage } = await loadFrontend('src/pages/DevicesPage.jsx', {
+    CycleAvailabilityIndicator: () => null,
     ...harness.bindings, useParams: () => ({}), useAuth: () => ({ user: { uid: 'a' } }),
     useFemometer: () => enabled ? { enabled, pendingCount: 2, sessionState: deviceState } : { enabled: false },
     Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', thermometerName, ThermometerVerificationView: 'verification', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado', Button: 'button', CheckCircle2: 'check', X: 'close', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer', Link2: 'icon',
@@ -1371,6 +1372,7 @@ async function devicesFixture(initial = {}) {
   const timers = new Map();
   const ble = { enabled: true, pendingCount: 2, sessionState: { remembered: false, status: 'idle', devices: [], ...initial }, sessionRef: { current: {} } };
   const { DevicesPage } = await loadFrontend('src/pages/DevicesPage.jsx', {
+    CycleAvailabilityIndicator: () => null,
     setTimeout: (fn, ms) => { timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn),
     ...harness.bindings, useFemometer: () => ble, useParams: () => ({}), useAuth: () => ({ user: { uid: 'a' } }),
     Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', thermometerName, ThermometerVerificationView: 'verification', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado',

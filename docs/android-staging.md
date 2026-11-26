@@ -91,7 +91,7 @@ Solo en la APK incorporada, la carga de ciclos reutiliza `cycleCache` (IndexedDB
 
 Sin caché de ciclos utilizable se muestra un mensaje con Reintentar, no un ciclo vacío supuesto. Una cuenta realmente vacía solo se muestra como tal tras una lectura confirmada por Firebase. Cada espera de caché/servidor tiene un límite de 12 s; si ambas se bloquean sucesivamente, el arranque sin datos puede tardar hasta unos 24 s en ofrecer el reintento. Ajustes, logout y dispositivos siguen accesibles sin ciclos.
 
-`navigator.onLine === false` indica falta de conexión conocida. Si indica conexión pero Firebase falla, se muestra que no se pudo actualizar desde Firebase, manteniendo los datos previos. No se presenta el indicador del navegador como prueba de disponibilidad del servidor. Al recuperar conexión se refresca solo la cuenta actual; las solicitudes simultáneas se agrupan. Tras un timeout se conserva la referencia a la petición SDK pendiente para que un reintento no duplique esa lectura. Las respuestas de una carga descartada por cambio de cuenta no se aplican ni se guardan para la otra cuenta.
+En Android incorporado, AND-04B usa el estado nativo de Network como fuente de conectividad; `navigator.onLine` queda como respaldo inicial si todavía no hay respuesta nativa. Si hay red disponible pero Firebase falla, se muestra que no se pudo actualizar desde Firebase, manteniendo los datos previos. No se presenta el indicador del navegador como prueba de disponibilidad del servidor. Al recuperar conexión se refresca solo la cuenta actual; las solicitudes simultáneas se agrupan. Tras un timeout se conserva la referencia a la petición SDK pendiente para que un reintento no duplique esa lectura. Las respuestas de una carga descartada por cambio de cuenta no se aplican ni se guardan para la otra cuenta.
 
 Las lecturas de actualización de ciclos incorporados requieren respuesta de servidor sin `fromCache` ni `hasPendingWrites`. Las consultas web/PWA/remotas conservan el comportamiento previo del SDK. No se borran cachés al cambiar cuenta en la modalidad incorporada ni se copian datos entre orígenes. No se añade almacenamiento ni se modifica `cycleCache`.
 
@@ -125,6 +125,46 @@ Después abrir `android` en Android Studio, elegir `app`/`debug` y Run sobre el 
 6. Comprobar icono amarillo, nombre e identificador en launcher redondo/adaptativo, tanto incorporado como remoto. Confirmar que producción conserva su icono original y que las PWA no cambian.
 
 Pruebas de código dirigidas: `node --test scripts/embedded-offline.test.mjs scripts/staging-icons.test.mjs scripts/temperature-persistence.test.mjs scripts/preferences-gate.test.mjs scripts/auth-recovery.test.mjs scripts/staging-android.test.mjs`. No sustituyen la validación física offline, de escrituras pendientes ni del launcher.
+
+## AND-04B: conectividad nativa y pruebas de Staging
+
+Implementado sobre `nov26` / `505b7b0c`, sin commit, merge ni despliegue. La prueba física detectó que `navigator.onLine` y los eventos web no reflejaban de forma fiable modo avión/reconexión. Se añade únicamente el plugin oficial **@capacitor/network 8.0.1**, fijado en package.json/lockfile, compatible con core >= 8.0.0. [API oficial Network v8](https://capacitorjs.com/docs/apis/network). El código Android instalado utiliza ConnectivityManager y comprueba capacidades INTERNET/VALIDATED; eso no prueba por sí solo que Firebase responda.
+
+### Funcionamiento y alcance
+
+- Solo el efecto de la **APK Android incorporada y con sesión** registra Network.networkStatusChange y consulta Network.getStatus. Web, PWA y APK remota mantienen sus cargas y protecciones anteriores; no se suscriben a los plugins desde este flujo.
+- `embeddedConnectivity.js` es un adaptador de esos eventos oficiales, sin sondas propias ni temporizadores periódicos. Registra antes de consultar, descarta respuestas getStatus anteriores a un evento más reciente y agrupa comprobaciones simultáneas. Comprueba de nuevo al volver mediante App.appStateChange; visibilitychange sirve también de respaldo. Los eventos web solicitan un estado nativo, no reemplazan una señal nativa por navigator.onLine.
+- Al perder red, el mismo cargador publica desconexión y conserva los datos. El nuevo metadato `needsServerConfirmation` mantiene el aviso durante la reconexión hasta confirmar un snapshot válido de Firebase; disponer de Wi-Fi no lo elimina. Si Firebase falla o expira la espera, se conserva el aviso y la caché. Una carga inicial normal desde caché no activa este metadato ni serverReadFailed.
+- Al recuperar red se llama al cargador existente. Eventos repetidos reutilizan la carga/consulta SDK pendiente. Si la recuperación coincide con una carga offline o una lectura de la red anterior que falla, se permite un único intento posterior por esa transición, sin lecturas paralelas ni bucle de reintentos. Una confirmación nativa inicial tardía no repite una lectura ya confirmada.
+- Los listeners pertenecen a la sesión del contexto: se retiran individualmente al desmontar/cambiar cuenta/salir, incluso si el registro asíncrono termina después. Se descartan callbacks y lecturas de la sesión anterior. No se usa removeAllListeners ni se altera la escucha BLE.
+- Las comprobaciones preventivas de guardado existentes consultan el mismo estado nativo, incluso si navigator.onLine sigue en true. No cambian las operaciones transaccionales, la persistencia ni sus resultados. Una escritura enviada continúa con su resolución/rechazo original; desconexión/reconexión no la repite ni convierte un resultado incierto en éxito.
+- No cambia el diseño: MainLayout solo reconoce el metadato de confirmación y explica «Comprobando actualización desde Firebase» durante esa espera. Se conservan las ubicaciones y limitaciones visuales documentadas en AND-05A, incluido que Registros/gráfica no tienen icono compacto. Sin datos, mensaje visible.
+
+### GitHub Actions y comprobaciones
+
+Revisado el [run 45904986020](https://github.com/Orzobi0/RNF-App/actions/runs/45904986020): diez errores `CycleAvailabilityIndicator is not defined` en test:staging; build y despliegue se omitieron. Los dos fixtures que cargan DevicesPage en `femometer-shared.test.mjs` ahora inyectan `CycleAvailabilityIndicator: () => null`. No se modificaron componentes de Dispositivos ni lógica BLE para corregirlos; se conservan todas las aserciones.
+
+- `node --test scripts/embedded-network.test.mjs scripts/embedded-offline.test.mjs scripts/android-layout.test.mjs`: **41/41**.
+- `npm run test:staging`: **200/200**, incluidas las diez antes fallidas.
+- `npm run check:staging` y `git diff --check`: correctos.
+
+Cobertura con adaptadores en memoria: modo avión con navigator obsoleto, recuperación Wi-Fi, Firebase inaccesible, caché inicial sin falso aviso, retorno al primer plano, respuestas nativas antiguas, limpieza de registros tardíos, cambio de cuenta en reconexión, eventos repetidos y escrituras pendientes con resolución/rechazo sin reenvío. No se ejecutaron builds web, Capacitor sync, Gradle, emuladores, instalaciones ni despliegues. El run remoto no se ha relanzado: el resultado 200/200 corresponde a la ejecución local de su comando.
+
+### Preparación y validación pendiente en teléfono
+
+El plugin aún debe incorporarse a una APK nueva: añadir la dependencia JS no registra por sí solo el plugin en una APK ya instalada. Su manifest declara ACCESS_NETWORK_STATE, que se fusionará durante la preparación/compilación; no se han editado archivos generados ni el manifest de la aplicación. Una APK vieja sin Network no puede ofrecer estas garantías; se registra el fallo del puente y se conserva el respaldo inicial web. Una pérdida transitoria de acceso al puente no borra el último estado nativo conocido.
+
+Comandos **solo para el usuario**, con Java 21 y SDK 36 ya configurados:
+
+```powershell
+npm ci
+npm run build:staging
+npm run sync:staging:android:embedded
+.\android\gradlew.bat -p android assembleDebug
+adb install -r .\android\app\build\outputs\apk\debug\app-debug.apk
+```
+
+Conservar firma y almacenamiento. Comprobar en la APK incorporada: arranque con caché y Wi-Fi sin aviso transitorio; modo avión con app abierta; Wi-Fi recuperado sin Reintentar; red disponible con Firebase inaccesible; segundo plano/cambio de red/retorno; logout y cambio de cuenta durante consulta; repetición rápida de eventos; escrituras ya enviadas sin duplicados y nuevos guardados bloqueados offline. Repetir sin caché y verificar el mensaje visible. La respuesta llega cuando Android emite el estado o responde a getStatus; no se promete latencia cero ni acceso a Firebase solo porque connected sea true. AND-04 continúa abierto hasta esta validación física.
 
 ## AND-01: actualización controlada de plataforma
 

@@ -4,10 +4,10 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
   let disposed = false, loaded = null, task = null, serverTask = null;
   let phase = 'loading';
   // Presentation metadata only; cached data is not evidence of a server failure.
-  let serverReadFailed = false;
+  let serverReadFailed = false, needsServerConfirmation = false, reconnectVersion = 0;
   const publish = (next, apply = false) => {
     phase = next;
-    if (!disposed) onState({ accountId, phase, serverReadFailed, hasData: Boolean(loaded), knownOffline: offline(), data: apply ? loaded : undefined });
+    if (!disposed) onState({ accountId, phase, serverReadFailed, needsServerConfirmation, hasData: Boolean(loaded), knownOffline: offline(), data: apply ? loaded : undefined });
   };
   const bounded = promise => {
     let timer;
@@ -20,6 +20,7 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
   const load = () => {
     if (disposed) return Promise.resolve();
     if (task) return task;
+    const startedVersion = reconnectVersion;
     task = (async () => {
       publish(loaded ? 'refreshing' : 'loading');
       if (!loaded) {
@@ -32,7 +33,7 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
         } catch { /* Restricted/unresponsive storage is not an empty account. */ }
       }
       if (disposed) return;
-      if (offline()) { publish(loaded ? 'cached' : 'unavailable'); return; }
+      if (offline()) { needsServerConfirmation = true; publish(loaded ? 'cached' : 'unavailable'); return; }
       try {
         // Keep the real request after a UI timeout: retries join it instead of
         // issuing simultaneous requests that the Firestore SDK cannot cancel.
@@ -45,6 +46,7 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
         if (disposed) return;
         if (!usable(data)) throw new Error('invalid-cycle-snapshot');
         serverReadFailed = false;
+        needsServerConfirmation = offline();
         loaded = data;
         publish(offline() ? 'cached' : 'ready', true);
         // Cache failures never turn a confirmed server read into an empty cycle.
@@ -53,12 +55,26 @@ export function createEmbeddedCycleLoader({ accountId, readCache, readServer, sa
         serverReadFailed = true;
         if (!disposed) publish(loaded ? 'cached' : 'unavailable');
       }
-    })().finally(() => { task = null; });
+    })().finally(() => {
+      task = null;
+      // A reconnect can race an offline cache load or an earlier failing read.
+      // At most one follow-up for that transition; retain the SDK request coalescing.
+      if (!disposed && reconnectVersion !== startedVersion && needsServerConfirmation && !offline()) void load();
+    });
     return task;
   };
   return {
     load,
-    connectionLost: () => publish(loaded ? 'cached' : phase === 'loading' ? 'loading' : 'unavailable'),
+    connectionLost: () => {
+      needsServerConfirmation = true;
+      publish(loaded ? 'cached' : phase === 'loading' ? 'loading' : 'unavailable');
+    },
+    connectionRestored: () => {
+      // Initial native status can arrive after the initial Firebase response.
+      if (phase === 'ready' && !needsServerConfirmation && !serverReadFailed) return Promise.resolve();
+      reconnectVersion++;
+      return load();
+    },
     dispose: () => { disposed = true; },
   };
 }
