@@ -59,15 +59,18 @@ tasks.register('verifyFirebaseEnvironment') {
         def configFile = file('src/main/assets/capacitor.config.json')
         if (!configFile.exists()) throw new GradleException('Run the matching web build and cap sync android first')
         def config = new groovy.json.JsonSlurper().parse(configFile)
+        if (stagingFirebase) {
+            // The successful sync records the mode and hashes outside generated assets.
+            // Always check, including incremental builds launched from Android Studio.
+            project.exec {
+                workingDir rootProject.projectDir.parentFile
+                commandLine 'node', 'scripts/check-staging-android.mjs'
+            }
+            return
+        }
         def expectedUrl = stagingFirebase ? 'https://fertiliapp-staging.web.app' : 'https://rnf-app.web.app'
         if (config.appId != firebaseAppId || config.server?.url != expectedUrl) {
             throw new GradleException('Capacitor assets do not match CAPACITOR_ENV; rebuild and sync explicitly')
-        }
-        if (stagingFirebase) {
-            def manifestFile = file('src/main/assets/public/staging-build.json')
-            if (!manifestFile.exists()) throw new GradleException('Staging web build is missing from Android assets')
-            def manifest = new groovy.json.JsonSlurper().parse(manifestFile)
-            if (manifest.projectId != 'fertiliapp-staging') throw new GradleException('Wrong Firebase project in Android assets')
         }
     }
 }
