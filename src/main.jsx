@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from '@/App';
 import { initGlobalErrorTracking, trackEvent, trackException } from '@/lib/analytics';
 import '@/index.css';
+import { isEmbeddedAndroid, retireEmbeddedServiceWorker } from '@/lib/androidRuntime';
 
 // Canonical host: evita que alguien abra la app desde *.firebaseapp.com
 // (sesión y caché van por ORIGEN; si cambia el host, parece que "pierde" login)
@@ -20,6 +21,7 @@ const PRELOAD_ERROR_RELOAD_KEY = 'rnf-preload-reload-at';
 window.addEventListener('vite:preloadError', (event) => {
   console.error('Vite preload error', event.payload);
   event.preventDefault();
+  if (isEmbeddedAndroid()) return;
 
   const lastReloadAt = Number(
     sessionStorage.getItem(PRELOAD_ERROR_RELOAD_KEY) || '0'
@@ -50,7 +52,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-if ('serviceWorker' in navigator) {
+if (isEmbeddedAndroid()) {
+  void retireEmbeddedServiceWorker(navigator.serviceWorker, window.location.origin)
+    .catch(error => console.warn('Local service worker retirement failed', error));
+} else if ('serviceWorker' in navigator) {
   const swUrl = `${import.meta.env.BASE_URL}sw.js`;
 
   navigator.serviceWorker

@@ -33,6 +33,7 @@ import {
 } from '@/lib/analytics';
 
 import { SESSION_RECOVERY_TIMEOUT_MS, withDeadline, createOperationGuard } from '@/lib/sessionRecovery';
+import { isEmbeddedAndroid, authActionUrl } from '@/lib/androidRuntime';
 
 const AuthContext = createContext(null);
 
@@ -193,6 +194,7 @@ const getPersistedStorageStatus = async () => {
 };
 
 const callSessionApi = async (path, options = {}) => {
+  if (isEmbeddedAndroid()) throw new Error('Web session API is unavailable in embedded Android');
   const controller = new AbortController();
   const abort = () => controller.abort();
   options.signal?.addEventListener('abort', abort, { once: true });
@@ -227,6 +229,7 @@ const callSessionApi = async (path, options = {}) => {
 };
 
 export const AuthProvider = ({ children }) => {
+  const embedded = isEmbeddedAndroid();
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [restoringSession, setRestoringSession] = useState(true);
@@ -247,6 +250,8 @@ export const AuthProvider = ({ children }) => {
   const explicitLogin = useRef(false);
   const preferenceRevision = useRef(0);
   const mounted = useRef(false);
+  const localIntent = useRef(0);
+  const localSignInValid = useRef(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -273,6 +278,7 @@ export const AuthProvider = ({ children }) => {
       requests.forEach(controller => controller.abort());
     };
     const refreshBackendSession = async (firebaseUser, phase) => {
+      if (embedded) return;
       const valid = operations.current.capture();
       const explicitCookieLogin = explicitLogin.current;
       let logoutMarkerAtStart;
@@ -325,6 +331,7 @@ export const AuthProvider = ({ children }) => {
       }
     };
     const restoreFromBackendSession = (phase = 'boot') => {
+      if (embedded) { setSessionError(false); finish(); return Promise.resolve(); }
       if (cookieRestoreBlocked()) { finish(); return Promise.resolve(); }
       if (restoreInProgress) return restoreInProgress;
       if (cancelled || manualLogoutRef.current || restoreAttempted || auth.currentUser) return Promise.resolve();
@@ -369,6 +376,8 @@ export const AuthProvider = ({ children }) => {
     };
     // Veto an obsolete SDK sign-in BEFORE Firebase installs its user.
     const stopBefore = beforeAuthStateChanged(auth, (nextUser) => {
+      if (embedded && nextUser && (manualLogoutRef.current ||
+          (localSignInValid.current && !localSignInValid.current()))) throw new Error('stale-local-sign-in');
       if (nextUser && manualLogoutRef.current && explicitLogin.current) throw new Error('explicit-logout');
       if (nextUser && sdkRestoreValid && !sdkRestoreValid()) throw new Error('stale-session-restore');
     });
@@ -378,7 +387,13 @@ export const AuthProvider = ({ children }) => {
       const current = auth.currentUser;
       if (!current) return;
       validation = withDeadline(getIdToken(current, false))
-        .then(() => {
+        .then(async () => {
+          if (embedded) {
+            const valid = operations.current.capture();
+            await withDeadline(reload(current));
+            if (cancelled || !valid() || manualLogoutRef.current || auth.currentUser !== current) return;
+            setUser(mapFirebaseUser(current));
+          }
           safeTrack('auth_revalidate_result', { fase: 'resume', resultado: 'token_ok' });
           background(ensurePersistentStorage('resume'));
         }).catch(() => {
@@ -386,6 +401,7 @@ export const AuthProvider = ({ children }) => {
         }).finally(() => { validation = null; });
     };
     const retry = async () => {
+      if (embedded) { await initializeLocalAuth(); return; }
       if (pendingSignIn.current || restoreInProgress) return;
       invalidate();
       restoreAttempted = false;
@@ -397,14 +413,14 @@ export const AuthProvider = ({ children }) => {
       loginScreen: () => { invalidate(); restoreAttempted = true; setSessionError(false); finish(); },
       retryPreferences: () => auth.currentUser && background(loadPreferences(auth.currentUser)),
     };
-    const initialTimer = setTimeout(() => {
+    const initialTimer = embedded ? null : setTimeout(() => {
       if (!bootstrap || cancelled) return;
       invalidate();
       restoreAttempted = true;
       if (!auth.currentUser) setSessionError(true);
       finish();
     }, SESSION_RECOVERY_TIMEOUT_MS);
-    const unsubscribe = onIdTokenChanged(auth, (firebaseUser) => {
+    const handleUser = (firebaseUser) => {
       if (cancelled || firebaseUser !== auth.currentUser) return;
       if (firebaseUser) {
         // A fast reopen may still hydrate Firebase before local signOut persisted.
@@ -416,7 +432,7 @@ export const AuthProvider = ({ children }) => {
           invalidate();
           setUser(null);
           finish();
-          background(withDeadline(signOut(auth)));
+          background(embedded ? logout() : withDeadline(signOut(auth)));
           return;
         }
         const changed = lastAuthedUidRef.current !== firebaseUser.uid;
@@ -455,7 +471,29 @@ export const AuthProvider = ({ children }) => {
         if (manualLogoutRef.current) finish();
         else background(restoreFromBackendSession(bootstrap ? 'boot' : 'unexpected_null'));
       }
-    });
+    };
+    let unsubscribe = () => {};
+    let localInitialization = null;
+    let subscribed = false;
+    const initializeLocalAuth = () => {
+      if (cancelled || subscribed) return Promise.resolve();
+      if (localInitialization) return localInitialization;
+      setLoadingAuth(true);
+      setSessionError(false);
+      localInitialization = withDeadline((async () => {
+        await authPersistenceReady;
+        await auth.authStateReady();
+      })()).then(() => {
+        if (cancelled) return;
+        subscribed = true;
+        unsubscribe = onIdTokenChanged(auth, handleUser);
+      }).catch(() => {
+        if (!cancelled) { setSessionError(true); finish(); }
+      }).finally(() => { localInitialization = null; });
+      return localInitialization;
+    };
+    if (embedded) background(initializeLocalAuth());
+    else unsubscribe = onIdTokenChanged(auth, handleUser);
     const visible = () => { if (document.visibilityState === 'visible') revalidateSession(); };
     const online = () => {
       if (auth.currentUser) {
@@ -471,6 +509,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       cancelled = true;
       mounted.current = false;
+      if (embedded) localIntent.current += 1;
       invalidate();
       clearTimeout(initialTimer);
       unsubscribe();
@@ -482,8 +521,44 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  const localAuthenticate = async (operation) => {
+    const intent = ++localIntent.current;
+    const previous = pendingSignIn.current;
+    const task = (async () => {
+      if (pendingLogout.current) await pendingLogout.current;
+      if (previous) await withDeadline(previous.catch(() => {}));
+      await withDeadline(authPersistenceReady);
+      await withDeadline(auth.authStateReady());
+      await controls.current.retry?.();
+      const valid = () => mounted.current && intent === localIntent.current;
+      if (!valid()) throw new Error('stale-local-sign-in');
+      localSignInValid.current = valid;
+      manualLogoutRef.current = false;
+      explicitLogin.current = true;
+      let marker;
+      try { marker = localStorage.getItem(LOGOUT_MARKER_KEY); } catch {}
+      try {
+        const result = await operation();
+        if (!valid() || manualLogoutRef.current) throw new Error('stale-local-sign-in');
+        clearExplicitLogout(marker);
+        return result;
+      } finally {
+        explicitLogin.current = false;
+        localSignInValid.current = null;
+      }
+    })();
+    pendingSignIn.current = task;
+    try { return await task; }
+    finally { if (pendingSignIn.current === task) pendingSignIn.current = null; }
+  };
+
   const login = async (email, password) => {
     try {
+      if (embedded) {
+        await localAuthenticate(() => signInWithEmailAndPassword(auth, email, password));
+        void trackLogin('email');
+        return;
+      }
       if (pendingLogout.current) await pendingLogout.current;
       controls.current.invalidate?.();
       if (pendingSignIn.current) await withDeadline(pendingSignIn.current.catch(() => {}));
@@ -508,13 +583,19 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password) => {
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      const { user } = embedded
+        ? await localAuthenticate(() => createUserWithEmailAndPassword(auth, email, password))
+        : await createUserWithEmailAndPassword(auth, email, password);
       const actionCodeSettings = {
-        url: `${window.location.origin}/auth`,
+        url: authActionUrl('/auth'),
       };
 
       await sendEmailVerification(user, actionCodeSettings);
       void trackSignUp('email');
+      if (embedded) {
+        if (auth.currentUser === user) await logout();
+        return;
+      }
       manualLogoutRef.current = true;
       controls.current.invalidate?.();
       await signOut(auth);
@@ -532,7 +613,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email, {
-        url: `${window.location.origin}/auth`,
+        url: authActionUrl('/auth'),
       });
 
       void trackEvent('password_reset_request', {
@@ -582,7 +663,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       await sendEmailVerification(currentUser, {
-        url: `${window.location.origin}/auth`,
+        url: authActionUrl('/auth'),
       });
 
       return { ok: true };
@@ -598,13 +679,19 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     if (pendingLogout.current) return pendingLogout.current;
+    const localSignInAtLogout = embedded ? pendingSignIn.current : null;
     // Synchronous, before either network or SDK work: survives immediate closing.
     markExplicitLogout();
+    if (embedded) localIntent.current += 1;
     manualLogoutRef.current = true;
     controls.current.invalidate?.();
     const task = (async () => {
       try {
         await withDeadline(signOut(auth));
+        if (localSignInAtLogout) {
+          await withDeadline(localSignInAtLogout.catch(() => {}));
+          await withDeadline(signOut(auth));
+        }
         clearSessionCookieRefreshMark();
         if (mounted.current && !auth.currentUser) {
           setUser(null);
@@ -613,6 +700,7 @@ export const AuthProvider = ({ children }) => {
           setLoadingAuth(false);
           setSessionError(false);
         }
+        if (embedded) return { localCleared: true, backendCleared: false };
         const controller = new AbortController();
         try {
           await withDeadline((async () => {
@@ -663,7 +751,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     await verifyBeforeUpdateEmail(currentUser, normalizedEmail, {
-      url: `${window.location.origin}/settings`,
+      url: authActionUrl('/settings'),
     });
 
     return { ok: true, verificationSent: true };

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { isEmbeddedAndroid } from '@/lib/androidRuntime';
 
 export default function UpdateNotification() {
   const [showUpdate, setShowUpdate] = useState(false);
@@ -9,7 +10,7 @@ export default function UpdateNotification() {
   const shouldReloadRef = useRef(false);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) {
+    if (isEmbeddedAndroid() || !('serviceWorker' in navigator)) {
       return undefined;
     }
 
@@ -146,7 +147,7 @@ export default function UpdateNotification() {
     setMinimized(true);
   };
 
-  if (!showUpdate && !minimized) {
+  if (isEmbeddedAndroid() || (!showUpdate && !minimized)) {
     return null;
   }
 

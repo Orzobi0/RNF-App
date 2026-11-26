@@ -26,6 +26,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
 import UpdateNotification from '@/components/UpdateNotification';
+import { isEmbeddedAndroid } from '@/lib/androidRuntime';
 import WhatsNewModal from '@/components/WhatsNewModal';
 import ViewportHeightFix from "@/components/ViewportHeightFix";
 
@@ -113,7 +114,7 @@ function ServiceWorkerRouteUpdater() {
   const lastCheckRef = useRef(0);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
+    if (isEmbeddedAndroid() || !('serviceWorker' in navigator)) return;
 
     const now = Date.now();
 

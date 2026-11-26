@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
 import { withDeadline, createOperationGuard } from '../src/lib/sessionRecovery.js';
+import { authActionUrl } from '../src/lib/androidRuntime.js';
 import { PREFERENCE_DEFAULTS, normalizeStoredPreferences, normalizePreferencePatch } from '../src/lib/preferences/index.js';
 
 const account = uid => ({ uid, email: uid + '@example.test', providerData: [] });
 const snap = data => ({ exists: () => data !== null, data: () => data, metadata: { fromCache: false } });
 async function setup(t, options = {}) {
   const h = hooks();
-  const auth = { currentUser: options.user ?? null };
+  const auth = { currentUser: options.user ?? null, authStateReady: () => options.initialize?.() ?? options.ready ?? Promise.resolve() };
   const listeners = new Map();
   let observer, before;
   let tokenCalls = 0, restoreCalls = 0, sdkCalls = 0;
@@ -23,7 +24,9 @@ async function setup(t, options = {}) {
   const toasts = [];
   const requests = [];
   const bindings = {
-    ...h.bindings, auth, db: {}, authPersistenceReady: Promise.resolve(),
+    ...h.bindings, auth, db: {}, authPersistenceReady: options.persistence ?? Promise.resolve(),
+    isEmbeddedAndroid: () => Boolean(options.embedded),
+    authActionUrl: path => authActionUrl(path, Boolean(options.embedded), 'staging', 'http://localhost'),
     SESSION_RECOVERY_TIMEOUT_MS: 12000, createOperationGuard,
     withDeadline: promise => withDeadline(promise, 60),
     setTimeout: fn => { const id = setTimeout(fn, 60); timers.add(id); return id; }, clearTimeout,
@@ -38,7 +41,12 @@ async function setup(t, options = {}) {
     beforeAuthStateChanged: (_, fn) => { before = fn; return () => { before = null; }; },
     getIdToken: () => { tokenCalls++; return options.token?.() ?? Promise.resolve('token'); },
     signInWithCustomToken: async () => { sdkCalls++; await options.sdk?.(); emit(account('restored')); return { user: auth.currentUser }; },
-    signInWithEmailAndPassword: async (_, email) => { emit(account(email)); return { user: auth.currentUser }; },
+    signInWithEmailAndPassword: async (_, email) => { await options.login?.(email); emit(account(email)); return { user: auth.currentUser }; },
+    createUserWithEmailAndPassword: async (_, email) => { emit(account(email)); return { user: auth.currentUser }; },
+    sendEmailVerification: async (_, settings) => options.action?.(settings),
+    sendPasswordResetEmail: async (_, email, settings) => options.action?.(settings),
+    verifyBeforeUpdateEmail: async (_, email, settings) => options.action?.(settings),
+    reload: async user => options.reload?.(user),
     signOut: async () => emit(null),
     doc: (...args) => args.join('/'), deleteField: () => null,
     getDocFromCache: () => options.cache?.() ?? Promise.reject(Error('no-cache')),
@@ -61,6 +69,174 @@ async function setup(t, options = {}) {
   return { state, emit, listeners, auth, storageData, toasts, requests, calls: () => ({ tokenCalls, restoreCalls, sdkCalls }) };
 }
 const okRestore = async () => ({ ok: true, json: async () => ({ customToken: 'test' }) });
+
+for (const mode of ['verifyEmail', 'verifyAndChangeEmail', 'resetPassword']) {
+  test(`existing browser action page handles Staging ${mode} without a local app session`, async t => {
+    const h = hooks();
+    const calls = [];
+    const navigate = path => calls.push(['navigate', path]);
+    const params = new URLSearchParams({ mode, oobCode: 'synthetic-code', continueUrl: 'https://fertiliapp-staging.web.app/auth' });
+    const { AuthActionPage } = await loadFrontend('src/pages/AuthActionPage.jsx', {
+      ...h.bindings, auth: { currentUser: null }, useAuth: () => ({}),
+      useSearchParams: () => [params], useNavigate: () => navigate,
+      window: { location: { origin: 'https://fertiliapp-staging.web.app' }, setTimeout: fn => { queueMicrotask(fn); return 1; }, clearTimeout() {} },
+      applyActionCode: async (_, code) => calls.push(['apply', code]),
+      verifyPasswordResetCode: async (_, code) => { calls.push(['verify-reset', code]); return 'synthetic@example.test'; },
+      confirmPasswordReset: async (_, code) => calls.push(['confirm-reset', code]),
+      getAuthErrorMessage: () => '', motion: { div: 'div' }, Button: 'button', Input: 'input', Label: 'label', Eye: 'eye', EyeOff: 'eye-off',
+    }, ['AuthActionPage']);
+    h.render(AuthActionPage); await flush(); await flush();
+    assert.deepEqual(calls[0], [mode === 'resetPassword' ? 'verify-reset' : 'apply', 'synthetic-code']);
+    if (mode !== 'resetPassword') assert.deepEqual(calls[1], ['navigate', mode === 'verifyEmail' ? '/auth?verified=1' : '/auth']);
+    else {
+      const find = (node, predicate) => {
+        if (!node || typeof node !== 'object') return null;
+        if (predicate(node)) return node;
+        for (const child of [node.props?.children].flat(Infinity)) {
+          const result = find(child, predicate);
+          if (result) return result;
+        }
+        return null;
+      };
+      const render = () => h.render(() => ({ props: { value: AuthActionPage() } }));
+      const tree = render();
+      for (const id of ['newPassword', 'confirmPassword']) {
+        find(tree, node => node.props?.id === id).props.onChange({ target: { value: 'synthetic-test-password' } });
+      }
+      await find(render(), node => node.type === 'form').props.onSubmit({ preventDefault() {} });
+      await flush();
+      assert.deepEqual(calls.slice(1), [['confirm-reset', 'synthetic-code'], ['navigate', '/auth?reset=1']]);
+    }
+    t.after(() => h.cleanup());
+  });
+}
+
+test('embedded boot waits for persistence and SDK hydration before showing login', async t => {
+  const persistence = deferred(), ready = deferred();
+  const h = await setup(t, { embedded: true, persistence: persistence.promise, ready: ready.promise });
+  assert.equal(h.state().loadingAuth, true);
+  assert.equal(h.state().sessionError, false);
+  persistence.resolve(); await flush();
+  assert.equal(h.state().loadingAuth, true);
+  ready.resolve(); await flush(); await flush();
+  assert.equal(h.state().loadingAuth, false);
+  assert.equal(h.state().sessionError, false);
+  assert.equal(h.state().user, null);
+  h.listeners.get('online')(); await flush();
+  assert.deepEqual(h.requests, []);
+});
+
+test('embedded persisted user enters directly and logout survives a fast reopen', async t => {
+  const h = await setup(t, { embedded: true, user: account('a') });
+  assert.equal(h.state().user.uid, 'a');
+  assert.equal(h.state().loadingAuth, false);
+  const result = await h.state().logout();
+  assert.equal(result.localCleared, true);
+  assert.equal(result.backendCleared, false);
+  assert.equal(h.toasts.length, 0);
+  const reopened = await setup(t, { embedded: true, user: account('a'), storageData: h.storageData });
+  assert.equal(reopened.state().user, null);
+  assert.equal(reopened.auth.currentUser, null);
+  await reopened.state().login('b', 'unused'); await flush();
+  assert.equal(reopened.state().user.uid, 'b');
+  assert.equal(h.storageData.has('rnf_explicit_logout_v1'), false);
+  assert.deepEqual([...h.requests, ...reopened.requests], []);
+});
+
+test('embedded logout vetoes a pending login and a subsequent login waits safely', async t => {
+  const pending = deferred();
+  const h = await setup(t, { embedded: true, login: email => email === 'a' ? pending.promise : undefined });
+  const a = h.state().login('a', 'unused');
+  const rejected = assert.rejects(a, /stale-local-sign-in/);
+  await flush();
+  const logout = h.state().logout();
+  const b = h.state().login('b', 'unused');
+  pending.resolve();
+  await rejected; await logout; await b; await flush();
+  assert.equal(h.state().user.uid, 'b');
+  assert.deepEqual(h.requests, []);
+});
+
+test('embedded overlapping account logins cannot install an obsolete user', async t => {
+  const pending = deferred();
+  const h = await setup(t, { embedded: true, login: email => email === 'a' ? pending.promise : undefined });
+  const a = h.state().login('a', 'unused');
+  const rejected = assert.rejects(a, /stale-local-sign-in/);
+  await flush();
+  const b = h.state().login('b', 'unused');
+  pending.resolve(); await rejected; await b;
+  assert.equal(h.state().user.uid, 'b');
+});
+
+test('embedded unavailable marker storage does not trigger cookies or block SDK logout', async t => {
+  const h = await setup(t, { embedded: true, storageError: true });
+  assert.equal(h.state().sessionError, false);
+  await h.state().login('a', 'unused');
+  await h.state().logout();
+  assert.equal(h.auth.currentUser, null);
+  assert.deepEqual(h.requests, []);
+});
+
+test('embedded SDK storage initialization failure exposes retry without installing a user', async t => {
+  let failing = true;
+  const h = await setup(t, { embedded: true, initialize: () => failing ? Promise.reject(Error('storage')) : Promise.resolve() });
+  assert.equal(h.state().sessionError, true);
+  assert.equal(h.state().user, null);
+  failing = false;
+  await h.state().retrySession(); await flush();
+  assert.equal(h.state().sessionError, false);
+  await h.state().login('a', 'unused');
+  assert.equal(h.state().user.uid, 'a');
+  assert.deepEqual(h.requests, []);
+});
+
+for (const embedded of [true, false]) test(`verification resend preserves the correct origin (embedded=${embedded})`, async t => {
+  const urls = [];
+  const h = await setup(t, { embedded, user: account('a'), action: settings => urls.push(settings.url) });
+  await h.state().resendVerificationEmail();
+  assert.deepEqual(urls, [embedded ? 'https://fertiliapp-staging.web.app/auth' : 'http://localhost/auth']);
+});
+
+test('embedded failed SDK initialization is gated and retryable without cookie fallback', async t => {
+  const ready = deferred();
+  const h = await setup(t, { embedded: true, ready: ready.promise });
+  await new Promise(resolve => setTimeout(resolve, 85));
+  assert.equal(h.state().sessionError, true);
+  assert.equal(h.state().user, null);
+  ready.resolve(); await flush();
+  await h.state().retrySession(); await flush();
+  assert.equal(h.state().sessionError, false);
+  assert.equal(h.state().loadingAuth, false);
+  assert.deepEqual(h.requests, []);
+});
+
+test('embedded late preferences and resume reload cannot cross accounts', async t => {
+  const remote = deferred(), resumed = deferred(); let reads = 0;
+  const h = await setup(t, { embedded: true, user: account('a'), reload: () => resumed.promise,
+    prefs: () => ++reads === 1 ? remote.promise : Promise.resolve(snap({ showRelationsRow: true })) });
+  h.listeners.get('pageshow')(); await flush();
+  await h.state().login('b', 'unused'); await flush();
+  resumed.resolve(); remote.resolve(snap({ showRelationsRow: false })); await flush();
+  assert.equal(h.state().user.uid, 'b');
+  assert.equal(h.state().preferences.showRelationsRow, true);
+  assert.deepEqual(h.requests, []);
+});
+
+test('embedded email actions use HTTPS Staging and resume refreshes the Firebase user', async t => {
+  const urls = [];
+  const h = await setup(t, { embedded: true, action: settings => urls.push(settings.url),
+    reload: user => { user.emailVerified = true; } });
+  await h.state().register('new', 'unused');
+  await h.state().resetPassword('new');
+  await h.state().login('new', 'unused');
+  await h.state().resendVerificationEmail(); // reload finds verified, no second email needed
+  await h.state().updateEmail('changed@example.test');
+  h.listeners.get('pageshow')(); await flush(); await flush();
+  assert.equal(h.state().user.emailVerified, true);
+  assert.deepEqual(urls, ['https://fertiliapp-staging.web.app/auth',
+    'https://fertiliapp-staging.web.app/auth', 'https://fertiliapp-staging.web.app/settings']);
+  assert.deepEqual(h.requests, []);
+});
 
 test('authenticated boot ignores hanging storage, cookie and preference work', async t => {
   const h = await setup(t, { user: account('a'), prefs: () => new Promise(() => {}) });

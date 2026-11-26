@@ -7,6 +7,69 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { parseMode, snapshot, verifyPreparation } from './check-staging-android.mjs';
 import { STAGING_APP_ID } from '../src/lib/firebaseEnvironment.js';
+import { classifyRuntime, authActionUrl, retireEmbeddedServiceWorker } from '../src/lib/androidRuntime.js';
+import { loadFrontend, hooks, flush } from './helpers/load-frontend.mjs';
+
+for (const embedded of [true, false]) test(`service worker entry points preserve web behavior (embedded=${embedded})`, async () => {
+  let registered = 0, retired = 0, readyReads = 0, updates = 0;
+  const registration = { update: async () => updates++, addEventListener() {}, removeEventListener() {} };
+  const serviceWorker = { register: async () => { registered++; return registration; },
+    get ready() { readyReads++; return Promise.resolve(registration); },
+    addEventListener() {}, removeEventListener() {} };
+  const base = {
+    isEmbeddedAndroid: () => embedded, navigator: { serviceWorker },
+    window: { location: { hostname: 'localhost', origin: 'http://localhost' }, addEventListener() {} },
+    document: { getElementById() {}, addEventListener() {}, removeEventListener() {} },
+  };
+  await loadFrontend('src/main.jsx', { ...base, React: { createElement() {} },
+    ReactDOM: { createRoot: () => ({ render() {} }) }, App: {},
+    trackEvent() {}, trackException() {}, initGlobalErrorTracking() {}, setInterval() {},
+    retireEmbeddedServiceWorker: async () => retired++,
+  }, [], source => source.replace("import '@/index.css';", ''));
+  await flush();
+  assert.equal(registered, embedded ? 0 : 1);
+  assert.equal(retired, embedded ? 1 : 0);
+  const h = hooks();
+  const { ServiceWorkerRouteUpdater } = await loadFrontend('src/App.jsx', {
+    ...base, ...h.bindings, useLocation: () => ({ pathname: '/', search: '' }),
+  }, ['ServiceWorkerRouteUpdater'], source => source.slice(source.indexOf('function ServiceWorkerRouteUpdater()'), source.indexOf('function AppContent()')));
+  h.render(() => ({ props: { value: ServiceWorkerRouteUpdater() } }));
+  const ui = hooks();
+  const { UpdateNotification } = await loadFrontend('src/components/UpdateNotification.jsx', {
+    ...base, ...ui.bindings, Button: 'button',
+  }, ['UpdateNotification'], source => source.replace('export default function', 'function'));
+  assert.equal(ui.render(() => ({ props: { value: UpdateNotification() } })), null);
+  await flush();
+  assert.equal(readyReads, embedded ? 0 : 2);
+  assert.equal(updates, embedded ? 0 : 2);
+  h.cleanup(); ui.cleanup();
+});
+
+test('native Android and exact local origin are both required for embedded behavior', () => {
+  const native = platform => ({ isNativePlatform: () => true, getPlatform: () => platform });
+  for (const origin of ['http://localhost', 'https://localhost']) {
+    assert.equal(classifyRuntime(native('android'), origin), 'android-embedded');
+    assert.equal(classifyRuntime(native('ios'), origin), 'web');
+    assert.equal(classifyRuntime({ isNativePlatform: () => false }, origin), 'web');
+  }
+  for (const origin of ['https://fertiliapp-staging.web.app', 'http://localhost:5174', 'https://localhost.evil.test']) {
+    assert.equal(classifyRuntime(native('android'), origin), 'android-remote');
+    assert.equal(authActionUrl('/auth', false, 'staging', origin), `${origin}/auth`);
+  }
+  assert.equal(authActionUrl('/auth', true, 'staging', 'http://localhost'), 'https://fertiliapp-staging.web.app/auth');
+  assert.throws(() => authActionUrl('/auth', true, 'production', 'http://localhost'));
+});
+
+test('retire only the app local worker without clearing caches or reloading', async () => {
+  const removed = [];
+  const registration = (scope, scriptURL) => ({ scope, active: { scriptURL }, unregister: async () => removed.push(scriptURL) });
+  await retireEmbeddedServiceWorker({ getRegistrations: async () => [
+    registration('http://localhost/', 'http://localhost/sw.js'),
+    registration('http://localhost/other/', 'http://localhost/other/sw.js'),
+    registration('https://fertiliapp-staging.web.app/', 'https://fertiliapp-staging.web.app/sw.js'),
+  ] }, 'http://localhost');
+  assert.deepEqual(removed, ['http://localhost/sw.js']);
+});
 
 const compiled = ts.transpileModule(fs.readFileSync('capacitor.config.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
