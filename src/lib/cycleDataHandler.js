@@ -362,9 +362,17 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
   });
 };
 
-export const fetchCurrentCycleDB = async (userId) => {
+const readCycleQuery = async (ref, serverOnly) => {
+  const snapshot = await (serverOnly ? getDocsFromServer(ref) : getDocs(ref));
+  if (serverOnly && (snapshot.metadata?.fromCache || snapshot.metadata?.hasPendingWrites)) {
+    throw new Error('Cycle snapshot is not confirmed by the server');
+  }
+  return snapshot;
+};
+
+export const fetchCurrentCycleDB = async (userId, { serverOnly = false } = {}) => {
   const cyclesRef = collection(db, `users/${userId}/cycles`);
-  const cycleSnapshot = await getDocs(cyclesRef);
+  const cycleSnapshot = await readCycleQuery(cyclesRef, serverOnly);
   if (cycleSnapshot.empty) return null;
 
   const cycles = cycleSnapshot.docs
@@ -378,7 +386,7 @@ export const fetchCurrentCycleDB = async (userId) => {
   const cycleDoc = cycles[0];
 
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries`);
-  const entriesSnap = await getDocs(entriesRef);
+  const entriesSnap = await readCycleQuery(entriesRef, serverOnly);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   return mapCycleDocToFrontend({
@@ -388,9 +396,9 @@ export const fetchCurrentCycleDB = async (userId) => {
   });
 };
 
-export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
+export const fetchArchivedCyclesDB = async (userId, currentStartDate, { serverOnly = false } = {}) => {
   const cyclesRef = collection(db, `users/${userId}/cycles`);
-  const snapshot = await getDocs(cyclesRef);
+  const snapshot = await readCycleQuery(cyclesRef, serverOnly);
   const cycles = snapshot.docs
     .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
     .filter((c) =>
@@ -402,7 +410,7 @@ export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
   const cyclesWithEntries = await Promise.all(
     cycles.map(async (cycle) => {
       const entriesRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries`);
-      const entriesSnap = await getDocs(entriesRef);
+      const entriesSnap = await readCycleQuery(entriesRef, serverOnly);
       const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       return mapCycleDocToFrontend({
         id: cycle.id,

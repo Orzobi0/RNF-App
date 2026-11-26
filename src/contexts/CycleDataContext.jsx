@@ -39,6 +39,8 @@ import {
   previewUndoCurrentCycleDB,
   shouldShowCycleImpactPreview,
 } from '@/lib/cycleDataHandler';
+import { isEmbeddedAndroid } from '@/lib/androidRuntime';
+import { createEmbeddedCycleLoader } from '@/lib/embeddedCycleLoader';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import {
   trackDailyRecordSaved,
@@ -258,8 +260,64 @@ const sortEntriesByTimestamp = (entries) =>
     return dateA > dateB ? 1 : dateA < dateB ? -1 : 0;
   });
 
+const readCycleSnapshot = async (userId, serverOnly = false) => {
+  const cycleToLoad = await fetchCurrentCycleDB(userId, { serverOnly });
+
+  let currentCycleData = defaultCycleState;
+  if (cycleToLoad) {
+    const { startDate, endDate } = normalizeCycleRange(
+      cycleToLoad.startDate,
+      cycleToLoad.endDate
+    );
+    const processed = processCycleEntries(cycleToLoad.data, startDate);
+    const filteredStart = filterEntriesByStartDate(processed, startDate);
+    const filtered = filterEntriesByEndDate(filteredStart, endDate);
+
+    currentCycleData = {
+      ...normalizeCycleForState(cycleToLoad),
+      startDate,
+      endDate,
+      data: filtered,
+      issues: detectCycleDataIssues({
+        cycleStartIso: startDate,
+        cycleEndIso: endDate,
+        entries: cycleToLoad.data,
+      }),
+    };
+  }
+
+  const archivedData = await fetchArchivedCyclesDB(userId, cycleToLoad ? cycleToLoad.startDate : null, { serverOnly });
+  const archivedCyclesData = archivedData.map((cycle) => {
+    const { startDate: aStart, endDate: aEnd } = normalizeCycleRange(
+      cycle.startDate,
+      cycle.endDate
+    );
+    const processed = processCycleEntries(cycle.data || [], aStart);
+    const filteredStart = filterEntriesByStartDate(processed, aStart);
+    const filtered = filterEntriesByEndDate(filteredStart, aEnd);
+    return {
+      ...normalizeCycleForState(cycle),
+      startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
+      endDate: aEnd,
+      needsCompletion: cycle.needsCompletion,
+      data: filtered,
+      issues: detectCycleDataIssues({
+        cycleStartIso: aStart,
+        cycleEndIso: aEnd,
+        entries: cycle.data || [],
+      }),
+    };
+  });
+
+  return { currentCycle: currentCycleData, archivedCycles: archivedCyclesData };
+};
+
 export const CycleDataProvider = ({ children }) => {
   const { user } = useAuth();
+  const embedded = isEmbeddedAndroid();
+  const embeddedLoader = useRef(null);
+  const offlineWriteWrappers = useRef(new WeakMap());
+  const [availability, setAvailability] = useState({ accountId: null, phase: 'loading', hasData: false, knownOffline: false });
   const measurementReadStatus = useRef(new Map());
   const { toast } = useToast();
   const [currentCycle, setCurrentCycle] = useState(defaultCycleState);
@@ -278,6 +336,7 @@ export const CycleDataProvider = ({ children }) => {
 
   const loadCycleData = useCallback(
     async ({ silent = false } = {}) => {
+      if (embedded) return embeddedLoader.current?.load();
       if (!user?.uid) {
         const previousUserId = lastUserIdRef.current;
         lastUserIdRef.current = null;
@@ -332,53 +391,7 @@ export const CycleDataProvider = ({ children }) => {
       }
 
       try {
-        const cycleToLoad = await fetchCurrentCycleDB(user.uid);
-
-        let currentCycleData = defaultCycleState;
-        if (cycleToLoad) {
-          const { startDate, endDate } = normalizeCycleRange(
-            cycleToLoad.startDate,
-            cycleToLoad.endDate
-          );
-          const processed = processCycleEntries(cycleToLoad.data, startDate);
-          const filteredStart = filterEntriesByStartDate(processed, startDate);
-          const filtered = filterEntriesByEndDate(filteredStart, endDate);
-
-          currentCycleData = {
-            ...normalizeCycleForState(cycleToLoad),
-            startDate,
-            endDate,
-            data: filtered,
-            issues: detectCycleDataIssues({
-              cycleStartIso: startDate,
-              cycleEndIso: endDate,
-              entries: cycleToLoad.data,
-            }),
-          };
-        }
-
-        const archivedData = await fetchArchivedCyclesDB(user.uid, cycleToLoad ? cycleToLoad.startDate : null);
-        const archivedCyclesData = archivedData.map((cycle) => {
-          const { startDate: aStart, endDate: aEnd } = normalizeCycleRange(
-            cycle.startDate,
-            cycle.endDate
-          );
-          const processed = processCycleEntries(cycle.data || [], aStart);
-          const filteredStart = filterEntriesByStartDate(processed, aStart);
-          const filtered = filterEntriesByEndDate(filteredStart, aEnd);
-          return {
-            ...normalizeCycleForState(cycle),
-            startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
-            endDate: aEnd,
-            needsCompletion: cycle.needsCompletion,
-            data: filtered,
-            issues: detectCycleDataIssues({
-              cycleStartIso: aStart,
-              cycleEndIso: aEnd,
-              entries: cycle.data || [],
-            }),
-          };
-        });
+        const { currentCycle: currentCycleData, archivedCycles: archivedCyclesData } = await readCycleSnapshot(user.uid);
 
         setCurrentCycle(currentCycleData);
         setArchivedCycles(archivedCyclesData);
@@ -425,17 +438,47 @@ export const CycleDataProvider = ({ children }) => {
         }
       }
     },
-    [user, resetState]
+    [user, resetState, embedded]
   );
 
   useEffect(() => {
+    if (embedded) {
+      measurementReadStatus.current.clear();
+      resetState();
+      setAvailability({ accountId: user?.uid ?? null, phase: 'loading', hasData: false, knownOffline: navigator.onLine === false });
+      if (!user?.uid) return;
+      const loader = createEmbeddedCycleLoader({
+        accountId: user.uid, readCache: getCachedCycleData,
+        readServer: uid => readCycleSnapshot(uid, true), saveCache: saveCycleDataToCache,
+        onState: state => {
+          setAvailability(state);
+          setIsLoading(state.phase === 'loading');
+          if (state.data) {
+            setCurrentCycle(normalizeCycleForState(state.data.currentCycle));
+            setArchivedCycles(state.data.archivedCycles.map(normalizeCycleForState));
+          }
+        },
+      });
+      embeddedLoader.current = loader;
+      void loader.load();
+      const online = () => { void loader.load(); };
+      const offline = () => loader.connectionLost();
+      window.addEventListener('online', online);
+      window.addEventListener('offline', offline);
+      return () => {
+        loader.dispose();
+        if (embeddedLoader.current === loader) embeddedLoader.current = null;
+        window.removeEventListener('online', online);
+        window.removeEventListener('offline', offline);
+      };
+    }
     if (!user?.uid) {
       resetState();
       return;
     }
 
     loadCycleData().catch((error) => console.error('Initial cycle data load failed:', error));
-  }, [user?.uid, loadCycleData, resetState]);
+  }, [user?.uid, embedded ? null : loadCycleData, resetState, embedded]);
 
   const updateEntryState = useCallback((cycleId, entryId, payload, isoDate, { remove = false } = {}) => {
     const applyUpdate = (cycle) => {
@@ -1356,6 +1399,11 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
   const getCycleById = useCallback(
     async (cycleIdToFetch) => {
       if (!user?.uid) return null;
+      if (embedded && (navigator.onLine === false || availability.phase === 'cached')) {
+        if (availability.accountId !== user.uid) return null;
+        return currentCycle.id === cycleIdToFetch ? currentCycle
+          : archivedCycles.find(cycle => cycle.id === cycleIdToFetch) ?? null;
+      }
 
       setIsLoading(true);
       try {
@@ -1388,7 +1436,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         setIsLoading(false);
       }
     },
-    [user]
+    [user, embedded, embedded ? availability : null, embedded ? currentCycle : null, embedded ? archivedCycles : null]
   );
 
 const getCycleFromState = useCallback(
@@ -1524,43 +1572,58 @@ const getCycleFromState = useCallback(
 
   const getPublicError = useCallback((error) => toPublicError(error), []);
 
+  const requireOnlineWrite = operation => {
+    if (!embedded) return operation;
+    if (!offlineWriteWrappers.current.has(operation)) {
+      offlineWriteWrappers.current.set(operation, async (...args) => {
+        if (navigator.onLine === false) {
+          throw createAppError('offline-write', 'Sin conexión',
+            'Conecta a Internet antes de guardar cambios. No se ha enviado esta operación.');
+        }
+        return operation(...args);
+      });
+    }
+    return offlineWriteWrappers.current.get(operation);
+  };
 
+  const sameAccount = !embedded || availability.accountId === user?.uid;
   const value = {
-    currentCycle,
-    archivedCycles,
-    addOrUpdateDataPoint,
+    currentCycle: sameAccount ? currentCycle : defaultCycleState,
+    archivedCycles: sameAccount ? archivedCycles : [],
+    dataAvailability: embedded && user?.uid ? (sameAccount ? availability : { phase: 'loading', hasData: false }) : null,
+    addOrUpdateDataPoint: requireOnlineWrite(addOrUpdateDataPoint),
     incorporateBleMeasurement,
-    deleteRecord,
-    startNewCycle,
-    updateCycleDates,
-    forceUpdateCycleStart,
-    forceShiftNextCycleStart,
+    deleteRecord: requireOnlineWrite(deleteRecord),
+    startNewCycle: requireOnlineWrite(startNewCycle),
+    updateCycleDates: requireOnlineWrite(updateCycleDates),
+    forceUpdateCycleStart: requireOnlineWrite(forceUpdateCycleStart),
+    forceShiftNextCycleStart: requireOnlineWrite(forceShiftNextCycleStart),
     checkCycleOverlap,
     previewUpdateCycleDates,
     isLoading,
     getCycleById,
     getCycleFromState,
     refreshData,
-    toggleIgnoreRecord,
-    setCycleIgnoreForAutoCalculations,
-    updateCyclePostpartumMode,
-    updateCycleInterpretationOverrides,
-    addArchivedCycle,
+    toggleIgnoreRecord: requireOnlineWrite(toggleIgnoreRecord),
+    setCycleIgnoreForAutoCalculations: requireOnlineWrite(setCycleIgnoreForAutoCalculations),
+    updateCyclePostpartumMode: requireOnlineWrite(updateCyclePostpartumMode),
+    updateCycleInterpretationOverrides: requireOnlineWrite(updateCycleInterpretationOverrides),
+    addArchivedCycle: requireOnlineWrite(addArchivedCycle),
     previewInsertCycleRange,
-    insertCycleRange,
-    deleteCycle,
+    insertCycleRange: requireOnlineWrite(insertCycleRange),
+    deleteCycle: requireOnlineWrite(deleteCycle),
     previewDeleteCycle,
-    deleteArchivedCycleWithStrategy,
+    deleteArchivedCycleWithStrategy: requireOnlineWrite(deleteArchivedCycleWithStrategy),
     getMeasurementsForEntry,
-    undoCurrentCycle,
+    undoCurrentCycle: requireOnlineWrite(undoCurrentCycle),
     previewStartNewCycle,
     previewUndoCurrentCycle,
     repairDialogState,
     openDataRepairDialog,
     closeDataRepairDialog,
-    resolveDuplicateIssue,
-    moveOutOfRangeEntry,
-    deleteIssueEntry,
+    resolveDuplicateIssue: requireOnlineWrite(resolveDuplicateIssue),
+    moveOutOfRangeEntry: requireOnlineWrite(moveOutOfRangeEntry),
+    deleteIssueEntry: requireOnlineWrite(deleteIssueEntry),
     getPublicError,
   };
 

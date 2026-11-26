@@ -12,7 +12,9 @@ android {
     compileSdkVersion rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId firebaseAppId
-        manifestPlaceholders = [fertiliAppLabel: stagingFirebase ? 'FertiliApp Pruebas' : '@string/app_name']
+        manifestPlaceholders = [fertiliAppLabel: stagingFirebase ? 'FertiliApp Pruebas' : '@string/app_name',
+            fertiliAppIcon: stagingFirebase ? '@mipmap/ic_launcher_staging' : '@mipmap/ic_launcher',
+            fertiliAppRoundIcon: stagingFirebase ? '@mipmap/ic_launcher_staging_round' : '@mipmap/ic_launcher_round']
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

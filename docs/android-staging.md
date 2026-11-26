@@ -32,7 +32,7 @@ Antes de cada build Android, `verifyFirebaseEnvironment` ejecuta el verificador 
 2. Abrir la carpeta `C:\Mario\FertiliAPP\FertiliAPP\android` como proyecto en Android Studio. Dejar terminar su sincronización Gradle. Usar el JDK ya configurado para este proyecto; no actualizar Gradle, SDK ni Capacitor.
 3. Elegir el módulo `app` y la variante `debug` en Build Variants. Para obtener el archivo, usar Build > Build Bundle(s) / APK(s) > Build APK(s) (el nombre puede variar según versión). Salida: `android\app\build\outputs\apk\debug\app-debug.apk`.
 4. Para instalar desde Studio, conectar el teléfono con depuración USB, aceptar la autorización, elegirlo como dispositivo y pulsar Run con la configuración `app`. Studio compila e instala la variante debug sobre la app Staging existente si la firma es compatible.
-5. No desinstalar ni borrar almacenamiento para cambiar de modalidad: puede haber temperaturas pendientes. Si aparece conflicto de firma, detenerse y resolverlo antes de borrar datos. El usuario ya ha compilado e instalado AND-02A y confirmado login con correo/contraseña; la persistencia tras reabrir y los cambios AND-03 siguen pendientes de validación física.
+5. No desinstalar ni borrar almacenamiento para cambiar de modalidad: puede haber temperaturas pendientes. Si aparece conflicto de firma, detenerse y resolverlo antes de borrar datos. El usuario ha compilado/instalado la APK y confirma que AND-03 funciona correctamente. Las comprobaciones complementarias indicadas abajo no se consideran realizadas individualmente sin evidencia específica.
 
 ## AND-03: comportamiento del origen local
 
@@ -69,7 +69,9 @@ Solo en APK incorporada se omiten registro, comprobaciones por navegación, avis
 
 Un worker ya activo puede controlar la WebView hasta cerrarla completamente. Tras la primera apertura de esta revisión, cerrar y volver a abrir para comprobar que ya no hay controlador/registro local. Si el worker antiguo sirve una versión que todavía no contiene esta retirada, documentar la versión/controlador observado antes de intervenir; no borrar los datos de la app. Web/PWA y APK remota mantienen sus actualizaciones habituales.
 
-### Validación física pendiente
+### Validación física complementaria de AND-03
+
+Funcionamiento de AND-03 confirmado por el usuario en su APK. Conservar esta referencia; la siguiente matriz recoge casos específicos para futuras regresiones y extremos no desglosados en esa confirmación.
 
 - Arranque sin sesión: login habitual sin «No hemos podido recuperar tu sesión» ni tráfico `/api/session*`.
 - Login, cerrar y reabrir; repetir cierre rápido y actualización de APK con la misma firma: recuperar usuario y datos sin login innecesario.
@@ -80,3 +82,44 @@ Un worker ya activo puede controlar la WebView hasta cerrarla completamente. Tra
 - Repetir login/logout/restauración y actualización web en PWA/APK remota, solo tras comprobar ausencia de pendientes antes de cambiar modalidad.
 
 Codex ejecuta únicamente pruebas JavaScript de autenticación, configuración/aislamiento, acciones de correo y actualizaciones, más `git diff --check`. No se ha ejecutado build, sync, Gradle, instalación ni despliegue para AND-03. Las pruebas usan adaptadores en memoria; no certifican persistencia real del WebView ni configuración de Firebase Console.
+
+## AND-04: consulta sin conexión e icono Staging
+
+Solo en la APK incorporada, la carga de ciclos reutiliza `cycleCache` (IndexedDB/localStorage por UID). Con sesión persistida, permite consultar los ciclos/registros guardados y muestra un aviso discreto de datos almacenados que podrían no estar actualizados. Las preferencias necesarias para interpretar el ciclo siguen pasando por su protección existente: si faltan, no se inventan valores para desbloquear la interpretación. Auth de AND-03 no cambia.
+
+Sin caché de ciclos utilizable se muestra un mensaje con Reintentar, no un ciclo vacío supuesto. Una cuenta realmente vacía solo se muestra como tal tras una lectura confirmada por Firebase. Cada espera de caché/servidor tiene un límite de 12 s; si ambas se bloquean sucesivamente, el arranque sin datos puede tardar hasta unos 24 s en ofrecer el reintento. Ajustes, logout y dispositivos siguen accesibles sin ciclos.
+
+`navigator.onLine === false` indica falta de conexión conocida. Si indica conexión pero Firebase falla, se muestra que no se pudo actualizar desde Firebase, manteniendo los datos previos. No se presenta el indicador del navegador como prueba de disponibilidad del servidor. Al recuperar conexión se refresca solo la cuenta actual; las solicitudes simultáneas se agrupan. Tras un timeout se conserva la referencia a la petición SDK pendiente para que un reintento no duplique esa lectura. Las respuestas de una carga descartada por cambio de cuenta no se aplican ni se guardan para la otra cuenta.
+
+Las lecturas de actualización de ciclos incorporados requieren respuesta de servidor sin `fromCache` ni `hasPendingWrites`. Las consultas web/PWA/remotas conservan el comportamiento previo del SDK. No se borran cachés al cambiar cuenta en la modalidad incorporada ni se copian datos entre orígenes. No se añade almacenamiento ni se modifica `cycleCache`.
+
+### Guardados y límites
+
+- Con desconexión conocida, las operaciones manuales de ciclos/registros (crear, editar, borrar y ajustes del ciclo) se rechazan antes de llamar a Firebase. El error indica que esa operación no se ha enviado. Consultar datos locales no garantiza que se puedan editar: una lectura parcial de temperaturas conserva la protección existente.
+- No se alteran las transacciones, incorporación BLE ni detección de duplicados. Las transacciones necesitan acceso a Firebase y no se convierten en una cola offline.
+- Si se pierde la conexión **después** de enviar una escritura, un batch/operación SDK puede seguir pendiente y confirmarse más tarde, o fallar. Se mantiene la espera/gestión de error existente; no se inventa un éxito, un timeout de escritura ni un reintento automático. No volver a enviar una operación incierta sin comprobar primero los registros. Los formularios pueden seguir esperando una confirmación; no existe un gestor global nuevo de escrituras.
+- La reconexión añadida ejecuta solo lecturas, nunca repite guardados. Preferencias/cuenta mantienen sus operaciones existentes y requieren su propia confirmación Firebase. No se promete crear cuentas, recuperar contraseñas ni enviar/verificar correo sin Internet.
+
+### Icono Android
+
+`resources/icon-staging.png` es el original proporcionado por el usuario. `scripts/generate-staging-icons.mjs` genera 18 PNG con nombres `ic_launcher_staging`, `ic_launcher_staging_round` e `ic_launcher_staging_foreground` en ldpi/mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi, y dos XML adaptativos en `mipmap-anydpi-v26`. Se usan márgenes sobre fondo blanco: el distintivo amarillo queda dentro del círculo seguro del adaptativo y del recorte redondo. Se han comprobado píxeles y vistas redonda/adaptativa; falta confirmar el launcher real.
+
+Gradle selecciona los recursos Staging mediante los placeholders del manifest para ambas modalidades, manteniendo `FertiliApp Pruebas` y `com.fertiliapp.fertiliapp.staging`. Producción sigue apuntando a `ic_launcher`/`ic_launcher_round`; esos recursos, `resources/icon.png` y los iconos PWA/Experiment no se modifican. La corrección `providers.exec` de Gradle 9 se conserva. No se añaden flavors ni dependencias. Para regenerar solo las imágenes: `node scripts/generate-staging-icons.mjs` (usa sharp ya instalado).
+
+### Preparación y pruebas físicas de AND-04 (usuario)
+
+```powershell
+npm run build:staging
+npm run sync:staging:android:embedded
+```
+
+Después abrir `android` en Android Studio, elegir `app`/`debug` y Run sobre el teléfono; para generar el archivo, Build APK(s). Conservar firma/identificador y datos. No se han ejecutado estos pasos en Codex.
+
+1. Con sesión y datos descargados, cerrar la APK, activar modo avión y abrir: consultar ciclo actual, archivados y registros, con aviso de datos almacenados y sin restauraciones web.
+2. Probar una cuenta de test sin caché local (sin borrar almacenamiento de la cuenta habitual): mensaje claro, acceso a Ajustes y Reintentar; nunca un ciclo vacío supuesto ni carga indefinida. Si faltan preferencias, comprobar también su mensaje existente.
+3. Perder conexión mientras se consulta: conservar datos. Volver a conectar/reintentar varias veces: refrescar sin cargas simultáneas ni escrituras nuevas. Probar conexión aparente con Firebase inaccesible.
+4. Cambiar cuenta durante una carga lenta: no mostrar datos de la anterior; volver a la primera y conservar su caché y temperaturas pendientes.
+5. Intentar un guardado manual ya offline: no enviado/sin éxito. Perder red después de enviar: esperar confirmación o revisar resultado incierto, reconectar y comprobar que no se repite la operación. No usar datos reales para pruebas destructivas.
+6. Comprobar icono amarillo, nombre e identificador en launcher redondo/adaptativo, tanto incorporado como remoto. Confirmar que producción conserva su icono original y que las PWA no cambian.
+
+Pruebas de código dirigidas: `node --test scripts/embedded-offline.test.mjs scripts/staging-icons.test.mjs scripts/temperature-persistence.test.mjs scripts/preferences-gate.test.mjs scripts/auth-recovery.test.mjs scripts/staging-android.test.mjs`. No sustituyen la validación física offline, de escrituras pendientes ni del launcher.
