@@ -62,10 +62,10 @@ tasks.register('verifyFirebaseEnvironment') {
         if (stagingFirebase) {
             // The successful sync records the mode and hashes outside generated assets.
             // Always check, including incremental builds launched from Android Studio.
-            project.exec {
-                workingDir rootProject.projectDir.parentFile
-                commandLine 'node', 'scripts/check-staging-android.mjs'
-            }
+            providers.exec {
+    workingDir rootProject.projectDir.parentFile
+    commandLine 'node', 'scripts/check-staging-android.mjs'
+}.result.get().assertNormalExitValue()
             return
         }
         def expectedUrl = stagingFirebase ? 'https://fertiliapp-staging.web.app' : 'https://rnf-app.web.app'
