@@ -1,6 +1,6 @@
 # Android Staging: remoto e incorporado
 
-> El usuario confirma que la APK incorporada con Capacitor 8.6.3/API 36/Java 21 compila, se instala, conserva sesión y muestra ciclos/registros. AND-01 sigue abierto: falta completar la matriz física. AND-05A corrige las regresiones visuales observadas en Android 16; sus cambios todavía requieren generar e instalar otra APK.
+> El usuario confirma que la APK incorporada con Capacitor 8.6.3/API 36/Java 21 compila, se instala, conserva sesión y muestra ciclos/registros. AND-01 sigue abierto: falta completar la matriz física. AND-05A corrige las regresiones visuales observadas en Android 16; el usuario ya ha comprobado colores, proporciones y navegación en su teléfono. Faltan pruebas de compatibilidad y accesibilidad.
 
 Ambas modalidades usan `com.fertiliapp.fertiliapp.staging` y Firebase `fertiliapp-staging`. Se instalan sobre la misma app; no pueden convivir como dos apps independientes.
 
@@ -128,7 +128,7 @@ Pruebas de código dirigidas: `node --test scripts/embedded-offline.test.mjs scr
 
 ## AND-04B: conectividad nativa y pruebas de Staging
 
-Implementado sobre `nov26` / `505b7b0c`, sin commit, merge ni despliegue. La prueba física detectó que `navigator.onLine` y los eventos web no reflejaban de forma fiable modo avión/reconexión. Se añade únicamente el plugin oficial **@capacitor/network 8.0.1**, fijado en package.json/lockfile, compatible con core >= 8.0.0. [API oficial Network v8](https://capacitorjs.com/docs/apis/network). El código Android instalado utiliza ConnectivityManager y comprueba capacidades INTERNET/VALIDATED; eso no prueba por sí solo que Firebase responda.
+AND-04B está integrado en `nov26` y fue publicado en Staging Hosting por GitHub Actions; la APK incorporada se compila e instala aparte. El usuario ha probado inicialmente el funcionamiento en Android real. La prueba física detectó que `navigator.onLine` y los eventos web no reflejaban de forma fiable modo avión/reconexión. Se añade únicamente el plugin oficial **@capacitor/network 8.0.1**, fijado en package.json/lockfile, compatible con core >= 8.0.0. [API oficial Network v8](https://capacitorjs.com/docs/apis/network). El código Android instalado utiliza ConnectivityManager y comprueba capacidades INTERNET/VALIDATED; eso no prueba por sí solo que Firebase responda.
 
 ### Funcionamiento y alcance
 
@@ -148,11 +148,11 @@ Revisado el [run 45904986020](https://github.com/Orzobi0/RNF-App/actions/runs/45
 - `npm run test:staging`: **200/200**, incluidas las diez antes fallidas.
 - `npm run check:staging` y `git diff --check`: correctos.
 
-Cobertura con adaptadores en memoria: modo avión con navigator obsoleto, recuperación Wi-Fi, Firebase inaccesible, caché inicial sin falso aviso, retorno al primer plano, respuestas nativas antiguas, limpieza de registros tardíos, cambio de cuenta en reconexión, eventos repetidos y escrituras pendientes con resolución/rechazo sin reenvío. No se ejecutaron builds web, Capacitor sync, Gradle, emuladores, instalaciones ni despliegues. El run remoto no se ha relanzado: el resultado 200/200 corresponde a la ejecución local de su comando.
+Cobertura con adaptadores en memoria: modo avión con navigator obsoleto, recuperación Wi-Fi, Firebase inaccesible, caché inicial sin falso aviso, retorno al primer plano, respuestas nativas antiguas, limpieza de registros tardíos, cambio de cuenta en reconexión, eventos repetidos y escrituras pendientes con resolución/rechazo sin reenvío. Durante la implementación de Codex no se ejecutaron builds web, Capacitor sync, Gradle, emuladores, instalaciones ni despliegues. Después, el usuario preparó e instaló la APK y GitHub Actions ejecutó correctamente el flujo automático de Staging del commit AND-04B (run 45907834742); los 200/200 tests dirigidos a Staging también habían pasado localmente.
 
 ### Preparación y validación pendiente en teléfono
 
-El plugin aún debe incorporarse a una APK nueva: añadir la dependencia JS no registra por sí solo el plugin en una APK ya instalada. Su manifest declara ACCESS_NETWORK_STATE, que se fusionará durante la preparación/compilación; no se han editado archivos generados ni el manifest de la aplicación. Una APK vieja sin Network no puede ofrecer estas garantías; se registra el fallo del puente y se conserva el respaldo inicial web. Una pérdida transitoria de acceso al puente no borra el último estado nativo conocido.
+El plugin ya se incorporó a la APK que el usuario probó; en futuras instalaciones debe mantenerse el sync nativo, porque añadir la dependencia JS por sí sola no registra un plugin en una APK anterior. Su manifest declara ACCESS_NETWORK_STATE, que se fusionará durante la preparación/compilación; no se han editado archivos generados ni el manifest de la aplicación. Una APK vieja sin Network no puede ofrecer estas garantías; se registra el fallo del puente y se conserva el respaldo inicial web. Una pérdida transitoria de acceso al puente no borra el último estado nativo conocido.
 
 Comandos **solo para el usuario**, con Java 21 y SDK 36 ya configurados:
 
@@ -164,7 +164,7 @@ npm run sync:staging:android:embedded
 adb install -r .\android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
-Conservar firma y almacenamiento. Comprobar en la APK incorporada: arranque con caché y Wi-Fi sin aviso transitorio; modo avión con app abierta; Wi-Fi recuperado sin Reintentar; red disponible con Firebase inaccesible; segundo plano/cambio de red/retorno; logout y cambio de cuenta durante consulta; repetición rápida de eventos; escrituras ya enviadas sin duplicados y nuevos guardados bloqueados offline. Repetir sin caché y verificar el mensaje visible. La respuesta llega cuando Android emite el estado o responde a getStatus; no se promete latencia cero ni acceso a Firebase solo porque connected sea true. AND-04 continúa abierto hasta esta validación física.
+El usuario confirma una prueba inicial correcta de modo avión y retorno de Wi-Fi: el indicador se actualiza y desaparece sin Reintentar. Completar aún en la APK incorporada: arranque con caché y Wi-Fi sin aviso transitorio; modo avión con app abierta; Wi-Fi recuperado sin Reintentar; red disponible con Firebase inaccesible; segundo plano/cambio de red/retorno; logout y cambio de cuenta durante consulta; repetición rápida de eventos; escrituras ya enviadas sin duplicados y nuevos guardados bloqueados offline. Repetir sin caché y verificar el mensaje visible. La respuesta llega cuando Android emite el estado o responde a getStatus; no se promete latencia cero ni acceso a Firebase solo porque connected sea true. AND-04 continúa abierto hasta esta validación física.
 
 ## AND-01: actualización controlada de plataforma
 
@@ -240,7 +240,7 @@ Resultado final: **513/520 pruebas pasan; quedan 7 fallos reproducidos también 
 
 ## AND-05A: interfaz Android 16 y estado offline
 
-Implementado en `nov26`, sin commit, merge, despliegue ni compilación en Codex. Se revisaron SettingsPage y el DevicePageShell compartido por Dispositivos/Vinca 2: sus cabeceras sticky conservan dimensiones y `top-0`; el área de scroll empieza ahora después del inset superior en Android. No se modificó lógica de ciclos, BLE, caché, red, escrituras ni Firebase.
+Implementado y guardado en `nov26`; el usuario validó inicialmente la presentación en una APK real. Codex no realizó la compilación ni la instalación. Se revisaron SettingsPage y el DevicePageShell compartido por Dispositivos/Vinca 2: sus cabeceras sticky conservan dimensiones y `top-0`; el área de scroll empieza ahora después del inset superior en Android. No se modificó lógica de ciclos, BLE, caché, red, escrituras ni Firebase.
 
 - Eliminada la franja «Entorno de pruebas», sin sustitución ni hueco. Restaurado `setTextZoom(100)` para Staging y producción por igual: su retirada amplificaba números/textos con la escala de fuente Android. No se retocan tipografías individuales. Implicación de accesibilidad: el texto WebView ya no sigue el aumento de fuente del sistema; comprobar lectura con TalkBack y ampliación de pantalla. Web/PWA/iPhone no usan este ajuste. Iconos, nombre APK e identificadores intactos.
 - API integrada `SystemBars` verificada contra el código instalado de Capacitor **8.6.3** (`plugin/SystemBars.java`, exportaciones de core y tipos): `LIGHT` = iconos oscuros, incluso con tema Android oscuro. Configuración `insetsHandling: css` e `initialViewportFitValueHint: cover`, coincidiendo con el viewport HTML. Referencia: [System Bars oficial](https://next.capacitorjs.com/docs/apis/system-bars); el código instalado es la referencia de compatibilidad, no las opciones de versiones futuras.
@@ -255,7 +255,7 @@ Implementado en `nov26`, sin commit, merge, despliegue ni compilación en Codex.
 
 `node --test scripts/android-layout.test.mjs scripts/embedded-offline.test.mjs scripts/android-platform.test.mjs scripts/staging-android.test.mjs`: **35/35**. Incluyen render con adaptadores de componentes reales, acción Reintentar, rutas, contraste/restauración, navegación, parsing JSX/TS y CSS. `git diff --check` y `git diff --cached --check`: correctos. `check:staging` pasó en la revisión anterior; no se repitió en esta corrección. No se ejecutaron builds web, Capacitor sync, Gradle, Android Studio, emuladores ni despliegues. Las comprobaciones de CSS son estáticas: no certifican geometría ni aspecto en pantalla real.
 
-### Validación física pendiente (AND-01 y AND-05 siguen abiertos)
+### Validación física restante (AND-01 y AND-05 siguen abiertos)
 
 1. Instalar sobre Staging existente y comparar con producción de esta revisión en el mismo dispositivo, orientación, escala de texto y estado de datos: mismas alturas, márgenes y cabeceras, sin franja. No basta comparar con una producción antigua.
 2. Android 16 y una versión anterior soportada; WebView moderno y antiguo si es posible. Dashboard → Ajustes → Dispositivos → Vinca 2 → gráfica/registros/ciclos: iconos oscuros, rosa/gris correcto sin destellos ni franjas residuales. Repetir con tema oscuro del sistema, retorno del segundo plano y rotación.
