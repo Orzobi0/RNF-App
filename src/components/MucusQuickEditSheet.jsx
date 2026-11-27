@@ -59,6 +59,7 @@ export default function MucusQuickEditSheet({
   const appearanceRef = useRef(null);
   const backdropPress = useRef(false);
   const [viewport, setViewport] = useState(null);
+  const { android, style: editorStyle } = useAndroidEditor(open);
 
   useEffect(() => {
     if (!open) return;
@@ -73,7 +74,7 @@ export default function MucusQuickEditSheet({
   }, [open, isoDate]);
 
   useEffect(() => {
-    if (!open || !window.visualViewport) return;
+    if (!open || android || !window.visualViewport) return;
     const update = () => setViewport({
       height: window.visualViewport.height,
       bottom: Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop),
@@ -85,9 +86,8 @@ export default function MucusQuickEditSheet({
       window.visualViewport.removeEventListener('resize', update);
       window.visualViewport.removeEventListener('scroll', update);
     };
-  }, [open]);
+  }, [open, android]);
 
-  const { android, style: editorStyle } = useAndroidEditor(open);
   const requestClose = () => {
     if (saving.current) return;
     const changed = Object.keys(draft).some(key => draft[key] !== initialRef.current[key]);
@@ -133,9 +133,11 @@ export default function MucusQuickEditSheet({
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => { if (saving.current) event.preventDefault(); }}
         onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          (initialField === 'mucusAppearance' ? appearanceRef : sensationRef).current?.focus();
-        }}>
+  event.preventDefault();
+  (initialField === 'mucusAppearance'
+    ? appearanceRef
+    : sensationRef).current?.focus();
+}}>
         <div className="flex shrink-0 items-start justify-between gap-2 px-5 py-4">
           {android && <Button type="button" variant="ghost" disabled={busy} onClick={requestClose}>Volver</Button>}
           <div>
@@ -147,7 +149,7 @@ export default function MucusQuickEditSheet({
             <Dialog.Close asChild><button type="button" disabled={busy} aria-label="Cerrar moco cervical" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-rose-50"><X className="h-5 w-5" /></button></Dialog.Close>
           </div>
         </div>
-        <div className={`${android ? 'flex-1 ' : ''}min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 pb-3`}>
+        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 pb-3">
           {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
           <div className="rounded-3xl border border-sensacion bg-white/85 p-3 shadow-sm">
             <label htmlFor="quick-mucus-sensation" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><Droplets className="h-4 w-4 text-sensacion" />Sensación</label>

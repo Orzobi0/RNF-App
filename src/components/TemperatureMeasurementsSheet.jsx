@@ -94,12 +94,12 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
   const backdropPressRef = useRef(false);
   const [viewportHeight, setViewportHeight] = useState(null);
   useEffect(() => {
-    if (!open || !window.visualViewport) return undefined;
+    if (!open || android || !window.visualViewport) return undefined;
     const update = () => setViewportHeight(window.visualViewport.height);
     update();
     window.visualViewport.addEventListener('resize', update);
     return () => window.visualViewport.removeEventListener('resize', update);
-  }, [open]);
+  }, [open, android]);
   useLayoutEffect(() => { setEditor(null); setDeleting(null); setPreferredEditorOpen(false); setError(''); autoOpened.current = false; }, [open, isoDate]);
   const commit = async (next, operation) => {
     if (saving.current) return;
@@ -233,7 +233,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
         onPointerDownCapture={() => { backdropPressRef.current = false; }}
         onInteractOutside={(event) => event.preventDefault()}
         className="fixed inset-x-0 bottom-0 z-[101] mx-auto flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[28px] border border-rose-100 bg-white shadow-xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4"
-        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', maxHeight: viewportHeight ? `${viewportHeight * 0.85}px` : undefined, ...editorStyle }}>
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', maxHeight: !android && viewportHeight ? `${viewportHeight * 0.85}px` : undefined, ...editorStyle }}>
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 py-4">
           {android && editor && <Button type="button" variant="ghost" disabled={busy} onClick={requestClose}>Volver</Button>}
           <div><Dialog.Title className="text-xl font-semibold text-subtitulo">Temperaturas</Dialog.Title>
@@ -248,7 +248,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
             <Dialog.Close asChild><button type="button" disabled={busy} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-rose-50" aria-label="Cerrar temperaturas"><X className="h-5 w-5" /></button></Dialog.Close>
           </div>
         </div>
-        <div className={`${android && editor ? 'flex-1 ' : ''}min-h-0 overflow-y-auto overscroll-contain px-4`} style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
           {(error || loadError) && deleting === null && <p role="alert" className="mb-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error || loadError}</p>}
           {loading ? <div className="space-y-3 pb-3" aria-busy="true">
             {measurements.filter((m) => m.selected).map((m, index) => <div key={index} className={measurementRowClass(true, ignored)}>

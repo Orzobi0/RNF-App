@@ -58,6 +58,7 @@ export default function ObservationsQuickEditSheet({
   const inputRef = useRef(null);
   const backdropPress = useRef(false);
   const [viewport, setViewport] = useState(null);
+  const { android, style: editorStyle } = useAndroidEditor(open);
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +70,7 @@ export default function ObservationsQuickEditSheet({
   }, [open, isoDate]);
 
   useEffect(() => {
-    if (!open || !window.visualViewport) return;
+    if (!open || android || !window.visualViewport) return;
     const update = () => setViewport({
       height: window.visualViewport.height,
       bottom: Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop),
@@ -81,9 +82,8 @@ export default function ObservationsQuickEditSheet({
       window.visualViewport.removeEventListener('resize', update);
       window.visualViewport.removeEventListener('scroll', update);
     };
-  }, [open]);
+  }, [open, android]);
 
-  const { android, style: editorStyle } = useAndroidEditor(open);
   const requestClose = () => {
     if (saving.current) return;
     const changed = Object.keys(draft).some(key => draft[key] !== initialRef.current[key]);
@@ -143,7 +143,7 @@ export default function ObservationsQuickEditSheet({
             <Dialog.Close asChild><button type="button" disabled={busy} aria-label="Cerrar observaciones" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-rose-50"><X className="h-5 w-5" /></button></Dialog.Close>
           </div>
         </div>
-        <div className={`${android ? 'flex-1 ' : ''}min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 pb-3`}>
+        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 pb-3">
           {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
           <div className="rounded-3xl border border-observaciones bg-white p-3 shadow-sm">
             <label htmlFor="quick-observations" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><FileText className="h-4 w-4 text-observaciones" />Observaciones</label>

@@ -5,6 +5,116 @@ import { transform } from 'esbuild';
 import { loadFrontend, hooks, flush } from './helpers/load-frontend.mjs';
 import { backLayers, registerBackLayer, androidBackDestination } from '../src/lib/backNavigation.js';
 
+
+test('Android editor ignores transient visualViewport collapse', async () => {
+  const events = [];
+
+  const viewport = {
+    height: 430,
+    addEventListener: (...args) =>
+      events.push(['visual-add', ...args]),
+    removeEventListener: (...args) =>
+      events.push(['visual-remove', ...args]),
+  };
+
+  const win = {
+    innerHeight: 844,
+    visualViewport: viewport,
+    addEventListener: (...args) =>
+      events.push(['window-add', ...args]),
+    removeEventListener: (...args) =>
+      events.push(['window-remove', ...args]),
+  };
+
+  let native = true;
+  let subscribe;
+  let snapshot;
+
+  const { useAndroidEditor } = await loadFrontend(
+    'src/hooks/useAndroidEditor.js',
+    {
+      useCallback: fn => fn,
+      useSyncExternalStore: (listen, read) => {
+        subscribe = listen;
+        snapshot = read;
+        return read();
+      },
+      isNativeAndroid: () => native,
+      window: win,
+    },
+    ['useAndroidEditor'],
+    s => s.replace(
+      'export default function',
+      'function'
+    )
+  );
+
+  assert.deepEqual(useAndroidEditor(false).style, {});
+  subscribe(() => {})();
+  assert.deepEqual(events, []);
+
+  const editor = useAndroidEditor(true);
+  assert.equal(editor.style.height, 844);
+  assert.equal(editor.style.display, 'grid');
+  assert.equal(
+    editor.style.gridTemplateRows,
+    'auto minmax(0, 1fr) auto'
+  );
+
+  const listener = () => {};
+  const cleanup = subscribe(listener);
+
+  assert.deepEqual(events, [
+    ['window-add', 'resize', listener],
+    ['visual-add', 'resize', listener],
+  ]);
+
+  // Caso medido en el teléfono:
+  // visualViewport cae temporalmente a 188 px,
+  // mientras innerHeight ya indica 551 px.
+  win.innerHeight = 551;
+  viewport.height = 188;
+
+  assert.equal(snapshot(), 551);
+  assert.equal(useAndroidEditor(true).style.height, 551);
+
+  // El viewport visual termina estabilizándose.
+  viewport.height = 551;
+  assert.equal(snapshot(), 551);
+
+  // Recuperación ante una medida visual inválida.
+  win.innerHeight = 844;
+  viewport.height = NaN;
+  assert.equal(snapshot(), 844);
+
+  cleanup();
+
+  assert.deepEqual(events.slice(-2), [
+    ['window-remove', 'resize', listener],
+    ['visual-remove', 'resize', listener],
+  ]);
+
+  native = false;
+  assert.deepEqual(useAndroidEditor(true).style, {});
+  subscribe(listener)();
+  assert.equal(events.length, 4);
+});
+
+
+test('Editor uses only window resize when visualViewport is unavailable', async () => {
+  const events = [];
+  const win = { innerHeight: 600, addEventListener: (...args) => events.push(['add', ...args]), removeEventListener: (...args) => events.push(['remove', ...args]) };
+  let subscribe;
+  const { useAndroidEditor } = await loadFrontend('src/hooks/useAndroidEditor.js', {
+    useCallback: fn => fn, useSyncExternalStore: (listen, read) => { subscribe = listen; return read(); },
+    isNativeAndroid: () => true, window: win,
+  }, ['useAndroidEditor'], s => s.replace('export default function', 'function'));
+  assert.equal(useAndroidEditor(true).style.height, 600);
+  const listener = () => {};
+  subscribe(listener)();
+  assert.deepEqual(events, [['add', 'resize', listener], ['remove', 'resize', listener]]);
+});
+
 test('Android parents ignore tab visit order and preserve archived/settings hierarchy', () => {
   for (const path of ['/records','/chart','/settings','/archived-cycles']) assert.equal(androidBackDestination(path), '/');
   assert.equal(androidBackDestination('/settings/devices/vinca2'), '/settings/devices');
