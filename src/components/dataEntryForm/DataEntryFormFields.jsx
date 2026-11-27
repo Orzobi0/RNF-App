@@ -915,29 +915,16 @@ const [activeSection, setActiveSection] = useState(() => {
   },
 ];
 
+  // Una superficie por sección; el acento lateral señala el tipo de dato, no una selección.
   const formSectionSurfaceClass =
-  'relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-3 shadow-sm';
-
-  const formCompactFieldSurfaceClass =
-  'relative overflow-hidden space-y-1.5 rounded-2xl border border-slate-200/60 bg-white p-2.5 shadow-sm';
+    'relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white px-3 py-3';
 
   const formAccentClass =
-  'pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full';
+    'pointer-events-none absolute inset-y-3 left-0 w-[3px] rounded-r-full';
 
-  const formInputClass =
-  'bg-white border-slate-200/70 text-slate-700 placeholder:text-slate-400 font-semibold shadow-sm';
-
-  const temperatureInputClass =
-  'focus:border-temp focus:ring-2 focus:ring-temp focus-visible:ring-temp';
-
-  const sensationInputClass =
-  'focus:border-sensacion focus:ring-2 focus:ring-sensacion focus-visible:ring-sensacion';
-
-  const appearanceInputClass =
-  'focus:border-apariencia focus:ring-2 focus:ring-apariencia focus-visible:ring-apariencia';
-
-  const observationsInputClass =
-  'focus:border-observaciones focus:ring-2 focus:ring-observaciones focus-visible:ring-observaciones';
+  // Campos planos con línea inferior, como los de Temperatura.
+  const flatMucusInputClass =
+    'h-11 w-full min-w-0 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-1 text-[14px] font-medium text-slate-700 shadow-none placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0';
 
   const renderSectionContent = (key) => {
     switch (key) {
@@ -954,11 +941,12 @@ const [activeSection, setActiveSection] = useState(() => {
               return (
                 <div
                   key={idx}
-                  className="space-y-2 rounded-2xl border border-slate-200/70 bg-white px-3 py-2.5"
+                  className="relative overflow-hidden space-y-2 rounded-2xl border border-slate-200/70 bg-white px-3 py-2.5"
                 >
+                  <span aria-hidden="true" className={`${formAccentClass} bg-temp opacity-55`} />
                   <div className="flex items-center justify-between gap-2">
-                    <Label className="flex items-center gap-1.5 text-[13px] font-semibold text-subtitulo">
-                      <Thermometer className="h-4 w-4 text-temp" />
+                    <Label className="flex items-center gap-1.5 text-[14px] font-semibold text-[#8b571c]">
+                      <Thermometer className="h-4 w-4 text-[#8b571c]" />
                       Temperatura
                     </Label>
                     {validMeasurements.length > 0 && (
@@ -1242,13 +1230,14 @@ const [activeSection, setActiveSection] = useState(() => {
         const hasSensationText = Boolean(mucusSensation && mucusSensation.trim());
         const hasAppearanceText = Boolean(mucusAppearance && mucusAppearance.trim());
         return (
-          <div className={cn(formSectionSurfaceClass, 'space-y-1.5 px-2.5 pb-2.5 pt-2')}>
-            <span aria-hidden="true" className={cn(formAccentClass, 'bg-moco opacity-45')} />
-            <div className="grid grid-cols-2 items-stretch gap-1.5">
-              <div className={cn(formCompactFieldSurfaceClass, 'flex min-w-0 flex-col')}>
-                <span aria-hidden="true" className={cn(formAccentClass, 'bg-sensacion opacity-75')} />
-                <Label htmlFor="mucusSensation" className="flex items-center text-subtitulo text-[13px] font-semibold">
-                  <Droplets className="mr-1.5 h-4 w-4 text-sensacion" />
+          <div className={cn(formSectionSurfaceClass, 'space-y-2 pt-2')}>
+            <span aria-hidden="true" className={`${formAccentClass} bg-moco opacity-55`} />
+            <h3 className="text-[14px] font-semibold text-[#386364]">Moco cervical</h3>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-2.5">
+              <div className="min-w-0">
+                <Label htmlFor="mucusSensation" className="flex items-center gap-1 text-[12px] font-semibold text-[#337E99]">
+                  <Droplets className="h-4 w-4 shrink-0 text-sensacion" aria-hidden="true" />
                   Sensación
                 </Label>
                 {focusedMucusField === 'sensation' || !hasSensationText ? (
@@ -1257,27 +1246,20 @@ const [activeSection, setActiveSection] = useState(() => {
                     id="mucusSensation"
                     ref={sensationInputRef}
                     value={mucusSensation}
+                    placeholder="Introducir…"
                     onChange={(e) => setMucusSensation(e.target.value)}
                     onKeyDown={handleSensationKeyDown}
                     onFocus={() => setFocusedMucusField('sensation')}
                     onBlur={handleMucusInputBlur}
-                    className={cn(
-                      formInputClass,
-                      sensationInputClass,
-                      'min-w-0 text-[14px] text-slate-700',
-                      RADIUS.field
-                    )}
+                    className={cn(flatMucusInputClass, 'focus:border-sensacion')}
                     disabled={isProcessing}
                   />
                 ) : (
                   <button
+                    id="mucusSensation"
                     type="button"
                     onClick={() => setFocusedMucusField('sensation')}
-                    className={cn(
-                      'min-h-9 w-full rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
-                      'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
-                      sensationInputClass
-                    )}
+                    className="min-h-11 w-full min-w-0 whitespace-normal break-words rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-left text-[14px] font-medium leading-snug text-slate-700 focus-visible:outline-none focus-visible:border-sensacion focus-visible:ring-2 focus-visible:ring-sensacion/25"
                     disabled={isProcessing}
                   >
                     {mucusSensation}
@@ -1285,10 +1267,11 @@ const [activeSection, setActiveSection] = useState(() => {
                 )}
               </div>
 
-              <div className={cn(formCompactFieldSurfaceClass, 'flex min-w-0 flex-col')}>
-                <span aria-hidden="true" className={cn(formAccentClass, 'bg-apariencia opacity-75')} />
-                <Label htmlFor="mucusAppearance" className="flex items-center text-subtitulo text-[13px] font-semibold">
-                  <Circle className="mr-1.5 h-4 w-4 text-apariencia" />
+              <span aria-hidden="true" className="mt-5 h-9 w-px bg-slate-200/80" />
+
+              <div className="min-w-0">
+                <Label htmlFor="mucusAppearance" className="flex items-center gap-1 text-[12px] font-semibold text-[#398469]">
+                  <Circle className="h-4 w-4 shrink-0 text-apariencia" aria-hidden="true" />
                   Apariencia
                 </Label>
                 {focusedMucusField === 'appearance' || !hasAppearanceText ? (
@@ -1296,28 +1279,21 @@ const [activeSection, setActiveSection] = useState(() => {
                     data-field="mucusAppearance"
                     id="mucusAppearance"
                     value={mucusAppearance}
+                    placeholder="Introducir…"
                     onChange={(e) => setMucusAppearance(e.target.value)}
                     onKeyDown={handleAppearanceKeyDown}
                     ref={appearanceInputRef}
                     onFocus={() => setFocusedMucusField('appearance')}
                     onBlur={handleMucusInputBlur}
-                    className={cn(
-                      formInputClass,
-                      appearanceInputClass,
-                      'min-w-0 text-[14px] text-slate-700',
-                      RADIUS.field
-                    )}
+                    className={cn(flatMucusInputClass, 'focus:border-apariencia')}
                     disabled={isProcessing}
                   />
                 ) : (
                   <button
+                    id="mucusAppearance"
                     type="button"
                     onClick={() => setFocusedMucusField('appearance')}
-                    className={cn(
-                      'min-h-9 w-full rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
-                      'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
-                      appearanceInputClass
-                    )}
+                    className="min-h-11 w-full min-w-0 whitespace-normal break-words rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-left text-[14px] font-medium leading-snug text-slate-700 focus-visible:outline-none focus-visible:border-apariencia focus-visible:ring-2 focus-visible:ring-apariencia/25"
                     disabled={isProcessing}
                   >
                     {mucusAppearance}
@@ -1326,79 +1302,58 @@ const [activeSection, setActiveSection] = useState(() => {
               </div>
             </div>
 
-            <div
-              className={cn(
-                formCompactFieldSurfaceClass,
-                'transition-colors duration-300'
-              )}
-            >
-              <span aria-hidden="true" className={cn(formAccentClass, 'bg-fertiliapp opacity-70')} />
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="fertilitySymbol" className="flex items-center text-subtitulo text-sm font-semibold">
-                  <Sprout
-                    className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
-                  />
-                  Símbolo
-                </Label>
-                <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-                  <SelectTrigger
-                    ref={symbolTriggerRef}
-                    className={cn(
-                      'w-full bg-white/80 text-slate-700 font-semibold shadow-sm transition-colors duration-200',
-                      'border-slate-200/70 hover:border-fertiliapp-suave focus:border-fertiliapp focus:ring-2 focus:ring-fertiliapp-suave',
-                      symbolTheme.triggerBorder,
-                      symbolTheme.triggerHover,
-                      symbolTheme.triggerActive,
-                      symbolTheme.triggerFocus,
-                      RADIUS.field
-                    )}
-                    data-field="fertilitySymbol"
-                  >
-                    <SelectValue placeholder="Selecciona un símbolo" />
-                  </SelectTrigger>
-                  <SelectContent
-                    className={cn('bg-white text-gray-800', symbolTheme.contentBorder, RADIUS.dropdown)}
-                  >
-                    {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
-                      <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer rounded-3xl">
-                        <div className="flex items-center">
-                          <span
-                            className={cn(
-                              'mr-2 h-4 w-4 rounded-full border border-gray-300',
-                              symbol.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : symbol.color
-                            )}
-                          />
-                          {symbol.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="border-t border-slate-200/70 pt-3">
+              <Label htmlFor="fertilitySymbol" className="flex items-center gap-1.5 text-[12px] font-semibold text-[#A46881]">
+                <Sprout className={cn('h-4 w-4 shrink-0', symbolTheme.icon)} aria-hidden="true" />
+                Símbolo
+              </Label>
+              <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
+                <SelectTrigger
+                  id="fertilitySymbol"
+                  ref={symbolTriggerRef}
+                  className="h-11 w-full rounded-none border-0 border-b border-slate-300 bg-transparent px-0 text-[14px] font-medium text-slate-700 shadow-none focus:border-fertiliapp focus:outline-none focus:ring-0 focus:ring-offset-0 focus:shadow-none"
+                  data-field="fertilitySymbol"
+                >
+                  <SelectValue placeholder="Selecciona un símbolo" />
+                </SelectTrigger>
+                <SelectContent
+                  className={cn('bg-white text-gray-800', symbolTheme.contentBorder, RADIUS.dropdown)}
+                >
+                  {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
+                    <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer rounded-lg">
+                      <div className="flex items-center">
+                        <span
+                          className={cn(
+                            'mr-2 h-4 w-4 rounded-full border border-gray-300',
+                            symbol.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : symbol.color
+                          )}
+                        />
+                        {symbol.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         );
-        }
+      }
       case 'observations':
         return (
           <div className={cn(formSectionSurfaceClass, 'space-y-2')}>
-            <span aria-hidden="true" className={cn(formAccentClass, 'bg-observaciones opacity-75')} />
-            <Label htmlFor="observations" className="flex items-center text-subtitulo text-sm font-semibold">
-              <Edit3 className="mr-2 h-5 w-5 text-observaciones" />
+            <span aria-hidden="true" className={`${formAccentClass} bg-observaciones opacity-55`} />
+            <Label htmlFor="observations" className="flex items-center gap-1.5 text-[14px] font-semibold text-[#765288]">
+              <Edit3 className="h-4 w-4 shrink-0 text-[#765288]" aria-hidden="true" />
               Observaciones
             </Label>
             <Textarea
               data-field="observations"
               id="observations"
               value={observations}
+              placeholder="Escribe una observación…"
+              rows={2}
               onChange={(e) => setObservations(e.target.value)}
-              className={cn(
-                'min-h-[40px] resize-none',
-                formInputClass,
-                observationsInputClass,
-                'text-slate-700',
-                RADIUS.field
-              )}
+              className="min-h-[48px] w-full resize-none rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-[14px] text-slate-700 shadow-none focus:border-observaciones focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={isProcessing}
             />
           </div>
