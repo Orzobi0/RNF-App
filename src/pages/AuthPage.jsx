@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
+import { isNativeAndroid } from '@/lib/androidRuntime';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -20,6 +22,52 @@ import { LogIn, UserPlus, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
 import InstallPrompt from '@/components/InstallPrompt';
 
 const AuthPage = () => {
+  const android = isNativeAndroid();
+  const [layoutHeight, setLayoutHeight] = useState(() => window.visualViewport?.height ?? window.innerHeight);
+  const baseline = useRef(layoutHeight);
+  const passwordRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
+  const scrollRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!android) return;
+    const update = () => {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      const field = document.activeElement;
+      const editing = field?.matches('input, textarea, [contenteditable="true"]');
+      const keyboard = baseline.current - height > 120;
+      // Freeze from the first resize tick while typing: following small IME
+      // animation steps would otherwise gradually re-centre the whole card.
+      if (height >= baseline.current - 2 || (!editing && !keyboard)) {
+        baseline.current = height;
+        setLayoutHeight(height);
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+      } else if (keyboard) {
+        if (scrollRef.current?.contains(field)) {
+          const rect = field.getBoundingClientRect();
+          if (rect.bottom > height || rect.top < 0) field.scrollIntoView({ block: 'nearest' });
+        }
+      }
+    };
+    const rotate = () => { baseline.current = window.innerHeight; setLayoutHeight(window.innerHeight); };
+    window.visualViewport?.addEventListener('resize', update);
+    window.addEventListener('orientationchange', rotate);
+    return () => { window.visualViewport?.removeEventListener('resize', update); window.removeEventListener('orientationchange', rotate); };
+  }, [android]);
+  const keepPasswordFocus = (event, ref) => {
+    if (document.activeElement === ref.current) event.preventDefault();
+  };
+  const togglePassword = (ref, setter) => {
+    const field = ref.current;
+    const focused = document.activeElement === field;
+    const start = field?.selectionStart;
+    const end = field?.selectionEnd;
+    flushSync(() => setter(value => !value));
+    // Same input node and synchronous type change; never focus an inactive field.
+    if (focused) {
+      if (document.activeElement !== field) field.focus({ preventScroll: true });
+      if (start !== null && end !== null) field.setSelectionRange(start, end);
+    }
+  };
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -121,7 +169,8 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative flex h-app flex-col items-center justify-center p-4">
+    <div ref={scrollRef} className={android ? 'relative h-app overflow-y-auto' : 'relative flex h-app flex-col items-center justify-center p-4'}>
+      <div className={android ? 'flex flex-col items-center justify-center p-4 [&>*]:shrink-0' : 'contents'} style={android ? { minHeight: layoutHeight } : undefined}>
       <motion.div
         className="w-full max-w-md rounded-3xl bg-white/80 p-8 shadow-xl backdrop-blur-md sm:p-10"
         initial={{ opacity: 0, y: -30 }}
@@ -176,6 +225,7 @@ const AuthPage = () => {
             </Label>
             <div className="relative">
               <Input
+                ref={passwordRef}
                 id="password"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
@@ -188,7 +238,9 @@ const AuthPage = () => {
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onPointerDown={(event) => keepPasswordFocus(event, passwordRef)}
+                onClick={() => togglePassword(passwordRef, setShowPassword)}
+                aria-pressed={showPassword}
                 className="absolute inset-y-0 right-3 flex items-center text-gray-500"
                 aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >
@@ -217,6 +269,7 @@ const AuthPage = () => {
               </Label>
               <div className="relative">
                 <Input
+                  ref={confirmPasswordRef}
                   id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
@@ -229,7 +282,9 @@ const AuthPage = () => {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  onPointerDown={(event) => keepPasswordFocus(event, confirmPasswordRef)}
+                  onClick={() => togglePassword(confirmPasswordRef, setShowConfirmPassword)}
+                  aria-pressed={showConfirmPassword}
                   className="absolute inset-y-0 right-3 flex items-center text-gray-500"
                   aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 >
@@ -281,6 +336,7 @@ const AuthPage = () => {
         <p>&copy; {new Date().getFullYear()} FertiliApp. Todos los derechos reservados.</p>
       </footer>
 
+      </div>
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent className="w-[calc(100%-2rem)] rounded-3xl border border-fertiliapp-suave bg-white/95 sm:max-w-md">
           <form onSubmit={handleResetPassword} className="space-y-4" autoComplete="on">

@@ -1,58 +1,43 @@
 import { useEffect, useRef } from 'react';
+import { isNativeAndroid } from '@/lib/androidRuntime';
+import { backLayers, registerBackLayer } from '@/lib/backNavigation';
 
-/**
- * Allows closing an overlay with the browser/OS back button.
- * When `active` is true a history entry is pushed so that a
- * native back action triggers `onClose` instead of navigating
- * away from the app.
- */
+// One marker for the browser stack; Android never adds history entries.
+let listening = false;
+let removingMarker = false;
+const marker = '__fertiliOverlay';
+function pushMarker() {
+  window.history.pushState({ ...window.history.state, [marker]: true }, '');
+}
+function popLayer() {
+  if (removingMarker) {
+    removingMarker = false;
+    if (backLayers.length && !window.history.state?.[marker]) pushMarker();
+    return;
+  }
+  if (backLayers.length && typeof document !== 'undefined' &&
+      document.querySelector('[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"], [data-state="open"][role="menu"], [role="listbox"]')) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  } else {
+    backLayers.at(-1)?.close();
+  }
+  setTimeout(() => { if (backLayers.length && !window.history.state?.[marker]) pushMarker(); }, 0);
+}
 export default function useBackClose(active, onClose) {
-  const onCloseRef = useRef(onClose);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     if (!active) return;
-
-    const id =
-      typeof window !== 'undefined' &&
-      window.crypto &&
-      typeof window.crypto.randomUUID === 'function'
-        ? window.crypto.randomUUID()
-        : Math.random().toString(36).slice(2);
-
-    let dismissedByPop = false;
-
-    const handlePopState = (event) => {
-      // Si el nuevo state sigue siendo este overlay, no cerramos.
-      // Esto evita cierres incorrectos con overlays anidados.
-      if (event?.state?.overlay === id) {
-        return;
-      }
-
-      dismissedByPop = true;
-      onCloseRef.current?.();
-    };
-
-    window.history.pushState({ overlay: id }, '');
-    window.addEventListener('popstate', handlePopState);
-
-    let ignore = true;
-    const timeout = setTimeout(() => {
-      ignore = false;
-    }, 0);
-
+    const unregister = registerBackLayer(() => close.current?.());
+    const native = isNativeAndroid();
+    if (!native) {
+      if (!listening) { listening = true; window.addEventListener('popstate', popLayer); }
+      if (!window.history.state?.[marker]) pushMarker();
+    }
     return () => {
-      clearTimeout(timeout);
-      window.removeEventListener('popstate', handlePopState);
-
-      // Si se cerró por gesto atrás, no hay que limpiar otra vez.
-      if (ignore || dismissedByPop) return;
-
-      // Si el overlay se cerró desde la UI, quitamos la entrada dummy.
-      if (window.history.state && window.history.state.overlay === id) {
+      unregister();
+      if (!native && !backLayers.length && window.history.state?.[marker]) {
+        removingMarker = true;
         window.history.back();
       }
     };

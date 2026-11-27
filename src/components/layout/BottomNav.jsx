@@ -1,4 +1,5 @@
 import React from 'react';
+import { isNativeAndroid } from '@/lib/androidRuntime';
 import { NavLink, useMatch } from 'react-router-dom';
 import { Heart, ChartSpline, Calendar, Archive, UserRoundCog } from 'lucide-react';
 
@@ -43,6 +44,7 @@ return (
             <li key={to} className="flex">
               <NavLink
                 to={to}
+                replace={isNativeAndroid()}
                 aria-label={label}
                 className="group relative flex w-full flex-col items-center rounded-lg px-2 py-1 text-center transition-[color,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/60"
               >

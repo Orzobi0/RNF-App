@@ -130,7 +130,7 @@ test('Android safe area has one owner outside scroll; native zero is not added t
 
 test('navigation always has exactly five original destinations and columns', async () => {
   const { BottomNav } = await loadFrontend('src/components/layout/BottomNav.jsx', {
-    ...hooks().bindings, useMatch: () => null, NavLink: 'NavLink', Heart: 'Heart', ChartSpline: 'ChartSpline', Calendar: 'Calendar', Archive: 'Archive', UserRoundCog: 'UserRoundCog',
+    ...hooks().bindings, isNativeAndroid: () => false, useMatch: () => null, NavLink: 'NavLink', Heart: 'Heart', ChartSpline: 'ChartSpline', Calendar: 'Calendar', Archive: 'Archive', UserRoundCog: 'UserRoundCog',
   }, ['BottomNav']);
   const normal = BottomNav({}), offline = BottomNav({ availabilityIndicator: 'status' });
   assert.equal(normal.props.className, offline.props.className);

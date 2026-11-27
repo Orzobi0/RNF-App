@@ -1,3 +1,5 @@
+import useBackClose from '@/hooks/useBackClose';
+import { isNativeAndroid } from '@/lib/androidRuntime';
 import ObservationsQuickEditSheet from '@/components/ObservationsQuickEditSheet';
 import SymbolQuickEditSheet from '@/components/SymbolQuickEditSheet';
 import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
@@ -47,6 +49,7 @@ const DayDetail = ({
   isProcessing,
 }) => {
   const { preferences } = useAuth();
+  useBackClose(isNativeAndroid() && Boolean(onClose), () => { if (!isProcessing) onClose?.(); });
   const shouldReduceMotion = useReducedMotion();
   const isPersistedRecord = (record) =>
   Boolean(record?.id) && !String(record.id).startsWith('placeholder-');

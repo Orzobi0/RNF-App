@@ -1,3 +1,5 @@
+import useAndroidEditor, { allowDiscard } from '@/hooks/useAndroidEditor';
+import useBackClose from '@/hooks/useBackClose';
 import { useThermometerMetadata } from '@/contexts/ThermometerMetadataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
@@ -79,6 +81,8 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
   const [preferredDraft, setPreferredDraft] = useState('');
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [editor, setEditor] = useState(null);
+  const initialEditor = useRef(null);
+  const { android, style: editorStyle } = useAndroidEditor(open && Boolean(editor));
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -115,7 +119,9 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     setPreferredEditorOpen(false);
     setError('');
     setCorrectionOpen(index !== null && !!measurements[index]?.use_corrected);
-    setEditor({ index, ignored: index === null ? false : ignored, initialIgnored: ignored, draft: index === null ? { ...newManualMeasurement(), selected: measurements.length === 0 } : { ...measurements[index] } });
+    const nextEditor = { index, ignored: index === null ? false : ignored, initialIgnored: ignored, draft: index === null ? { ...newManualMeasurement(), selected: measurements.length === 0 } : { ...measurements[index] } };
+    initialEditor.current = JSON.stringify(nextEditor);
+    setEditor(nextEditor);
   };
   useLayoutEffect(() => {
     if (!open || loading || loadError || autoOpened.current) return;
@@ -185,6 +191,23 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
       setError('No se pudo abrir el formulario. Inténtalo de nuevo.');
     }
   };
+  const cancelEditor = () => {
+    if (saving.current) return;
+    if (!android || allowDiscard(JSON.stringify(editor) !== initialEditor.current)) { setEditor(null); setError(''); }
+  };
+  const requestClose = () => {
+    if (saving.current) return;
+    if (android && preferredEditorOpen) {
+      if (allowDiscard(preferredDraft !== (preferredTime || editor?.draft.time || ''))) setPreferredEditorOpen(false);
+      return;
+    }
+    if (android && editor) { cancelEditor(); return; }
+    onOpenChange(false);
+  };
+  useBackClose(open, () => {
+    if (deleting !== null) { if (!saving.current) setDeleting(null); return; }
+    requestClose();
+  });
   const requestDelete = (index) => {
     if (measurements[index].selected && measurements.length > 1) {
       setError('Esta es la temperatura utilizada actualmente. Selecciona otra medición antes de eliminarla.');
@@ -193,7 +216,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     deleteTriggerRef.current = sheetRef.current?.querySelector(`[aria-label="Opciones de medición ${index + 1}"]`);
     setError(''); setDeleting(index);
   };
-  return <Dialog.Root open={open} onOpenChange={(value) => { if (!saving.current) onOpenChange(value); }}>
+  return <Dialog.Root open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-[100] bg-slate-950/10"
         onPointerDown={(event) => { backdropPressRef.current = event.target === event.currentTarget && event.button === 0; }}
@@ -203,15 +226,16 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
           // Only a gesture that started on the backdrop may dismiss the sheet.
           const startedOnBackdrop = backdropPressRef.current;
           backdropPressRef.current = false;
-          if (startedOnBackdrop && event.target === event.currentTarget && !saving.current && deleting === null) onOpenChange(false);
+          if (startedOnBackdrop && event.target === event.currentTarget && !saving.current && deleting === null) requestClose();
         }} />
       <Dialog.Content
         ref={sheetRef}
         onPointerDownCapture={() => { backdropPressRef.current = false; }}
         onInteractOutside={(event) => event.preventDefault()}
         className="fixed inset-x-0 bottom-0 z-[101] mx-auto flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[28px] border border-rose-100 bg-white shadow-xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4"
-        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', maxHeight: viewportHeight ? `${viewportHeight * 0.85}px` : undefined }}>
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', maxHeight: viewportHeight ? `${viewportHeight * 0.85}px` : undefined, ...editorStyle }}>
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 py-4">
+          {android && editor && <Button type="button" variant="ghost" disabled={busy} onClick={requestClose}>Volver</Button>}
           <div><Dialog.Title className="text-xl font-semibold text-subtitulo">Temperaturas</Dialog.Title>
             <Dialog.Description className="text-sm text-slate-500">{isoDate ? format(parseISO(isoDate), "d 'de' MMMM", { locale: es }) : ''}</Dialog.Description></div>
           <div className="flex shrink-0 items-center">
@@ -224,7 +248,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
             <Dialog.Close asChild><button type="button" disabled={busy} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-rose-50" aria-label="Cerrar temperaturas"><X className="h-5 w-5" /></button></Dialog.Close>
           </div>
         </div>
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className={`${android && editor ? 'flex-1 ' : ''}min-h-0 overflow-y-auto overscroll-contain px-4`} style={{ WebkitOverflowScrolling: 'touch' }}>
           {(error || loadError) && deleting === null && <p role="alert" className="mb-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error || loadError}</p>}
           {loading ? <div className="space-y-3 pb-3" aria-busy="true">
             {measurements.filter((m) => m.selected).map((m, index) => <div key={index} className={measurementRowClass(true, ignored)}>
@@ -264,7 +288,9 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
                     </div>
                   </div>}
 
-                  <Button type="button" size="xs" variant="outline" aria-pressed={correctionOpen} onClick={() => {
+                  <Button type="button" size="xs" variant="outline" aria-pressed={correctionOpen} onPointerDown={(event) => {
+                    if (android && editorRef.current?.contains(document.activeElement) && document.activeElement?.matches('input')) event.preventDefault();
+                  }} onClick={() => {
                     setCorrectionOpen(!correctionOpen);
                     if (!correctionOpen) {
                       if (temperatureNumber(editor.draft.temperature_corrected) === null) field('temperature_corrected', editor.draft.temperature);
@@ -295,7 +321,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
                     </div>
                   </div>}
                 </div>
-                <div className="flex gap-2"><Button type="button" variant="outline" className="flex-1 rounded-3xl border-pink-200" onClick={() => { setEditor(null); setError(''); }}>Cancelar</Button><Button type="submit" aria-label="Guardar medición" className="flex-1 rounded-3xl bg-ok text-white hover:bg-ok-fuerte">{busy ? 'Guardando…' : 'Guardar'}</Button></div>
+                <div className={android ? "hidden" : "flex gap-2"}><Button type="button" variant="outline" className="flex-1 rounded-3xl border-pink-200" onClick={cancelEditor}>Cancelar</Button><Button type="submit" aria-label="Guardar medición" className="flex-1 rounded-3xl bg-ok text-white hover:bg-ok-fuerte">{busy ? 'Guardando…' : 'Guardar'}</Button></div>
               </fieldset>
             </form>
           ) : <div className="space-y-3 px-0.5 pb-3">
@@ -317,6 +343,10 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
             <Button type="button" variant="outline" disabled={busy} onClick={() => edit(null)} className="mt-3 min-h-11 w-full rounded-3xl border-slate-200/70 bg-white/80 text-temp shadow-sm hover:border-temp hover:bg-white hover:text-temp">+ Añadir medición manual</Button>
           </div>}
         </div>
+        {android && editor && <div className="flex shrink-0 gap-2 px-4 pt-3">
+          <Button type="button" variant="outline" disabled={busy} className="flex-1 rounded-full" onClick={cancelEditor}>Cancelar</Button>
+          <Button type="button" disabled={busy} className="flex-1 rounded-full bg-ok text-white" onClick={saveEdit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
+        </div>}
         <AlertDialog.Root open={deleting !== null} onOpenChange={(value) => {
           if (!value && !saving.current) { setDeleting(null); setError(''); }
         }}>

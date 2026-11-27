@@ -1,3 +1,5 @@
+import useAndroidEditor, { allowDiscard } from '@/hooks/useAndroidEditor';
+import useBackClose from '@/hooks/useBackClose';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Circle, Droplets, Edit3, X } from 'lucide-react';
@@ -85,6 +87,14 @@ export default function MucusQuickEditSheet({
     };
   }, [open]);
 
+  const { android, style: editorStyle } = useAndroidEditor(open);
+  const requestClose = () => {
+    if (saving.current) return;
+    const changed = Object.keys(draft).some(key => draft[key] !== initialRef.current[key]);
+    if (!android || allowDiscard(changed)) onOpenChange(false);
+  };
+  useBackClose(open, requestClose);
+
   const submit = async (openForm = false) => {
     if (saving.current) return;
     saving.current = true;
@@ -108,18 +118,18 @@ export default function MucusQuickEditSheet({
     }
   };
 
-  return <Dialog.Root open={open} onOpenChange={(value) => { if (!saving.current) onOpenChange(value); }}>
+  return <Dialog.Root open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-[100] bg-slate-950/10"
         onPointerDown={(event) => { backdropPress.current = event.target === event.currentTarget; }}
         onPointerCancel={() => { backdropPress.current = false; }}
         onClick={(event) => {
-          if (backdropPress.current && event.target === event.currentTarget && !saving.current) onOpenChange(false);
+          if (backdropPress.current && event.target === event.currentTarget && !saving.current) requestClose();
           backdropPress.current = false;
         }} />
       <Dialog.Content
         className="fixed inset-x-0 bottom-0 z-[101] mx-auto flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[28px] border border-rose-100 bg-white shadow-xl outline-none"
-        style={{ bottom: viewport?.bottom, maxHeight: viewport ? viewport.height * 0.9 : undefined, paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+        style={{ bottom: viewport?.bottom, maxHeight: viewport ? viewport.height * 0.9 : undefined, paddingBottom: 'max(16px, env(safe-area-inset-bottom))', ...editorStyle }}
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => { if (saving.current) event.preventDefault(); }}
         onOpenAutoFocus={(event) => {
@@ -127,6 +137,7 @@ export default function MucusQuickEditSheet({
           (initialField === 'mucusAppearance' ? appearanceRef : sensationRef).current?.focus();
         }}>
         <div className="flex shrink-0 items-start justify-between gap-2 px-5 py-4">
+          {android && <Button type="button" variant="ghost" disabled={busy} onClick={requestClose}>Volver</Button>}
           <div>
             <Dialog.Title className="text-xl font-semibold text-subtitulo">Moco cervical</Dialog.Title>
             <Dialog.Description className="text-sm text-suave">{isoDate ? format(parseISO(isoDate), "d 'de' MMMM", { locale: es }) : ''}</Dialog.Description>
@@ -136,7 +147,7 @@ export default function MucusQuickEditSheet({
             <Dialog.Close asChild><button type="button" disabled={busy} aria-label="Cerrar moco cervical" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-rose-50"><X className="h-5 w-5" /></button></Dialog.Close>
           </div>
         </div>
-        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 pb-3">
+        <div className={`${android ? 'flex-1 ' : ''}min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 pb-3`}>
           {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
           <div className="rounded-3xl border border-sensacion bg-white/85 p-3 shadow-sm">
             <label htmlFor="quick-mucus-sensation" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><Droplets className="h-4 w-4 text-sensacion" />Sensación</label>
@@ -154,7 +165,7 @@ export default function MucusQuickEditSheet({
           </div>
         </div>
         <div className="flex shrink-0 gap-2 px-4 pt-2">
-          <Button type="button" variant="outline" disabled={busy} className="flex-1 rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button type="button" variant="outline" disabled={busy} className="flex-1 rounded-full" onClick={requestClose}>Cancelar</Button>
           <Button type="button" disabled={busy} className="flex-1 rounded-full bg-ok text-white hover:bg-ok-fuerte" onClick={() => submit()}>{busy ? 'Guardando…' : 'Guardar'}</Button>
         </div>
       </Dialog.Content>

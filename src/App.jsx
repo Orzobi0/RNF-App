@@ -30,6 +30,8 @@ import { isEmbeddedAndroid } from '@/lib/androidRuntime';
 import WhatsNewModal from '@/components/WhatsNewModal';
 import ViewportHeightFix from "@/components/ViewportHeightFix";
 
+import AndroidBackNavigation from '@/components/AndroidBackNavigation';
+
 function ProtectedRoute({ children }) {
   const { user, loadingAuth, restoringSession } = useAuth();
 
@@ -322,6 +324,7 @@ function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <ViewportHeightFix />
+      <AndroidBackNavigation />
       <ServiceWorkerRouteUpdater />
       <UpdateNotification />
       <AuthProvider>

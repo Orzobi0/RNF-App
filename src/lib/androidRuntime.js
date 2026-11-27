@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
+export const isNativeAndroid = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
 export function classifyRuntime(capacitor, origin) {
   if (!capacitor?.isNativePlatform?.() || capacitor.getPlatform?.() !== 'android') return 'web';
   // Match the local server used by this project's Capacitor configuration.
