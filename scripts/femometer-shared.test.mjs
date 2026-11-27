@@ -621,23 +621,70 @@ test('device routes use the shared state and are unavailable outside the enabled
   assert.equal(Vinca2DevicePage().props.to, '/settings');
 });
 
-test('Bluetooth origin details show only available metadata and remain read-only and gated', async () => {
-  const harness = hooks(); let enabled = true;
-  const { BluetoothMeasurementDetails } = await loadFrontend('src/components/TemperatureMeasurementsSheet.jsx', {
-    ...harness.bindings, isFemometerBlePrototypeEnabled: () => enabled, isFemometerBleAndroidNative: () => true,
-  }, ['BluetoothMeasurementDetails'], source => source.replace('export default function TemperatureMeasurementsSheet', 'function TemperatureMeasurementsSheet'));
-  const props = { measurement: { source: 'bluetooth', device_model: 'BM-Vinca2', device_timestamp: '2020-01-01T08:00:00',
-    confirmed_timestamp: '2026-11-03T08:00:00', device_date_reliability: 'unverified' } };
+
+test('Bluetooth origin details remain read-only and visible without the BLE prototype', async () => {
+  const harness = hooks();
+
+  const { BluetoothMeasurementDetails } = await loadFrontend(
+    'src/components/TemperatureMeasurementsSheet.jsx',
+    {
+      ...harness.bindings,
+      isFemometerBlePrototypeEnabled: () => false,
+      isFemometerBleAndroidNative: () => false,
+    },
+    ['BluetoothMeasurementDetails'],
+    source => source.replace(
+      'export default function TemperatureMeasurementsSheet',
+      'function TemperatureMeasurementsSheet'
+    )
+  );
+
+  const props = {
+    measurement: {
+      source: 'bluetooth',
+      device_model: 'BM-Vinca2',
+      device_timestamp: '2020-01-01T08:00:00',
+      confirmed_timestamp: '2026-11-03T08:00:00',
+      device_date_reliability: 'unverified',
+    },
+  };
+
   const tree = BluetoothMeasurementDetails(props);
-  const rendered = treeNodes(tree).map(node => (node.props.children ?? []).filter(item => typeof item === 'string').join(' ')).join(' ');
+
+  // Los datos Bluetooth guardados se pueden consultar
+  // aunque la recepción experimental esté desactivada.
+  assert.ok(tree);
+  assert.equal(tree.type, 'section');
+
+  const rendered = treeNodes(tree)
+    .map(node => (node.props.children ?? [])
+      .filter(item => typeof item === 'string')
+      .join(' '))
+    .join(' ');
+
   assert.match(rendered, /2020-01-01/);
   assert.match(rendered, /2026-11-03/);
   assert.match(rendered, /Sin verificar/);
+
+  // No se muestran campos que no existen.
   assert.doesNotMatch(rendered, /Recibida/);
-  assert.ok(!treeNodes(tree).some(node => ['input', 'form', 'button'].includes(node.type)));
-  enabled = false;
-  assert.equal(BluetoothMeasurementDetails(props), null);
+
+  // Los metadatos no se pueden editar desde este bloque.
+  assert.ok(
+    !treeNodes(tree).some(node =>
+      ['input', 'form', 'button'].includes(node.type)
+    )
+  );
+
+  // Las mediciones manuales no muestran detalles Bluetooth.
+  assert.equal(
+    BluetoothMeasurementDetails({
+      measurement: { source: 'manual' },
+    }),
+    null
+  );
 });
+
 
 test('quick review preserves the original date, cancels without saving and requires a second explicit duplicate confirmation', async () => {
   const harness = hooks(); let closed = 0; const saves = []; let duplicate = true;

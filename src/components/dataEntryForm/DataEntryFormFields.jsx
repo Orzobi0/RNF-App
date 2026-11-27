@@ -16,7 +16,6 @@ import {
   EyeOff,
   CalendarDays,
   Sprout,
-  Clock,
   Check,
   Trash2,
   Circle,
@@ -944,8 +943,7 @@ const [activeSection, setActiveSection] = useState(() => {
     switch (key) {
       case 'temperature':
         return (
-          <div className={cn(formSectionSurfaceClass, 'space-y-2 p-2.5')}>
-            <span aria-hidden="true" className={cn(formAccentClass, 'bg-temp opacity-75')} />
+          <div className="space-y-2">
             {(() => {
               const idx = selectedMeasurementIndex;
               const m = { ...selectedMeasurement, temperature: selectedMeasurement.temperature ?? '', temperature_corrected: selectedMeasurement.temperature_corrected ?? '', time_corrected: selectedMeasurement.time_corrected ?? selectedMeasurement.time ?? '' };
@@ -955,125 +953,93 @@ const [activeSection, setActiveSection] = useState(() => {
               const isPreferredApplied = hasPreferredTime && m.time === preferredTemperatureTime;
               return (
                 <div
-   key={idx}
-   className={cn(
-     'relative overflow-hidden space-y-1.5 rounded-2xl border bg-white/75 p-2.5 shadow-sm transition-colors',
-     m.selected && ignored
-       ? 'border-alerta-2-suave bg-white/60 ring-1 ring-alerta-2-suave'
-       : m.selected
-       ? 'border-temp bg-white/85 ring-1 ring-temp'
-       : 'border-slate-200/60'
-   )}
- >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      formAccentClass,
-                      m.selected && ignored
-                        ? 'bg-alerta-2 opacity-75'
-                        : m.selected
-                        ? 'bg-temp opacity-85'
-                        : 'bg-temp opacity-25'
-                    )}
-                  />
+                  key={idx}
+                  className="space-y-2 rounded-2xl border border-slate-200/70 bg-white px-3 py-2.5"
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <Label className="flex items-center text-subtitulo text-[13px] font-semibold">
-                    <Thermometer className="mr-1 h-4 w-4 text-temp" />
+                    <Label className="flex items-center gap-1.5 text-[13px] font-semibold text-subtitulo">
+                      <Thermometer className="h-4 w-4 text-temp" />
                       Temperatura
                     </Label>
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-temp">Gráfica</span>
+                    {validMeasurements.length > 0 && (
+                      <span className="text-[10px] font-medium text-amber-700">
+                        {ignored ? 'Despreciada' : 'En gráfica'}
+                      </span>
+                    )}
                   </div>
-                <div className="space-y-0.5">
-  <div className="grid grid-cols-[minmax(0,1fr)_96px_68px] items-center gap-1.5">
-    <Input
-      data-field="temperature"
-      aria-label="Temperatura"
-      type="number"
-      step="0.01"
-      min="34.0"
-      max="40.0"
-      value={m.temperature}
-      onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
-      onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
-      placeholder="36.50"
-      className={cn(
-        'h-8 px-2 text-[14px] leading-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-        formInputClass,
-        temperatureInputClass,
-        RADIUS.field
-      )}
-      disabled={isProcessing}
-    />
-
-    <Input
-  data-field="time"
-  aria-label="Hora de toma"
-  type="time"
-  value={m.time}
-  onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-  className={cn(
-    'h-8 min-h-0 appearance-none px-2 py-0 text-[14px] leading-none',
-    formInputClass,
-    temperatureInputClass,
-    RADIUS.field
-  )}
-  disabled={isProcessing}
-/>
-
-    <div className="relative min-w-0">
-  <Button
-    type="button"
-    size="icon"
-    variant="outline"
-    disabled={isProcessing}
-    aria-label={
-      hasPreferredTime
-        ? `Aplicar hora preferida ${preferredTemperatureTime}`
-        : 'Definir hora preferida'
-    }
-    title={hasPreferredTime ? 'Aplicar hora preferida' : 'Definir hora preferida'}
-    onClick={() => {
-      if (hasPreferredTime) {
-        applyPreferredTimeToMeasurement(idx);
-      } else {
-        openPreferredTimeEditor(idx);
-      }
-    }}
-    className={cn(
-      'ml-0 h-8 w-full rounded-xl text-[11px] font-semibold shadow-sm',
-      hasPreferredTime
-        ? isPreferredApplied
-          ? 'border-secundario bg-secundario text-white hover:bg-secundario'
-          : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white'
-        : 'border-slate-200 border-dashed bg-white/70 text-slate-400 hover:border-temp hover:bg-white'
-    )}
-  >
-    <span className="flex min-w-0 items-center justify-center gap-1">
-      <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-      <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
-    </span>
-  </Button>
-
-  {hasPreferredTime && (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        openPreferredTimeEditor(idx);
-      }}
-      disabled={isProcessing}
-      className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-temp shadow-sm transition-colors hover:border-temp hover:bg-white disabled:opacity-50"
-      aria-label="Editar hora preferida"
-      title="Editar hora preferida"
-    >
-      <Edit3 className="h-2.5 w-2.5" aria-hidden="true" />
-    </button>
-  )}
-</div>
-  </div>
-</div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_90px_82px] items-end gap-2">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] text-slate-500">Valor (°C)</span>
+                      <Input
+                        data-field="temperature"
+                        aria-label="Temperatura"
+                        type="number"
+                        step="0.01"
+                        min="34.0"
+                        max="40.0"
+                        value={m.temperature}
+                        onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+                        onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+                        placeholder="36.50"
+                        className="h-10 w-full min-w-0 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[16px] font-semibold text-amber-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        disabled={isProcessing}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] text-slate-500">Hora</span>
+                      <Input
+                        data-field="time"
+                        aria-label="Hora de toma"
+                        type="time"
+                        value={m.time}
+                        onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
+                        className="h-10 w-full min-w-0 appearance-none rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[14px] font-medium text-slate-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                        disabled={isProcessing}
+                      />
+                    </div>
+                    <div className="relative min-w-0">
+                      <span className="block text-[10px] text-slate-500">Preferida</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={isProcessing}
+                        aria-label={hasPreferredTime
+                          ? `Aplicar hora preferida ${preferredTemperatureTime}`
+                          : 'Definir hora preferida'}
+                        title={hasPreferredTime ? 'Aplicar hora preferida' : 'Definir hora preferida'}
+                        onClick={() => {
+                          if (hasPreferredTime) applyPreferredTimeToMeasurement(idx);
+                          else openPreferredTimeEditor(idx);
+                        }}
+                        className={cn(
+                          'h-10 w-full justify-start rounded-none border-0 border-b border-slate-300 bg-transparent px-0 pr-8 text-left text-[12px] font-semibold shadow-none hover:bg-transparent focus-visible:ring-2 focus-visible:ring-temp',
+                          hasPreferredTime
+                            ? isPreferredApplied ? 'text-secundario-fuerte' : 'text-amber-700'
+                            : 'text-slate-400'
+                        )}
+                      >
+                        <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
+                      </Button>
+                      {hasPreferredTime && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openPreferredTimeEditor(idx);
+                          }}
+                          disabled={isProcessing}
+                          className="absolute bottom-0 right-0 flex h-10 w-8 items-center justify-center rounded-md text-amber-700 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-temp disabled:opacity-50"
+                          aria-label="Editar hora preferida"
+                          title="Editar hora preferida"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 {preferredTimeEditorIndex === idx && (
-  <div className="mt-1 rounded-2xl border border-slate-200/60 bg-white/75 p-2 shadow-sm">
+  <div className="mt-2 border-t border-slate-200/70 pt-3">
     <Label className="mb-1 block text-[11px] font-semibold text-subtitulo">
       Hora preferida
     </Label>
@@ -1083,12 +1049,7 @@ const [activeSection, setActiveSection] = useState(() => {
     value={preferredTimeDraft}
     onChange={(event) => setPreferredTimeDraft(event.target.value)}
     disabled={isProcessing || isSavingPreferredTime}
-    className={cn(
-      'h-8 text-[14px] leading-none',
-      formInputClass,
-      temperatureInputClass,
-      RADIUS.field
-    )}
+    className="h-10 w-28 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 text-[14px] font-medium text-slate-700 shadow-none focus:border-temp focus:ring-0"
   />
 
   <Button
@@ -1096,7 +1057,7 @@ const [activeSection, setActiveSection] = useState(() => {
     size="xs"
     onClick={() => handleSavePreferredTime(idx)}
     disabled={isProcessing || isSavingPreferredTime || !preferredTimeDraft}
-    className="h-8 rounded-full bg-temp px-3 text-[11px] font-semibold text-white hover:bg-temp"
+    className="h-10 rounded-lg bg-temp px-3 text-[12px] font-semibold text-white shadow-none hover:bg-temp"
   >
     Guardar
   </Button>
@@ -1107,7 +1068,7 @@ const [activeSection, setActiveSection] = useState(() => {
     variant="ghost"
     onClick={closePreferredTimeEditor}
     disabled={isProcessing || isSavingPreferredTime}
-    className="h-8 rounded-full px-2 text-[11px] text-temp hover:bg-white/90"
+    className="h-10 rounded-lg px-2 text-[12px] text-slate-600 hover:bg-slate-50"
   >
     Cancelar
   </Button>
@@ -1119,7 +1080,7 @@ const [activeSection, setActiveSection] = useState(() => {
       variant="ghost"
       onClick={handleClearPreferredTime}
       disabled={isProcessing || isSavingPreferredTime}
-      className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+      className="h-10 w-10 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700"
       aria-label="Eliminar hora preferida"
       title="Eliminar hora preferida"
     >
@@ -1130,21 +1091,19 @@ const [activeSection, setActiveSection] = useState(() => {
   </div>
 )}
 
- <div className="mt-1 flex flex-wrap items-center gap-1.5">
+ <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-1">
   <div className="flex flex-wrap items-center gap-1.5">
     <Button
       type="button"
       size="xs"
-      variant="outline"
+      variant="ghost"
       disabled={isProcessing}
       aria-pressed={isCorrectionOpen}
-        className={cn(
-          'h-8 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-temp focus-visible:ring-offset-1',
-          isCorrectionOpen
-          ? 'border-temp bg-temp text-white shadow-inner hover:bg-temp hover:text-white active:bg-temp active:text-white'
-          : isCorrected
-          ? 'border-temp bg-white text-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
-          : 'border-slate-200/70 bg-white/70 text-temp hover:border-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
+      className={cn(
+        'h-10 rounded-lg border-0 px-2 text-[12px] font-semibold shadow-none transition-colors focus-visible:ring-2 focus-visible:ring-temp',
+        isCorrectionOpen
+          ? 'bg-temp-suave text-amber-800 hover:bg-temp-suave'
+          : 'bg-transparent text-amber-700 hover:bg-temp-suave'
       )}
       onClick={() => {
         if (isCorrectionOpen) {
@@ -1176,11 +1135,11 @@ const [activeSection, setActiveSection] = useState(() => {
         disabled={isProcessing || !m.selected}
         onClick={() => handleIgnoredChange(!ignored)}
         className={cn(
-          'h-8 w-8 rounded-full border transition-colors',
-          !m.selected && 'opacity-40 cursor-not-allowed',
+          'h-10 w-10 rounded-lg border-0 bg-transparent p-0 shadow-none transition-colors',
+          !m.selected && 'cursor-not-allowed opacity-40',
           m.selected && ignored
-            ? 'border-alerta-2 bg-alerta-2 text-white shadow-sm ring-2 ring-alerta-2-suave'
-            : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white'
+            ? 'bg-alerta-2 text-white hover:bg-alerta-2 hover:text-white'
+            : 'text-temp hover:bg-temp-suave hover:text-temp'
         )}
         aria-pressed={m.selected ? ignored : false}
         title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
@@ -1191,9 +1150,9 @@ const [activeSection, setActiveSection] = useState(() => {
     )}
 
   </div>
-  <Button type="button" variant="outline" size="xs" disabled={isProcessing}
+  <Button type="button" variant="ghost" size="xs" disabled={isProcessing}
     onClick={() => setTemperaturesOpen(true)}
-    className="ml-auto flex min-h-8 items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm hover:border-temp hover:bg-white"
+    className="ml-auto flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent px-2 py-1 text-[12px] font-semibold text-amber-700 shadow-none hover:bg-temp-suave hover:text-amber-700"
     aria-label="Ver temperaturas del día">
     {validMeasurements.length > 1 ? `Mediciones · ${validMeasurements.length}` : 'Mediciones'}
     <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1201,86 +1160,68 @@ const [activeSection, setActiveSection] = useState(() => {
 </div>
 
 {isCorrectionOpen && (
-  <div className="mt-1.5 space-y-1.5 rounded-3xl border border-slate-200/60 bg-white/80 p-2 shadow-sm">
-    <div className="grid grid-cols-2 gap-1.5">
-      <Input
-        type="number"
-        step="0.01"
-        min="34.0"
-        max="40.0"
-        aria-label="Temperatura corregida"
-        value={m.temperature_corrected}
-        onChange={(e) => {
-          const value = e.target.value;
-          updateMeasurement(idx, 'temperature_corrected', value);
-          if (!m.use_corrected) {
-            updateMeasurement(idx, 'use_corrected', true);
-          }
-        }}
-        className={cn(
-          'h-8 text-[14px] leading-none',
-          formInputClass,
-          temperatureInputClass,
-          'text-temp',
-          RADIUS.field
-        )}
-        disabled={isProcessing}
-      />
-
-      <Input
-        type="time"
-        aria-label="Hora corregida"
-        value={m.time_corrected}
-        onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
-        className={cn(
-          'h-8 min-h-0 appearance-none px-2 py-0 text-[14px] leading-none',
-          formInputClass,
-          temperatureInputClass,
-          RADIUS.field
-        )}
-        disabled={isProcessing}
-      />
+  <div className="mt-2 space-y-3 border-t border-slate-200/70 pt-3">
+    <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-3">
+      <div className="min-w-0">
+        <Label htmlFor={`form-corrected-temperature-${idx}`} className="block text-[10px] font-normal text-slate-500">
+          Temperatura corregida (°C)
+        </Label>
+        <Input
+          id={`form-corrected-temperature-${idx}`}
+          type="number"
+          step="0.01"
+          min="34.0"
+          max="40.0"
+          aria-label="Temperatura corregida"
+          value={m.temperature_corrected}
+          onChange={(e) => {
+            const value = e.target.value;
+            updateMeasurement(idx, 'temperature_corrected', value);
+            if (!m.use_corrected) updateMeasurement(idx, 'use_corrected', true);
+          }}
+          className="h-10 w-full min-w-0 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[16px] font-semibold text-amber-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          disabled={isProcessing}
+        />
+      </div>
+      <div className="min-w-0">
+        <Label htmlFor={`form-corrected-time-${idx}`} className="block text-[10px] font-normal text-slate-500">
+          Hora corregida
+        </Label>
+        <Input
+          id={`form-corrected-time-${idx}`}
+          type="time"
+          aria-label="Hora corregida"
+          value={m.time_corrected}
+          onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
+          className="h-10 w-full min-w-0 appearance-none rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[14px] font-medium text-slate-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+          disabled={isProcessing}
+        />
+      </div>
     </div>
-<div className="flex items-center gap-1.5">
-  <div className="inline-flex items-center rounded-full border border-slate-200/70 bg-white/75 p-[2px] shadow-sm">
-    <Button
-  type="button"
-  variant="ghost"
-  disabled={isProcessing}
-  onMouseDown={preventPressFocus}
-  onClick={() => handleTempAdjust(idx, -0.1)}
-  className="relative h-8 w-9 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
-  aria-label="Disminuir temperatura corregida 0,10 grados"
-  title="Bajar 0,10 °C"
->
-  <span className="leading-none text-base text-app-base font-semibold">−</span>
-</Button>
-
-<Button
-  type="button"
-  variant="ghost"
-  disabled={isProcessing}
-  onMouseDown={preventPressFocus}
-  onClick={() => handleTempAdjust(idx, 0.1)}
-  className="relative h-8 w-9 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
-  aria-label="Aumentar temperatura corregida 0,10 grados"
-  title="Subir 0,10 °C"
->
-  <span className="leading-none text-base text-app-base font-semibold">+</span>
-</Button>
-  </div>
-
-
-      <div className="ml-auto flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="inline-flex items-center gap-1" role="group" aria-label="Ajustar temperatura corregida">
+        <Button
+          type="button" variant="ghost" size="icon" disabled={isProcessing}
+          onMouseDown={preventPressFocus}
+          onClick={() => handleTempAdjust(idx, -0.1)}
+          className="h-10 w-10 rounded-lg border-0 bg-transparent px-0 text-lg font-semibold text-amber-700 shadow-none hover:bg-temp-suave hover:text-amber-700"
+          aria-label="Disminuir temperatura corregida 0,10 grados" title="Bajar 0,10 °C"
+        >−</Button>
+        <Button
+          type="button" variant="ghost" size="icon" disabled={isProcessing}
+          onMouseDown={preventPressFocus}
+          onClick={() => handleTempAdjust(idx, 0.1)}
+          className="h-10 w-10 rounded-lg border-0 bg-transparent px-0 text-lg font-semibold text-amber-700 shadow-none hover:bg-temp-suave hover:text-amber-700"
+          aria-label="Aumentar temperatura corregida 0,10 grados" title="Subir 0,10 °C"
+        >+</Button>
+      </div>
+      <div className="flex min-h-10 items-center gap-2">
         <Checkbox
           id={`use_corrected_${idx}`}
           checked={m.use_corrected}
           onCheckedChange={(checked) => handleUseCorrectedChange(idx, checked)}
         />
-        <Label
-          htmlFor={`use_corrected_${idx}`}
-          className="text-xs font-medium text-slate-700"
-        >
+        <Label htmlFor={`use_corrected_${idx}`} className="text-xs font-medium text-slate-700">
           Usar valor corregido
         </Label>
       </div>

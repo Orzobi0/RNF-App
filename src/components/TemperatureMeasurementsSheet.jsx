@@ -7,13 +7,12 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ChevronRight, Loader2, MoreHorizontal, Thermometer, X, Check, Edit3, Clock, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, MoreHorizontal, Thermometer, X, Check, Edit3, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { addHours, format, parse, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import {
   measurementDisplay, measurementSourceLabel, newManualMeasurement,
   normalizeMeasurements, sortedMeasurements, temperatureNumber,
@@ -27,7 +26,7 @@ export const MeasurementSourceChip = ({ measurement, label }) => {
 };
 
 export const BluetoothMeasurementDetails = ({ measurement: m }) => {
-  if (m?.source !== 'bluetooth' || !isFemometerBlePrototypeEnabled() || !isFemometerBleAndroidNative()) return null;
+  if (m?.source !== 'bluetooth') return null;
   const fields = [
     ['Origen', 'Bluetooth'], ['Modelo', m.device_model], ['Temperatura original (°C)', m.temperature_original],
     ['Fecha del termómetro', m.device_timestamp], ['Fecha confirmada', m.confirmed_timestamp],
@@ -36,15 +35,41 @@ export const BluetoothMeasurementDetails = ({ measurement: m }) => {
     ['Temperatura corregida (°C)', m.temperature_corrected], ['Hora corregida', m.temperature_corrected !== '' && m.temperature_corrected != null ? m.time_corrected : null],
     ['Usa corrección', m.temperature_corrected !== '' && m.temperature_corrected != null ? (m.use_corrected ? 'Sí' : 'No') : null],
   ].filter(([, value]) => value !== null && value !== undefined && value !== '');
-  return <details className="px-3 py-1 text-xs text-slate-600">
-    <summary className="min-h-11 cursor-pointer py-3">Origen y detalles Bluetooth</summary>
-    <dl className="space-y-1 pb-2">{fields.map(([label, value]) => <div key={label} className="break-words"><dt className="inline font-semibold">{label}: </dt><dd className="inline">{String(value)}</dd></div>)}</dl>
-  </details>;
+  
+return (
+  <section
+    aria-label="Información de la medición Bluetooth"
+    className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3"
+  >
+    <h3 className="mb-2 text-sm font-semibold text-subtitulo">
+      Información de la medición
+    </h3>
+
+    <dl className="divide-y divide-slate-200/60">
+      {fields.map(([label, value]) => (
+        <div
+          key={label}
+          className="grid grid-cols-2 gap-3 py-2 text-xs"
+        >
+          <dt className="text-slate-500">
+            {label}
+          </dt>
+          <dd className="min-w-0 break-words text-right font-medium text-slate-700">
+            {String(value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+);
+
 };
 
 const MeasurementValue = ({ measurement, ignored = false }) => (
   <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-slate-700">
-    <span className={`shrink-0 rounded-full border border-slate-200/70 bg-white px-2 py-1 font-semibold leading-none shadow-sm tabular-nums ${ignored ? 'line-through opacity-60' : ''}`}>{measurementDisplay(measurement)}</span>
+    <span className={`shrink-0 text-[14px] font-semibold tabular-nums text-amber-900 ${ignored ? 'line-through opacity-60' : ''}`}>
+  {measurementDisplay(measurement)}
+</span>
     <span className="shrink-0 text-xs font-medium text-slate-500 tabular-nums">{measurement.time}</span>
     <MeasurementSourceChip measurement={measurement} />
     {ignored && <EyeOff className="h-3.5 w-3.5 shrink-0 text-alerta-2" aria-label="Temperatura despreciada" />}
@@ -158,7 +183,6 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     const time = format(addHours(parse(editor.draft.time || '00:00', 'HH:mm', new Date()), Math.round((corrected - raw) * 10)), 'HH:mm');
     setEditor((current) => ({ ...current, draft: { ...current.draft, temperature_corrected: corrected, time_corrected: time, use_corrected: true } }));
   };
-  const editorInputClass = 'h-8 min-w-0 rounded-3xl border-slate-200/70 bg-white px-2 text-[14px] font-semibold leading-none text-slate-700 shadow-sm focus:border-temp focus:ring-2 focus:ring-temp focus-visible:ring-temp [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
   const saveEdit = () => {
     if (!editorRef.current?.reportValidity()) return;
     const draft = { ...editor.draft };
@@ -262,68 +286,163 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
               {measurements.length === 0 && <p className="text-sm text-suave">Sin temperaturas registradas</p>}
               <p className="font-semibold">{editor.index === null ? 'Añadir medición manual' : 'Editar medición'}</p>
               <fieldset disabled={busy} className="space-y-3">
-                <div className={`relative overflow-hidden space-y-1.5 rounded-3xl border p-2.5 shadow-sm ring-1 transition-colors ${editor.draft.selected && editor.ignored ? 'border-alerta-2-suave bg-white/60 ring-alerta-2-suave' : 'border-temp bg-white/85 ring-temp'}`}>
-                  <span aria-hidden="true" className={`pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full ${editor.draft.selected && editor.ignored ? 'bg-alerta-2 opacity-75' : 'bg-temp opacity-85'}`} />
-                  <div className="flex items-center gap-1 text-[13px] font-semibold text-subtitulo"><Thermometer className="h-4 w-4 text-temp" />Temperatura</div>
-                  <div className={editor.draft.source !== 'bluetooth' ? 'grid grid-cols-[minmax(0,1fr)_96px_68px] gap-1.5' : 'grid grid-cols-[minmax(0,1fr)_110px] gap-1.5'}>
-                    <Input aria-label="Temperatura (°C)" autoFocus type="number" inputMode="decimal" step="0.01" min="34" max="40" placeholder="36.50" value={editor.draft.temperature ?? ''} onChange={(e) => field('temperature', e.target.value)} className={editorInputClass} />
-                    <Input aria-label="Hora de toma" type="time" required value={editor.draft.time ?? ''} onChange={(e) => field('time', e.target.value)} className={editorInputClass} />
-                    {editor.draft.source !== 'bluetooth' && <div className="relative">
-                      <Button type="button" variant="outline" aria-label={preferredTime ? `Aplicar hora preferida ${preferredTime}` : 'Definir hora preferida'}
-                        onClick={() => preferredTime ? field('time', preferredTime) : openPreferredTimeEditor()}
-                        className={`h-8 w-full rounded-2xl px-1 text-[11px] font-semibold ${preferredTime ? editor.draft.time === preferredTime ? 'border-secundario bg-secundario text-white hover:bg-secundario' : 'border-slate-200/70 bg-white/80 text-temp' : 'border-dashed border-slate-200 bg-white/70 text-slate-400'}`}>
-                        <Clock className="mr-1 h-3 w-3" />{preferredTime || '--:--'}
-                      </Button>
-                      {preferredTime && <button type="button" aria-label="Editar hora preferida" title="Editar hora preferida" onClick={openPreferredTimeEditor}
-                        className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-temp shadow-sm"><Edit3 className="h-2.5 w-2.5" /></button>}
-                    </div>}
+                <div className="space-y-2 rounded-2xl border border-slate-200/70 bg-white px-3 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[13px] font-semibold text-subtitulo">
+                      <Thermometer className="h-4 w-4 text-temp" aria-hidden="true" />
+                      Temperatura
+                    </div>
+                    {editor.draft.selected && (
+                      <span className="text-[10px] font-medium text-amber-700">
+                        {editor.ignored ? 'Despreciada' : 'En gráfica'}
+                      </span>
+                    )}
                   </div>
-                  {preferredEditorOpen && editor.draft.source !== 'bluetooth' && <div className="space-y-1 rounded-2xl border border-slate-200/60 bg-white/75 p-2 shadow-sm">
-                    <label htmlFor="sheet-preferred-time" className="block text-[11px] font-semibold text-subtitulo">Hora preferida</label>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Input id="sheet-preferred-time" type="time" value={preferredDraft} onChange={(event) => setPreferredDraft(event.target.value)} className={`${editorInputClass} w-28`} />
-                      <Button type="button" size="xs" disabled={!preferredDraft} onClick={() => savePreferredTime()} className="h-8 rounded-full bg-temp px-3 text-[11px] text-white hover:bg-temp">Guardar</Button>
-                      <Button type="button" size="xs" variant="ghost" onClick={() => setPreferredEditorOpen(false)} className="h-8 rounded-full px-2 text-[11px] text-temp">Cancelar</Button>
-                      {preferredTime && <Button type="button" size="icon" variant="ghost" aria-label="Eliminar hora preferida" onClick={() => savePreferredTime(true)} className="h-8 w-8 rounded-full text-rose-600"><Trash2 className="h-4 w-4" /></Button>}
+                  <div className={editor.draft.source !== 'bluetooth'
+                    ? 'grid grid-cols-[minmax(0,1fr)_90px_82px] items-end gap-2'
+                    : 'grid grid-cols-[minmax(0,1fr)_110px] items-end gap-3'}>
+                    <div className="min-w-0">
+                      <label htmlFor="sheet-temperature-value" className="block text-[10px] text-slate-500">Valor (°C)</label>
+                      <Input
+                        id="sheet-temperature-value" aria-label="Temperatura (°C)" autoFocus
+                        type="number" inputMode="decimal" step="0.01" min="34" max="40"
+                        placeholder="36.50" value={editor.draft.temperature ?? ''}
+                        onChange={(e) => field('temperature', e.target.value)}
+                        className="h-10 w-full min-w-0 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[16px] font-semibold text-amber-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
                     </div>
-                  </div>}
-
-                  <Button type="button" size="xs" variant="outline" aria-pressed={correctionOpen} onPointerDown={(event) => {
-                    if (android && editorRef.current?.contains(document.activeElement) && document.activeElement?.matches('input')) event.preventDefault();
-                  }} onClick={() => {
-                    setCorrectionOpen(!correctionOpen);
-                    if (!correctionOpen) {
-                      if (temperatureNumber(editor.draft.temperature_corrected) === null) field('temperature_corrected', editor.draft.temperature);
-                      if (!editor.draft.time_corrected) field('time_corrected', editor.draft.time);
-                    }
-                  }} className={`h-8 rounded-full px-2.5 text-[11px] font-semibold ${correctionOpen ? 'border-temp bg-temp text-white hover:bg-temp hover:text-white' : 'border-slate-200/70 bg-white/70 text-temp'}`}>
-                    {editor.draft.use_corrected ? <Check className="mr-1 h-3.5 w-3.5" /> : <Edit3 className="mr-1 h-3.5 w-3.5" />}{editor.draft.use_corrected ? 'Corregida' : 'Corregir'}
-                  </Button>
-                  {editor.index !== null && <Button type="button" variant="outline" disabled={!editor.draft.selected || editor.index === null}
-                    aria-pressed={editor.draft.selected && editor.ignored}
-                    onClick={() => setEditor((current) => ({ ...current, ignored: !current.ignored }))}
-                    className={`ml-2 h-8 rounded-full px-2.5 text-[11px] font-semibold ${editor.draft.selected && editor.ignored ? 'border-alerta-2 bg-alerta-2 text-white hover:bg-alerta-2 hover:text-white' : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white hover:text-temp focus:text-temp active:text-temp'}`}>
-                    {editor.draft.selected && editor.ignored ? <EyeOff className="mr-1 h-4 w-4" /> : <Eye className="mr-1 h-4 w-4" />}
-                    {editor.draft.selected && editor.ignored ? 'Restaurar' : 'Despreciar'}
-                  </Button>}
-                  {editor.index !== null && !editor.draft.selected && <p className="text-xs text-suave">Para despreciarla, selecciona primero esta medición para la gráfica.</p>}
-                  {correctionOpen && <div className="space-y-1.5 rounded-3xl border border-slate-200/60 bg-white/80 p-2 shadow-sm">
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <Input aria-label="Temperatura corregida (opcional)" type="number" inputMode="decimal" step="0.01" min="34" max="40" value={editor.draft.temperature_corrected ?? ''} onChange={(e) => { field('temperature_corrected', e.target.value); field('use_corrected', true); }} className={editorInputClass} />
-                      <Input aria-label="Hora corregida" type="time" value={editor.draft.time_corrected ?? ''} onChange={(e) => field('time_corrected', e.target.value)} className={editorInputClass} />
+                    <div className="min-w-0">
+                      <label htmlFor="sheet-temperature-time" className="block text-[10px] text-slate-500">Hora</label>
+                      <Input
+                        id="sheet-temperature-time" aria-label="Hora de toma" type="time" required
+                        value={editor.draft.time ?? ''} onChange={(e) => field('time', e.target.value)}
+                        className="h-10 w-full min-w-0 appearance-none rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[14px] font-medium text-slate-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="inline-flex rounded-full border border-slate-200/70 bg-white/75 p-0.5">
-                        <Button type="button" variant="ghost" aria-label="Disminuir temperatura corregida 0,10 grados" className="h-8 w-9 rounded-full px-0 text-temp" onClick={() => adjustCorrection(-0.1)}>−</Button>
-                        <Button type="button" variant="ghost" aria-label="Aumentar temperatura corregida 0,10 grados" className="h-8 w-9 rounded-full px-0 text-temp" onClick={() => adjustCorrection(0.1)}>+</Button>
+                    {editor.draft.source !== 'bluetooth' && (
+                      <div className="relative min-w-0">
+                        <span className="block text-[10px] text-slate-500">Preferida</span>
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          aria-label={preferredTime ? `Aplicar hora preferida ${preferredTime}` : 'Definir hora preferida'}
+                          onClick={() => preferredTime ? field('time', preferredTime) : openPreferredTimeEditor()}
+                          className={`h-10 w-full justify-start rounded-none border-0 border-b border-slate-300 bg-transparent px-0 pr-8 text-left text-[12px] font-semibold shadow-none hover:bg-transparent focus-visible:ring-2 focus-visible:ring-temp ${preferredTime ? editor.draft.time === preferredTime ? 'text-secundario-fuerte' : 'text-amber-700' : 'text-slate-400'}`}
+                        >
+                          <span className="truncate">{preferredTime || '--:--'}</span>
+                        </Button>
+                        {preferredTime && (
+                          <button
+                            type="button" aria-label="Editar hora preferida" title="Editar hora preferida"
+                            onClick={openPreferredTimeEditor}
+                            className="absolute bottom-0 right-0 flex h-10 w-8 items-center justify-center rounded-md text-amber-700 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-temp"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        )}
                       </div>
-                      <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-700"><Checkbox checked={!!editor.draft.use_corrected} onCheckedChange={(checked) => field('use_corrected', checked === true)} />Usar valor corregido</label>
+                    )}
+                  </div>
+                  {preferredEditorOpen && editor.draft.source !== 'bluetooth' && (
+                    <div className="space-y-2 border-t border-slate-200/70 pt-3">
+                      <label htmlFor="sheet-preferred-time" className="block text-[11px] font-semibold text-subtitulo">Hora preferida</label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          id="sheet-preferred-time" type="time" value={preferredDraft}
+                          onChange={(event) => setPreferredDraft(event.target.value)}
+                          className="h-10 w-28 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 text-[14px] text-slate-700 shadow-none focus:border-temp focus:ring-0"
+                        />
+                        <Button type="button" variant="ghost" size="xs" disabled={!preferredDraft}
+                          onClick={() => savePreferredTime()}
+                          className="h-10 rounded-lg px-2 text-[12px] font-semibold text-amber-700 shadow-none hover:bg-temp-suave">Guardar</Button>
+                        <Button type="button" variant="ghost" size="xs"
+                          onClick={() => setPreferredEditorOpen(false)}
+                          className="h-10 rounded-lg px-2 text-[12px] text-slate-600 shadow-none hover:bg-slate-50">Cancelar</Button>
+                        {preferredTime && (
+                          <Button type="button" size="icon" variant="ghost" aria-label="Eliminar hora preferida"
+                            onClick={() => savePreferredTime(true)}
+                            className="h-10 w-10 rounded-lg text-rose-600 shadow-none hover:bg-rose-50"><Trash2 className="h-4 w-4" /></Button>
+                        )}
+                      </div>
                     </div>
-                  </div>}
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-2">
+                    <Button
+                      type="button" size="sm" variant="ghost" aria-pressed={correctionOpen}
+                      onPointerDown={(event) => {
+                        if (android && editorRef.current?.contains(document.activeElement) && document.activeElement?.matches('input')) event.preventDefault();
+                      }}
+                      onClick={() => {
+                        setCorrectionOpen(!correctionOpen);
+                        if (!correctionOpen) {
+                          if (temperatureNumber(editor.draft.temperature_corrected) === null) field('temperature_corrected', editor.draft.temperature);
+                          if (!editor.draft.time_corrected) field('time_corrected', editor.draft.time);
+                        }
+                      }}
+                      className={`h-10 rounded-lg border-0 px-2 text-[12px] font-semibold shadow-none ${correctionOpen ? 'bg-temp-suave text-amber-800 hover:bg-temp-suave' : 'bg-transparent text-amber-700 hover:bg-temp-suave'}`}
+                    >
+                      {editor.draft.use_corrected ? <Check className="mr-1 h-3.5 w-3.5" /> : <Edit3 className="mr-1 h-3.5 w-3.5" />}
+                      {editor.draft.use_corrected ? 'Corregida' : 'Corregir'}
+                    </Button>
+                    {editor.index !== null && (
+                      <Button
+                        type="button" size="sm" variant="ghost"
+                        disabled={!editor.draft.selected} aria-pressed={editor.draft.selected && editor.ignored}
+                        onClick={() => setEditor((current) => ({ ...current, ignored: !current.ignored }))}
+                        className={`h-10 rounded-lg border-0 px-2 text-[12px] font-semibold shadow-none ${editor.draft.selected && editor.ignored ? 'bg-alerta-2 text-white hover:bg-alerta-2 hover:text-white' : 'text-amber-700 hover:bg-temp-suave hover:text-amber-700'}`}
+                      >
+                        {editor.draft.selected && editor.ignored ? <EyeOff className="mr-1 h-4 w-4" /> : <Eye className="mr-1 h-4 w-4" />}
+                        {editor.draft.selected && editor.ignored ? 'Restaurar' : 'Despreciar'}
+                      </Button>
+                    )}
+                  </div>
+                  {editor.index !== null && !editor.draft.selected && (
+                    <p className="text-xs text-suave">Para despreciarla, selecciona primero esta medición para la gráfica.</p>
+                  )}
+                  {correctionOpen && (
+                    <div className="space-y-3 border-t border-slate-200/70 pt-3">
+                      <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-3">
+                        <div className="min-w-0">
+                          <label htmlFor="sheet-corrected-temperature" className="block text-[10px] text-slate-500">Temperatura corregida (°C)</label>
+                          <Input
+                            id="sheet-corrected-temperature" aria-label="Temperatura corregida (opcional)"
+                            type="number" inputMode="decimal" step="0.01" min="34" max="40"
+                            value={editor.draft.temperature_corrected ?? ''}
+                            onChange={(e) => { field('temperature_corrected', e.target.value); field('use_corrected', true); }}
+                            className="h-10 w-full min-w-0 rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[16px] font-semibold text-amber-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <label htmlFor="sheet-corrected-time" className="block text-[10px] text-slate-500">Hora corregida</label>
+                          <Input
+                            id="sheet-corrected-time" aria-label="Hora corregida" type="time"
+                            value={editor.draft.time_corrected ?? ''}
+                            onChange={(e) => field('time_corrected', e.target.value)}
+                            className="h-10 w-full min-w-0 appearance-none rounded-none border-0 border-b border-slate-300 bg-transparent px-0 py-0 text-[14px] font-medium text-slate-700 shadow-none focus:border-temp focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1" role="group" aria-label="Ajustar temperatura corregida">
+                          <Button type="button" variant="ghost" size="icon" aria-label="Disminuir temperatura corregida 0,10 grados"
+                            onClick={() => adjustCorrection(-0.1)} className="h-10 w-10 rounded-lg border-0 px-0 text-lg font-semibold text-amber-700 shadow-none hover:bg-temp-suave hover:text-amber-700">−</Button>
+                          <Button type="button" variant="ghost" size="icon" aria-label="Aumentar temperatura corregida 0,10 grados"
+                            onClick={() => adjustCorrection(0.1)} className="h-10 w-10 rounded-lg border-0 px-0 text-lg font-semibold text-amber-700 shadow-none hover:bg-temp-suave hover:text-amber-700">+</Button>
+                        </div>
+                        <label className="flex min-h-10 items-center gap-2 text-xs text-slate-700">
+                          <Checkbox checked={!!editor.draft.use_corrected}
+                            onCheckedChange={(checked) => field('use_corrected', checked === true)} />
+                          Usar valor corregido
+                        </label>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className={android ? "hidden" : "flex gap-2"}><Button type="button" variant="outline" className="flex-1 rounded-3xl border-pink-200" onClick={cancelEditor}>Cancelar</Button><Button type="submit" aria-label="Guardar medición" className="flex-1 rounded-3xl bg-ok text-white hover:bg-ok-fuerte">{busy ? 'Guardando…' : 'Guardar'}</Button></div>
+                <div className={android ? "hidden" : "flex gap-2"}><Button type="button" variant="outline" className="flex-1 rounded-xl border-slate-200" onClick={cancelEditor}>Cancelar</Button><Button type="submit" aria-label="Guardar medición" className="flex-1 rounded-xl bg-ok text-white hover:bg-ok-fuerte">{busy ? 'Guardando…' : 'Guardar'}</Button></div>
               </fieldset>
-            </form>
+
+<BluetoothMeasurementDetails measurement={editor.draft} />
+
+</form>
           ) : <div className="space-y-3 px-0.5 pb-3">
             <p className="pb-2 text-xs text-slate-500">Selecciona la temperatura para la gráfica e interpretación.{autoSave && ' Los cambios se guardan al momento.'}</p>
             {!measurements.length && <p className="py-4 text-sm text-slate-500">Sin temperatura</p>}
@@ -339,13 +458,13 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
                   <DropdownMenu.Item className="cursor-pointer rounded-lg p-3 text-rose-700 outline-none focus:bg-rose-50" onSelect={() => requestDelete(index)}>Eliminar</DropdownMenu.Item>
                 </DropdownMenu.Content></DropdownMenu.Portal>
               </DropdownMenu.Root>
-            </div><BluetoothMeasurementDetails measurement={m} /></React.Fragment>)}
+            </div></React.Fragment>)}
             <Button type="button" variant="outline" disabled={busy} onClick={() => edit(null)} className="mt-3 min-h-11 w-full rounded-3xl border-slate-200/70 bg-white/80 text-temp shadow-sm hover:border-temp hover:bg-white hover:text-temp">+ Añadir medición manual</Button>
           </div>}
         </div>
         {android && editor && <div className="flex shrink-0 gap-2 px-4 pt-3">
-          <Button type="button" variant="outline" disabled={busy} className="flex-1 rounded-full" onClick={cancelEditor}>Cancelar</Button>
-          <Button type="button" disabled={busy} className="flex-1 rounded-full bg-ok text-white" onClick={saveEdit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
+          <Button type="button" variant="outline" disabled={busy} className="flex-1 rounded-xl" onClick={cancelEditor}>Cancelar</Button>
+          <Button type="button" disabled={busy} className="flex-1 rounded-xl bg-ok text-white" onClick={saveEdit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
         </div>}
         <AlertDialog.Root open={deleting !== null} onOpenChange={(value) => {
           if (!value && !saving.current) { setDeleting(null); setError(''); }
